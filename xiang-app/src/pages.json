@@ -1,0 +1,183 @@
+{
+  "pages": [
+    {
+      "path": "pages/character/list",
+      "style": {
+        "navigationBarTitleText": "角色管理",
+        "enablePullDownRefresh": true,
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/character/detail",
+      "style": {
+        "navigationBarTitleText": "角色详情",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/character/edit",
+      "style": {
+        "navigationBarTitleText": "编辑角色",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/chat/chat",
+      "style": {
+        "navigationBarTitleText": "聊天",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/game/panel",
+      "style": {
+        "navigationBarTitleText": "游戏中心",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/game/settings",
+      "style": {
+        "navigationBarTitleText": "游戏设置",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/game/mini/escape",
+      "style": {
+        "navigationBarTitleText": "逃跑游戏",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/favorites/favorites",
+      "style": {
+        "navigationBarTitleText": "我的收藏",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/liked/liked",
+      "style": {
+        "navigationBarTitleText": "我的点赞",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/history/history",
+      "style": {
+        "navigationBarTitleText": "历史记录",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/settings",
+      "style": {
+        "navigationBarTitleText": "设置",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/user-info",
+      "style": {
+        "navigationBarTitleText": "用户信息",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/global-prompt",
+      "style": {
+        "navigationBarTitleText": "全局提示词",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/api-config",
+      "style": {
+        "navigationBarTitleText": "API 配置",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/export",
+      "style": {
+        "navigationBarTitleText": "导出数据",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/voice",
+      "style": {
+        "navigationBarTitleText": "语音设置",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "相",
+    "navigationBarBackgroundColor": "#0f1113",
+    "backgroundColor": "#08090a"
+  },
+  "tabBar": {
+    "color": "#a0a0a0",
+    "selectedColor": "#4a90d9",
+    "backgroundColor": "#141618",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/character/list",
+        "text": "角色",
+        "iconPath": "static/images/tab-character.svg",
+        "selectedIconPath": "static/images/tab-character-active.svg"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史",
+        "iconPath": "static/images/tab-history.svg",
+        "selectedIconPath": "static/images/tab-history-active.svg"
+      },
+      {
+        "pagePath": "pages/favorites/favorites",
+        "text": "收藏",
+        "iconPath": "static/images/tab-favorites.svg",
+        "selectedIconPath": "static/images/tab-favorites-active.svg"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置",
+        "iconPath": "static/images/tab-settings.svg",
+        "selectedIconPath": "static/images/tab-settings-active.svg"
+      }
+    ]
+  },
+	"condition" : { //模式配置，仅开发期间生效
+		"current": 0, //当前激活的模式(list 的索引项)
+		"list": [
+			{
+				"name": "", //模式名称
+				"path": "", //启动页面，必选
+				"query": "" //启动参数，在页面的onLoad函数里面得到
+			}
+		]
+	}
+}

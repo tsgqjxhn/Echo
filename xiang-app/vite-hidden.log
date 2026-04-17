@@ -1,0 +1,115 @@
+
+> xiang-app@1.0.0 dev
+> vite --config vite.config.mjs --host 0.0.0.0 --port 5173
+
+Re-optimizing dependencies because lockfile has changed
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1032[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://10.154.37.182:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.21.32.1:[1m5173[22m/[39m
+[2m14:52:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue, /src/pages/settings/settings.vue, /src/pages/history/history.vue, /src/pages/settings/api-config.vue, /src/pages/character/list.vue[22m
+[2m14:52:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue, /src/pages/settings/settings.vue, /src/pages/history/history.vue, /src/pages/settings/api-config.vue[22m
+[2m14:53:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m15:04:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m15:07:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m15:07:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m15:08:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m15:09:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m15:10:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m15:45:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m15:48:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue, /src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m15:52:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue, /src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m15:53:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m15:54:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue, /src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m15:55:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m15:57:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m15:58:35[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m15:59:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/game/panel.vue[22m
+[2m16:00:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m16:01:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m16:02:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue?vue&type=style&index=0&scoped=73685b36&lang.scss[22m
+[2m16:02:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:02:34[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/router.ts[22m
+[2m16:02:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/theme.scss[22m
+[2m16:02:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/game/panel.vue?vue&type=style&index=0&scoped=a2cabab3&lang.scss[22m
+[2m16:03:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue?vue&type=style&index=0&scoped=6fff9333&lang.scss[22m
+[2m16:03:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/TabBar/index.vue?vue&type=style&index=0&scoped=cce0e012&lang.css[22m
+[2m16:03:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:04:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:04:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m16:04:37[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m16:12:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m16:13:57[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/game/panel.vue[22m
+[2m16:19:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m16:19:36[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:19:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:21:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:21:29[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:21:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m16:21:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m16:22:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m16:22:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m16:22:34[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m16:29:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:29:27[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue, /src/pages/settings/settings.vue, /src/pages/dialogue/feed.vue, /src/pages/character/list.vue, /src/pages/history/history.vue[22m
+[2m16:34:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:34:25[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:53:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m16:54:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue, /src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m17:01:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m17:02:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m17:02:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m17:03:38[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m17:05:02[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m17:17:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m17:17:55[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m17:18:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m17:21:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m17:22:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m17:34:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue[22m
+[2m17:35:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m18:40:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m18:45:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m18:54:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:54:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:55:00[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:55:09[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:55:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:55:45[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:56:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:57:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m18:59:58[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:12[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:21[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:00:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:01:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue[22m
+[2m19:01:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/dialogue/feed.vue?vue&type=style&index=0&scoped=0ecfc906&lang.scss[22m
+[2m19:16:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/styles/theme.scss[22m
+[2m19:16:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue?vue&type=style&index=0&scoped=73685b36&lang.scss[22m
+[2m21:15:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:16:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:16:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:19:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:22:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:23:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m21:24:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m21:24:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m21:25:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue?vue&type=style&index=0&scoped=6fff9333&lang.scss[22m
+[2m21:25:19[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m21:25:43[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/settings/settings.vue, /src/pages/settings/settings.vue?vue&type=style&index=0&scoped=6d719173&lang.scss[22m
+[2m21:26:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/character/list.vue[22m
+[2m21:26:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:27:04[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:28:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:28:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue, /src/pages/dialogue/feed.vue, /src/pages/character/list.vue[22m
+[2m21:29:05[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:29:40[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/history/history.vue[22m
+[2m21:40:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m21:40:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m21:41:03[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/utils/uni-polyfill.ts[22m

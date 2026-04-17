@@ -1,0 +1,202 @@
+// 极光 (Aurora) — black/white gradient + mint green + sky blue frosted glass
+
+// ── Backgrounds ──────────────────────────────────────
+$bg-primary: #0a0f1a;
+$bg-secondary: #0f1626;
+$bg-tertiary: #141d32;
+$bg-quaternary: #19243e;
+$bg-quinary: #1e2b4a;
+
+$card-bg: rgba(255, 255, 255, 0.10);
+$card-hover-bg: rgba(255, 255, 255, 0.16);
+$card-strong-bg: rgba(255, 255, 255, 0.05);
+
+$input-bg: rgba(255, 255, 255, 0.08);
+$input-focus-bg: rgba(255, 255, 255, 0.12);
+$input-border: rgba(255, 255, 255, 0.15);
+
+// ── Borders ──────────────────────────────────────────
+$border-color: rgba(255, 255, 255, 0.10);
+$border-light: rgba(255, 255, 255, 0.20);
+$border-strong: rgba(255, 255, 255, 0.28);
+$border-dark: rgba(0, 0, 0, 0.40);
+
+// ── Text (white-based on dark glass) ─────────────────
+$text-primary: #ffffff;
+$text-secondary: rgba(255, 255, 255, 0.85);
+$text-tertiary: rgba(186, 230, 253, 0.65);
+$text-disabled: rgba(255, 255, 255, 0.25);
+$text-inverse: #050d14;
+
+// ── Accent: Sky Blue (Primary CTA) ───────────────────
+$primary-color: #38bdf8;
+$primary-light: #7dd3fc;
+$primary-dark: #0284c7;
+
+// ── Accent: Mint Green (Secondary) ───────────────────
+$secondary-color: #34d399;
+$secondary-light: #6ee7b7;
+$secondary-dark: #059669;
+
+// ── Accent: Cyan (Info / Chat) ───────────────────────
+$tertiary-color: #67e8f9;
+$tertiary-light: #a5f3fc;
+$tertiary-dark: #0891b2;
+
+// ── Semantic ─────────────────────────────────────────
+$success-color: #34d399;
+$warning-color: #fbbf24;
+$error-color: #f87171;
+$info-color: #38bdf8;
+
+// ── Shadows ──────────────────────────────────────────
+$shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.25);
+$shadow-md: 0 16px 40px rgba(0, 0, 0, 0.32);
+$shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.44);
+$shadow-xl: 0 44px 110px rgba(0, 0, 0, 0.56);
+
+// ── Radii ────────────────────────────────────────────
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-lg: 20px;
+$radius-xl: 24px;
+$radius-full: 9999px;
+
+// ── Spacing ──────────────────────────────────────────
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;
+$spacing-2xl: 32px;
+
+// ── Motion ───────────────────────────────────────────
+$transition-fast: 0.15s ease;
+$transition-base: 0.2s ease-out;
+$transition-slow: 0.3s ease;
+
+:root {
+  --bg-primary: #{$bg-primary};
+  --bg-secondary: #{$bg-secondary};
+  --bg-tertiary: #{$bg-tertiary};
+  --bg-quaternary: #{$bg-quaternary};
+  --bg-quinary: #{$bg-quinary};
+
+  --card-bg: #{$card-bg};
+  --card-hover-bg: #{$card-hover-bg};
+  --card-strong-bg: #{$card-strong-bg};
+
+  --input-bg: #{$input-bg};
+  --input-focus-bg: #{$input-focus-bg};
+  --input-border: #{$input-border};
+
+  --border-color: #{$border-color};
+  --border-light: #{$border-light};
+  --border-strong: #{$border-strong};
+  --border-dark: #{$border-dark};
+
+  --text-primary: #{$text-primary};
+  --text-secondary: #{$text-secondary};
+  --text-tertiary: #{$text-tertiary};
+  --text-disabled: #{$text-disabled};
+  --text-inverse: #{$text-inverse};
+
+  --primary-color: #{$primary-color};
+  --primary-light: #{$primary-light};
+  --primary-dark: #{$primary-dark};
+
+  --secondary-color: #{$secondary-color};
+  --secondary-light: #{$secondary-light};
+  --secondary-dark: #{$secondary-dark};
+
+  --tertiary-color: #{$tertiary-color};
+  --tertiary-light: #{$tertiary-light};
+  --tertiary-dark: #{$tertiary-dark};
+
+  --success-color: #{$success-color};
+  --warning-color: #{$warning-color};
+  --error-color: #{$error-color};
+  --info-color: #{$info-color};
+
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+  --shadow-lg: #{$shadow-lg};
+  --shadow-xl: #{$shadow-xl};
+
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --radius-full: #{$radius-full};
+
+  --spacing-xs: #{$spacing-xs};
+  --spacing-sm: #{$spacing-sm};
+  --spacing-md: #{$spacing-md};
+  --spacing-lg: #{$spacing-lg};
+  --spacing-xl: #{$spacing-xl};
+  --spacing-2xl: #{$spacing-2xl};
+
+  --transition-fast: #{$transition-fast};
+  --transition-base: #{$transition-base};
+  --transition-slow: #{$transition-slow};
+
+  // ── Frosted glass surface levels (per 磨砂 spec) ──
+  // L1 card:  rgba(255,255,255,0.12)  blur(20px) saturate(1.4)  border rgba(255,255,255,0.25)
+  // L2 float: rgba(255,255,255,0.18)  blur(24px) saturate(1.5)  border rgba(255,255,255,0.30)
+  // L3 nav:   rgba(255,255,255,0.08)  blur(16px) saturate(1.2)  border rgba(255,255,255,0.15)
+  // L4 inset: rgba(255,255,255,0.06)  blur(10px)                border rgba(255,255,255,0.10)
+
+  // ── Page backdrop: black/white gradient + mint blob (TL) + sky blob (BR) + light gray blob (mid) ──
+  --page-backdrop:
+    radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.25) 0%, transparent 46%),
+    radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.22) 0%, transparent 44%),
+    radial-gradient(ellipse at 58% 44%, rgba(200, 210, 220, 0.12) 0%, transparent 52%),
+    linear-gradient(160deg, #{$bg-primary} 0%, #{$bg-secondary} 32%, #{$bg-tertiary} 68%, #0d121f 100%);
+  --page-backdrop-soft:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.14), transparent 40%),
+    radial-gradient(circle at bottom left, rgba(52, 211, 153, 0.10), transparent 40%),
+    linear-gradient(180deg, #{$bg-primary} 0%, #{$bg-secondary} 50%, #{$bg-tertiary} 100%);
+
+  // ── Glass surface gradients (per 磨砂 spec) ──
+  --surface-gradient:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  --surface-gradient-strong:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.08));
+  --surface-subtle:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.07), rgba(52, 211, 153, 0.03));
+  --hero-gradient:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(10, 15, 26, 0.90), rgba(10, 15, 26, 0.96));
+
+  // ── Interactive button gradients ──
+  --interactive-gradient:
+    linear-gradient(135deg, #{$primary-light} 0%, #{$primary-color} 50%, #{$primary-dark} 100%);
+  --interactive-gradient-secondary:
+    linear-gradient(135deg, #{$secondary-light} 0%, #{$secondary-color} 50%, #{$secondary-dark} 100%);
+  --interactive-gradient-tertiary:
+    linear-gradient(135deg, #{$tertiary-light} 0%, #{$tertiary-color} 50%, #{$tertiary-dark} 100%);
+
+  --ghost-gradient:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.10), rgba(2, 132, 199, 0.04));
+
+  // ── Focus / accent helpers ──
+  --focus-ring: 0 0 0 3px rgba(56, 189, 248, 0.22);
+  --focus-ring-secondary: 0 0 0 3px rgba(52, 211, 153, 0.22);
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --accent-strong: rgba(56, 189, 248, 0.26);
+  --accent-secondary-soft: rgba(52, 211, 153, 0.12);
+  --accent-secondary-strong: rgba(52, 211, 153, 0.26);
+  --danger-soft: rgba(248, 113, 113, 0.10);
+  --danger-border: rgba(248, 113, 113, 0.30);
+
+  // ── Record card layout tokens ──
+  --record-avatar-size: 56px;
+  --record-avatar-radius: 14px;
+  --record-card-padding-y: 10px;
+  --record-card-padding-x: 14px;
+  --record-card-min-height: 76px;
+  --record-action-height: 28px;
+
+  --backdrop-blur: 20px;
+  --font-sans: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
