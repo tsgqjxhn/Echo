@@ -34,9 +34,6 @@ def _profile_to_dict(profile: UserProfileRecord | None) -> dict[str, Any] | None
         "name": profile.name,
         "avatar": profile.avatar,
         "globalPrompt": profile.global_prompt,
-        "fortuneCoins": profile.fortune_coins,
-        "chatLevel": profile.chat_level,
-        "gameLevel": profile.game_level,
     }
 
 
@@ -279,9 +276,6 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
         profile.name = user.get("name")
         profile.avatar = user.get("avatar")
         profile.global_prompt = user.get("globalPrompt")
-        profile.fortune_coins = user.get("fortuneCoins", 0)
-        profile.chat_level = user.get("chatLevel", 1)
-        profile.game_level = user.get("gameLevel", 1)
         db.add(profile)
 
     for character in data.get("characters", []):

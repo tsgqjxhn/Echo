@@ -12,87 +12,56 @@
       </div>
 
       <div class="hero-copy">
+        <p class="hero-label">个人设置</p>
         <h1>{{ userStore.userName }}</h1>
+        <p class="hero-subtitle">管理你的头像、昵称与本地数据。</p>
       </div>
 
-      <button type="button" class="hero-edit-btn" @click="router.push('/settings/user-info')">
-        编辑
-      </button>
+      <div class="hero-actions">
+        <button type="button" class="hero-edit-btn" @click="router.push('/settings/user-info')">
+          编辑资料
+        </button>
+        <button type="button" class="hero-clear-btn" @click="confirmClearData">
+          清空本地数据
+        </button>
+      </div>
     </section>
 
-    <section class="feature-grid">
-      <button type="button" class="feature-card" @click="router.push('/settings/coins')">
-        <span class="feature-icon-shell">
-          <img :src="coinIcon" alt="我的卜币" class="feature-icon feature-icon-coin" />
-        </span>
-        <div class="feature-copy">
-          <strong>我的卜币</strong>
-          <span>{{ userStore.fortuneCoins }} 卜币</span>
-        </div>
-      </button>
-
-      <button type="button" class="feature-card" @click="router.push('/settings/levels')">
-        <span class="feature-icon-shell">
-          <img :src="levelIcon" alt="我的等级" class="feature-icon" />
-        </span>
-        <div class="feature-copy">
-          <strong>我的等级</strong>
-          <span>聊天 Lv.{{ userStore.chatLevel }} / 游戏 Lv.{{ userStore.gameLevel }}</span>
-        </div>
-      </button>
-    </section>
-
-    <section class="more-card">
+    <section class="settings-board">
       <p class="section-title">更多设置</p>
 
-      <button type="button" class="setting-row" @click="router.push('/settings/global-prompt')">
-        <span>全局提示词</span>
-        <strong>{{ userStore.hasGlobalPrompt ? '已配置' : '未配置' }}</strong>
-      </button>
-
-      <button type="button" class="setting-row" @click="showAdvanced = !showAdvanced">
-        <span>高级设置</span>
-        <strong>{{ showAdvanced ? '收起' : '展开' }}</strong>
-      </button>
-
-      <div v-if="showAdvanced" class="advanced-box">
-        <div class="provider-notice">
-          <span>网络模式</span>
-          <strong>已改为直连 API Provider，手机端可独立发送请求，不再依赖局域网后端。</strong>
-        </div>
-
-        <button type="button" class="setting-row" @click="router.push('/settings/api-config')">
-          <span>API 配置</span>
-          <strong>{{ hasAPIKey ? '已连接' : '待配置' }}</strong>
+      <div class="settings-grid">
+        <button type="button" class="setting-card setting-card--prompt" @click="router.push('/settings/global-prompt')">
+          <span class="setting-kicker">提示词</span>
+          <strong>全局提示词</strong>
+          <p>为所有对话补充统一约束和回答偏好。</p>
+          <span class="setting-meta">{{ userStore.hasGlobalPrompt ? '已配置' : '未配置' }}</span>
         </button>
 
-        <button type="button" class="setting-row" @click="goToImport">
-          <span>导入用户数据</span>
-          <strong>打开</strong>
+        <button type="button" class="setting-card setting-card--api" @click="router.push('/settings/api-config')">
+          <span class="setting-kicker">LLM API</span>
+          <strong>模型连接</strong>
+          <p>配置文本、语音与图像服务，统一管理接口连接。</p>
+          <span class="setting-meta">{{ hasAPIKey ? '已连接' : '待配置' }}</span>
         </button>
 
-        <button type="button" class="setting-row" @click="goToExport">
-          <span>导出用户数据</span>
-          <strong>打开</strong>
+        <button type="button" class="setting-card setting-card--data setting-card--wide" @click="goToDataManagement">
+          <span class="setting-kicker">数据导入导出</span>
+          <strong>备份与恢复</strong>
+          <p>导出当前本地数据，或导入备份文件完成恢复。</p>
+          <span class="setting-meta">打开</span>
         </button>
       </div>
-
-      <button type="button" class="setting-row danger" @click="confirmClearData">
-        <span>清空本地数据</span>
-        <strong>不可撤销</strong>
-      </button>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiConfigService } from '@/services/api-config'
 import { useUserStore } from '@/stores/user'
 import { uni } from '@/utils/uni-polyfill'
-import coinIcon from '@/static/images/profile-coin.svg'
-import levelIcon from '@/static/images/profile-level.svg'
 import defaultAvatarAsset from '@/static/images/tab-profile.svg'
 
 const router = useRouter()
@@ -100,7 +69,6 @@ const userStore = useUserStore()
 
 const avatarLoadFailed = ref(false)
 const hasAPIKey = ref(false)
-const showAdvanced = ref(false)
 
 const usingDefaultAvatar = computed(() => avatarLoadFailed.value || !userStore.userAvatar)
 
@@ -112,37 +80,32 @@ const avatarUrl = computed(() => {
   return userStore.userAvatar
 })
 
-onMounted(async () => {
+async function refreshProfilePage() {
+  avatarLoadFailed.value = false
   await userStore.loadUserInfo()
   hasAPIKey.value = await apiConfigService.hasConfig()
+}
+
+onMounted(() => {
+  void refreshProfilePage()
+})
+
+onActivated(() => {
+  void refreshProfilePage()
 })
 
 function handleAvatarError() {
   avatarLoadFailed.value = true
 }
 
-function goToImport() {
-  router.push({
-    path: '/settings/export',
-    query: {
-      action: 'import',
-    },
-  })
-}
-
-function goToExport() {
-  router.push({
-    path: '/settings/export',
-    query: {
-      action: 'export',
-    },
-  })
+function goToDataManagement() {
+  router.push('/settings/export')
 }
 
 function confirmClearData() {
   uni.showModal({
-    title: '清空数据',
-    content: '确认清空所有本地角色、会话和设置吗？此操作无法撤销。',
+    title: '确认清空本地数据',
+    content: '这会删除所有本地角色、会话、API 配置与游戏设置，且无法撤销。建议先到“数据导入导出”中完成备份后再继续。',
     success: async result => {
       if (!result.confirm) {
         return
@@ -174,8 +137,8 @@ function confirmClearData() {
 }
 
 .hero-card,
-.feature-card,
-.more-card {
+.settings-board,
+.setting-card {
   border: 1px solid rgba(52, 211, 153, 0.12);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.44);
@@ -184,39 +147,16 @@ function confirmClearData() {
 }
 
 .hero-card {
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 18px;
+  gap: 18px 16px;
   padding: 24px;
   border-radius: 30px;
   border-color: rgba(56, 189, 248, 0.16);
   background:
     radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 42%),
     linear-gradient(145deg, rgba(36, 16, 52, 0.7), rgba(14, 8, 28, 0.94));
-}
-
-.hero-edit-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  min-height: 32px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #7dd3fc, #38bdf8, #0284c7);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.32);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
-}
-
-.hero-edit-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.46);
 }
 
 .avatar-shell {
@@ -253,9 +193,19 @@ function confirmClearData() {
 
 .hero-copy {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
   min-width: 0;
   min-height: 92px;
+}
+
+.hero-label {
+  color: rgba(125, 211, 252, 0.72);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .hero-copy h1 {
@@ -268,89 +218,62 @@ function confirmClearData() {
   line-height: 1.05;
 }
 
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 16px;
+.hero-subtitle {
+  color: var(--text-secondary);
+  line-height: 1.7;
 }
 
-.feature-card {
+.hero-actions {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 26px;
-  color: var(--text-primary);
-  text-align: left;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.hero-edit-btn,
+.hero-clear-btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition:
     transform var(--transition-base),
     border-color var(--transition-base),
+    background var(--transition-base),
     box-shadow var(--transition-base);
 }
 
-.feature-card:nth-child(1) {
-  border-color: rgba(251, 191, 36, 0.16);
-  background:
-    radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.08) 0%, transparent 50%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+.hero-edit-btn {
+  border: none;
+  background: linear-gradient(135deg, #7dd3fc, #38bdf8, #0284c7);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.32);
 }
 
-.feature-card:nth-child(2) {
-  border-color: rgba(52, 211, 153, 0.16);
-  background:
-    radial-gradient(circle at 80% 20%, rgba(52, 211, 153, 0.1) 0%, transparent 50%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+.hero-clear-btn {
+  border: 1px solid rgba(251, 113, 133, 0.24);
+  background: rgba(251, 113, 133, 0.08);
+  color: #fda4af;
 }
 
-.feature-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.52);
+.hero-edit-btn:hover,
+.hero-clear-btn:hover {
+  transform: translateY(-1px);
 }
 
-.feature-icon-shell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 50px;
-  height: 50px;
-  border-radius: 16px;
-  background: rgba(52, 211, 153, 0.12);
+.hero-edit-btn:hover {
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.46);
 }
 
-.feature-card:nth-child(1) .feature-icon-shell {
-  background: rgba(251, 191, 36, 0.14);
+.hero-clear-btn:hover {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(251, 113, 133, 0.14);
 }
 
-.feature-icon {
-  width: 26px;
-  height: 26px;
-}
-
-.feature-icon-coin {
-  filter: invert(80%) sepia(60%) saturate(400%) hue-rotate(10deg);
-}
-
-.feature-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.feature-copy strong {
-  color: var(--text-primary);
-  font-size: 18px;
-}
-
-.feature-copy span {
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.more-card {
+.settings-board {
   margin-top: 16px;
   padding: 22px;
   border-radius: 28px;
@@ -365,78 +288,92 @@ function confirmClearData() {
   opacity: 0.85;
 }
 
-.advanced-box {
+.settings-grid {
   display: grid;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 18px;
-  background: rgba(52, 211, 153, 0.04);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
 }
 
-.provider-notice {
-  display: grid;
-  gap: 6px;
-  padding: 14px 0 6px;
-  border-top: 1px solid rgba(52, 211, 153, 0.08);
-}
-
-.provider-notice span {
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.provider-notice strong {
-  color: #a7f3d0;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.setting-row {
-  width: 100%;
+.setting-card {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  min-height: 54px;
-  padding: 16px 0;
-  border: none;
-  border-top: 1px solid rgba(52, 211, 153, 0.08);
-  background: transparent;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 172px;
+  padding: 20px;
+  border-radius: 24px;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform var(--transition-base);
+  transition:
+    transform var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
 }
 
-.setting-row:first-of-type {
-  margin-top: 10px;
+.setting-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.46);
 }
 
-.setting-row span {
+.setting-card--prompt {
+  border-color: rgba(125, 211, 252, 0.16);
+  background:
+    radial-gradient(circle at 84% 18%, rgba(125, 211, 252, 0.14) 0%, transparent 44%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+}
+
+.setting-card--api {
+  border-color: rgba(110, 231, 183, 0.18);
+  background:
+    radial-gradient(circle at 84% 18%, rgba(110, 231, 183, 0.14) 0%, transparent 44%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+}
+
+.setting-card--data {
+  border-color: rgba(226, 232, 240, 0.14);
+  background:
+    radial-gradient(circle at 84% 18%, rgba(226, 232, 240, 0.12) 0%, transparent 44%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+}
+
+.setting-card--wide {
+  grid-column: 1 / -1;
+  min-height: 154px;
+}
+
+.setting-kicker {
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.setting-row strong {
+.setting-card strong {
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 20px;
 }
 
-.setting-row:hover {
-  transform: translateX(4px);
+.setting-card p {
+  color: var(--text-secondary);
+  line-height: 1.7;
 }
 
-.setting-row:hover strong {
-  color: #6ee7b7;
+.setting-meta {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
-.setting-row.danger strong {
-  color: #fb7185;
-}
-
-@media (max-width: 720px) {
-  .feature-grid {
+@media (max-width: 780px) {
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -449,6 +386,11 @@ function confirmClearData() {
   .hero-card {
     gap: 14px;
     padding: 20px;
+  }
+
+  .hero-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .avatar-shell {

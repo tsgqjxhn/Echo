@@ -126,11 +126,11 @@ function saveSettings() {
   height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  background: var(--top-bar-button-surface);
+  background: transparent;
   color: var(--text-primary);
   font-size: 20px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
     background var(--transition-base),
     border-color var(--transition-base),

@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -n '$rose\\\\|$violet' 'C:\\\\Users\\\\EricWeston\\\\Desktop\\\\相\\\\xiang-app\\\\src\\\\pages\\\\character\\\\list.vue')",
-      "Bash(grep -E \"\\\\.\\(json|md|ts|tsx\\)$\")"
-    ]
-  }
-}

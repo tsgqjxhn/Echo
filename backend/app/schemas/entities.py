@@ -54,9 +54,6 @@ class UserInfo(BaseModel):
     name: str | None = None
     avatar: str | None = None
     globalPrompt: str | None = None
-    fortuneCoins: int = 0
-    chatLevel: int = 1
-    gameLevel: int = 1
 
 
 class UserSetting(BaseModel):
