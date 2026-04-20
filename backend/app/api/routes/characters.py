@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,7 +23,6 @@ def _to_response(record: CharacterRecord) -> CharacterResponse:
         description=record.description,
         greeting=record.greeting,
         settings=record.settings,
-        isFavorite=record.is_favorite,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
         mode=record.mode,
@@ -36,18 +37,40 @@ def _to_response(record: CharacterRecord) -> CharacterResponse:
         tags=record.tags,
         sourceType=record.source_type,
         sourceName=record.source_name,
+        sceneTime=record.scene_time,
+        isLiked=record.is_liked,
+        isFriend=record.is_friend,
     )
+
+
+def _get_character_or_404(character_id: str, db: Session) -> CharacterRecord:
+    record = db.get(CharacterRecord, character_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Character not found.")
+    return record
+
+
+def _toggle_character_flag(
+    character_id: str,
+    db: Session,
+    *,
+    field_name: str,
+) -> CharacterResponse:
+    record = _get_character_or_404(character_id, db)
+    current_value = bool(getattr(record, field_name))
+    setattr(record, field_name, not current_value)
+    record.updated_at = int(time.time() * 1000)
+    db.commit()
+    db.refresh(record)
+    return _to_response(record)
 
 
 @router.get("", response_model=list[CharacterResponse])
 def list_characters(
-    favorite: bool | None = Query(default=None),
     keyword: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[CharacterResponse]:
     items = list(db.scalars(select(CharacterRecord)))
-    if favorite is not None:
-        items = [item for item in items if item.is_favorite == favorite]
     if keyword:
         term = keyword.lower().strip()
         items = [item for item in items if term in item.name.lower() or term in item.description.lower()]
@@ -75,7 +98,6 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
             description=payload.description,
             greeting=payload.greeting,
             settings=payload.settings,
-            is_favorite=payload.isFavorite,
             created_at=payload.createdAt,
             updated_at=payload.updatedAt,
             mode=payload.mode,
@@ -90,6 +112,9 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
             tags=payload.tags,
             source_type=payload.sourceType,
             source_name=payload.sourceName,
+            scene_time=payload.sceneTime,
+            is_liked=payload.isLiked,
+            is_friend=payload.isFriend,
         )
         db.add(record)
     else:
@@ -99,7 +124,6 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
         record.description = payload.description
         record.greeting = payload.greeting
         record.settings = payload.settings
-        record.is_favorite = payload.isFavorite
         record.created_at = payload.createdAt
         record.updated_at = payload.updatedAt
         record.mode = payload.mode
@@ -114,6 +138,9 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
         record.tags = payload.tags
         record.source_type = payload.sourceType
         record.source_name = payload.sourceName
+        record.scene_time = payload.sceneTime
+        record.is_liked = payload.isLiked
+        record.is_friend = payload.isFriend
     db.commit()
     db.refresh(record)
     return _to_response(record)
@@ -134,3 +161,13 @@ def delete_character(character_id: str, db: Session = Depends(get_db)) -> dict[s
     db.delete(record)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{character_id}/like", response_model=CharacterResponse)
+def toggle_character_like(character_id: str, db: Session = Depends(get_db)) -> CharacterResponse:
+    return _toggle_character_flag(character_id, db, field_name="is_liked")
+
+
+@router.post("/{character_id}/friend", response_model=CharacterResponse)
+def toggle_character_friend(character_id: str, db: Session = Depends(get_db)) -> CharacterResponse:
+    return _toggle_character_flag(character_id, db, field_name="is_friend")

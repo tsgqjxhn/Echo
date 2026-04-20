@@ -21,4 +21,12 @@ async def chat_completion(payload: ChatContextRequest, db: Session = Depends(get
 
 @router.post("/completions/stream")
 async def chat_completion_stream(payload: ChatContextRequest, db: Session = Depends(get_db)) -> StreamingResponse:
-    return StreamingResponse(llm_service.stream_lines(db, payload), media_type="text/event-stream")
+    return StreamingResponse(
+        llm_service.stream_lines(db, payload),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

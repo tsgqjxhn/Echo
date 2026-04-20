@@ -23,7 +23,6 @@ class CharacterBase(BaseModel):
     description: str
     greeting: str | None = None
     settings: str
-    isFavorite: bool = False
     createdAt: int
     updatedAt: int
     mode: str | None = None
@@ -38,6 +37,9 @@ class CharacterBase(BaseModel):
     tags: list[str] | None = None
     sourceType: str | None = None
     sourceName: str | None = None
+    sceneTime: str | None = None
+    isLiked: bool = False
+    isFriend: bool = False
 
 
 class CharacterPayload(CharacterBase):
@@ -71,6 +73,7 @@ class APIConfigPayload(BaseModel):
     model: str
     isDefault: bool = False
     source: Literal["storage", "env"] = "storage"
+    configType: str = "text"
 
 
 class APIConfigResponse(BaseModel):
@@ -82,6 +85,13 @@ class APIConfigResponse(BaseModel):
     model: str
     isDefault: bool = False
     source: Literal["storage", "env"] = "storage"
+    configType: str = "text"
+
+
+class ModelListRequest(BaseModel):
+    baseURL: str | None = None
+    apiKey: str
+    configType: str = "text"
 
 
 class APIConfigTestRequest(BaseModel):

@@ -39,5 +39,15 @@ app.mount(settings.media_url, StaticFiles(directory=settings.storage_root), name
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    from sqlalchemy import text
     with SessionLocal() as db:
-        seed_default_story(db)
+        try:
+            db.execute(text("ALTER TABLE api_configs ADD COLUMN config_type VARCHAR(32) NOT NULL DEFAULT 'text'"))
+            db.commit()
+        except Exception:
+            pass  # column already exists
+    with SessionLocal() as db:
+        try:
+            seed_default_story(db)
+        except Exception:
+            db.rollback()

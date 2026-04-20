@@ -30,5 +30,19 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from app.models import entities  # noqa: F401
+    from sqlalchemy import text
 
     Base.metadata.create_all(bind=engine)
+
+    # Add columns introduced after initial schema creation.
+    with engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE characters ADD COLUMN scene_time VARCHAR(128)",
+            "ALTER TABLE characters ADD COLUMN is_liked INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE characters ADD COLUMN is_friend INTEGER NOT NULL DEFAULT 0",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # Column already exists.

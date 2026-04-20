@@ -37,6 +37,9 @@ class CharacterRecord(Base, TimestampMixin):
     tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scene_time: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    is_liked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+    is_friend: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
 
     sessions: Mapped[list["SessionRecord"]] = relationship(
         back_populates="character",
@@ -127,6 +130,7 @@ class APIConfigRecord(Base):
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     source: Mapped[str] = mapped_column(String(32), default="storage", nullable=False)
+    config_type: Mapped[str] = mapped_column(String(32), default="text", nullable=False, server_default="text")
     created_at: Mapped[int] = mapped_column(Integer, nullable=False)
     updated_at: Mapped[int] = mapped_column(Integer, nullable=False)
 

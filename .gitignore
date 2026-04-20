@@ -1,0 +1,160 @@
+# =========================
+# OS / 通用
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# IDE / 编辑器
+# =========================
+.idea/
+.vscode/
+*.iml
+
+# JetBrains 本地工作区
+workspace.xml
+tasks.xml
+
+# =========================
+# Claude / AI 工具本地目录
+# =========================
+.claude/
+
+# =========================
+# Gradle / Android / Java
+# =========================
+.gradle/
+.gradle-user/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+dist/
+coverage/
+.next/
+.nuxt/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Python / Backend
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# 环境变量 / 密钥 / 本地配置
+# =========================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.yml
+secrets.yaml
+config.local.yml
+config.local.yaml
+config.local.json
+config.local.toml
+
+# =========================
+# 数据库 / 本地数据
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.accdb
+
+data/
+storage/
+tmp/
+temp/
+logs/
+
+# =========================
+# 你这个项目里已经出现过的本地临时目录
+# =========================
+.tmp-mihomo-home/
+.tmp-vscode-shell-backup/
+
+# =========================
+# 备份文件
+# =========================
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+
+# =========================
+# 日志文件
+# =========================
+*.log
+logs/
+
+# =========================
+# Backend 特定
+# =========================
+backend/storage/
+backend/.env
+backend/__pycache__/
+
+# =========================
+# Frontend 特定
+# =========================
+frontend/dist/
+frontend/.env
+frontend/node_modules/
+
+# =========================
+# xiang-app 特定（旧目录）
+# =========================
+xiang-app/node_modules/
+xiang-app/dist/
+xiang-app/.env
+xiang-app/*.log
+xiang-app/dev-server*.log
+xiang-app/vite*.log
+xiang-app/static*.log
+
+# =========================
+# Android / Capacitor 构建产物
+# =========================
+frontend/android/app/build/
+frontend/android/build/
+frontend/android/.gradle/
+frontend/android/app/.gradle/
+frontend/android/app/release/
+frontend/android/app/debug/
+frontend/android/app/keystore/
+*.jks
+*.keystore
+
+# =========================
+# 数据库文件（显式声明，包含 SQLite）
+# =========================
+*.db-shm
+*.db-wal

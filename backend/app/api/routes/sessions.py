@@ -117,10 +117,12 @@ def get_messages(
 
 @router.delete("/api/sessions/{session_id}/messages")
 def delete_messages(session_id: str, db: Session = Depends(get_db)) -> dict[str, bool]:
-    db.execute(delete(MessageRecord).where(MessageRecord.session_id == session_id))
     session = db.get(SessionRecord, session_id)
-    if session:
-        session.message_count = 0
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    db.execute(delete(MessageRecord).where(MessageRecord.session_id == session_id))
+    session.message_count = 0
     db.commit()
     return {"ok": True}
 

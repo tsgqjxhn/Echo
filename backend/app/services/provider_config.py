@@ -17,11 +17,12 @@ def sanitize_api_config(record: APIConfigRecord) -> APIConfigResponse:
         id=record.id,
         name=record.name,
         provider=record.provider,  # type: ignore[arg-type]
-        apiKey="",
+        apiKey=record.api_key,
         baseURL=record.base_url,
         model=record.model,
         isDefault=record.is_default,
         source=record.source,  # type: ignore[arg-type]
+        configType=record.config_type,
     )
 
 
@@ -64,6 +65,7 @@ def upsert_api_config(db: Session, payload: dict[str, Any]) -> APIConfigRecord:
             model=payload["model"],
             is_default=payload.get("isDefault", False),
             source=payload.get("source", "storage"),
+            config_type=payload.get("configType", "text"),
             created_at=timestamp,
             updated_at=timestamp,
         )
@@ -75,6 +77,7 @@ def upsert_api_config(db: Session, payload: dict[str, Any]) -> APIConfigRecord:
         existing.model = payload["model"]
         existing.is_default = payload.get("isDefault", False)
         existing.source = payload.get("source", "storage")
+        existing.config_type = payload.get("configType", "text")
         existing.updated_at = timestamp
         if payload.get("apiKey"):
             existing.api_key = payload["apiKey"]
