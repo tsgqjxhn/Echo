@@ -667,7 +667,7 @@ async function handleImportFile(event: Event) {
   box-sizing: border-box;
   height: 100vh;
   overflow-y: auto;
-  padding: 18px 18px 96px;
+  padding: 0 0 96px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.20) 0%, transparent 44%),
@@ -681,7 +681,6 @@ async function handleImportFile(event: Event) {
   display: none;
 }
 
-.top-bar,
 .session-card,
 .empty-card {
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -692,12 +691,33 @@ async function handleImportFile(event: Event) {
 }
 
 .top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
   gap: 14px;
-  padding: 14px;
-  border-radius: 18px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.top-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .icon-btn {
@@ -708,15 +728,15 @@ async function handleImportFile(event: Event) {
   height: 48px;
   border: none;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   cursor: pointer;
-  transition: transform var(--transition-base), background var(--transition-base);
+  box-shadow: none;
+  transition: transform var(--transition-base), opacity var(--transition-base);
 }
 
 .icon-btn.active,
 .icon-btn:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.78;
 }
 
 .top-icon {
@@ -728,25 +748,26 @@ async function handleImportFile(event: Event) {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  padding: 6px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .switch-btn {
-  min-height: 36px;
+  min-height: 42px;
   border: none;
-  border-radius: 10px;
+  border-radius: 0;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
   cursor: pointer;
-  transition: background var(--transition-base), color var(--transition-base);
+  transition: color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .switch-btn.active {
-  background: rgba(56, 189, 248, 0.22);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: transparent;
+  border: none;
+  box-shadow: inset 0 -2px 0 rgba(125, 211, 252, 0.72);
   color: #ffffff;
   font-weight: 700;
 }
@@ -802,9 +823,10 @@ async function handleImportFile(event: Event) {
 }
 
 .card-grid {
+  width: min(1080px, calc(100% - 32px));
   display: grid;
   gap: 10px;
-  margin-top: 14px;
+  margin: 14px auto 0;
 }
 
 // friend card
@@ -975,7 +997,8 @@ async function handleImportFile(event: Event) {
 }
 
 .empty-card {
-  margin-top: 14px;
+  width: min(1080px, calc(100% - 32px));
+  margin: 14px auto 0;
   padding: 28px;
   border-radius: 18px;
 }
@@ -1069,13 +1092,14 @@ async function handleImportFile(event: Event) {
 
 @media (max-width: 640px) {
   .history-page {
-    padding: 14px 14px 92px;
+    padding: 0 0 92px;
   }
 
   .top-bar {
     grid-template-columns: 42px minmax(0, 1fr) 42px;
     gap: 10px;
-    padding: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .icon-btn {
@@ -1083,5 +1107,9 @@ async function handleImportFile(event: Event) {
     height: 42px;
   }
 
+  .card-grid,
+  .empty-card {
+    width: calc(100% - 20px);
+  }
 }
 </style>

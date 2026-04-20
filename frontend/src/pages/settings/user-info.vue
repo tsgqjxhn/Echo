@@ -1,12 +1,23 @@
 <template>
   <div class="user-info-page">
     <header class="page-header">
-      <div>
+      <button type="button" class="back-btn" aria-label="返回" @click="router.back()">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+
+      <div class="page-header-main">
         <p class="eyebrow">编辑资料</p>
         <h1>更新你的头像和昵称</h1>
       </div>
-
-      <button type="button" class="ghost-btn" @click="router.back()">返回</button>
     </header>
 
     <section class="content-card">
@@ -141,7 +152,7 @@ async function saveUserInfo() {
   box-sizing: border-box;
   height: 100vh;
   overflow-y: auto;
-  padding: 24px;
+  padding: 0 0 100px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.14) 0%, transparent 40%),
@@ -164,11 +175,38 @@ async function saveUserInfo() {
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 28px;
-  border-radius: 30px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border: none;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
+}
+
+.page-header-main {
+  min-width: 0;
 }
 
 .eyebrow {
@@ -179,9 +217,9 @@ async function saveUserInfo() {
 }
 
 .page-header h1 {
-  margin-top: 12px;
+  margin-top: 4px;
   color: var(--text-primary);
-  font-size: clamp(28px, 4vw, 38px);
+  font-size: clamp(18px, 3vw, 24px);
 }
 
 .ghost-btn,
@@ -198,11 +236,43 @@ async function saveUserInfo() {
   color: var(--text-primary);
 }
 
+.back-btn {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  box-shadow: none;
+  cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.back-btn:hover {
+  opacity: 0.78;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+}
+
 .content-card {
   display: flex;
   flex-direction: column;
   gap: 22px;
-  margin-top: 18px;
+  width: min(960px, calc(100% - 32px));
+  margin: 18px auto 0;
   padding: 28px;
   border-radius: 30px;
 }
@@ -271,12 +341,13 @@ async function saveUserInfo() {
 }
 
 @media (max-width: 640px) {
-  .user-info-page {
-    padding: 16px;
+  .page-header {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  .page-header {
-    flex-direction: column;
+  .content-card {
+    width: calc(100% - 20px);
   }
 }
 </style>

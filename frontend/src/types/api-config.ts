@@ -1,4 +1,4 @@
-export type APIProvider = 'openai' | 'openai-compatible'
+export type APIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini'
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -27,7 +27,11 @@ export interface TestResult {
 
 export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
   openai: 'OpenAI',
-  'openai-compatible': 'OpenAI Compatible'
+  'openai-compatible': 'OpenAI Compatible',
+  anthropic: 'Anthropic',
+  dashscope: 'DashScope',
+  volcengine: '火山方舟 (Volcengine)',
+  gemini: 'Gemini',
 }
 
 export const DEFAULT_OPENAI_CONFIG: Partial<APIConfig> = {

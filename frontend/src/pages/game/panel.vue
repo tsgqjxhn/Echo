@@ -18,7 +18,16 @@
         </div>
         <div class="play-btn">
           <span>进入</span>
-          <span class="arrow">></span>
+          <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M9 6l6 6-6 6"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2.2"
+            />
+          </svg>
         </div>
       </div>
 
@@ -67,7 +76,7 @@ function goToSettings() {
   min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
   border-bottom: 1px solid var(--top-bar-border);
-  border-radius: 0 0 30px 30px;
+  border-radius: 0;
   background: var(--top-bar-surface);
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(28px) saturate(1.45);
@@ -94,20 +103,16 @@ function goToSettings() {
   justify-content: center;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
   border-radius: 14px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition:
-    background var(--transition-base),
-    border-color var(--transition-base),
-    transform var(--transition-base);
+  box-shadow: none;
+  transition: opacity var(--transition-base), transform var(--transition-base);
 
   &:hover {
-    border-color: rgba(186, 230, 253, 0.22);
-    background: rgba(255, 255, 255, 0.08);
+    opacity: 0.78;
   }
 
   &:active {
@@ -219,9 +224,11 @@ function goToSettings() {
   font-size: 12px;
 }
 
-.arrow {
-  font-size: 18px;
+.play-arrow-icon {
+  width: 16px;
+  height: 16px;
   color: currentColor;
+  overflow: visible;
 }
 
 @media (max-width: 720px) {
@@ -232,7 +239,7 @@ function goToSettings() {
   .header {
     padding-left: 16px;
     padding-right: 16px;
-    border-radius: 0 0 24px 24px;
+    border-radius: 0;
   }
 
   .menu-btn {

@@ -113,7 +113,14 @@ export class ChatService {
 
     const userInfo = await this.storage.getUserInfo()
     const memoryPrompt = await buildCharacterMemoryPrompt(this.storage, character.id, character.name)
-    const rawSystemPrompt = [userInfo?.globalPrompt, character.settings, memoryPrompt, FORMAT_INSTRUCTION, extraSystemPrompt]
+    const rawSystemPrompt = [
+      userInfo?.corePrompt,
+      userInfo?.globalPrompt,
+      character.settings,
+      memoryPrompt,
+      FORMAT_INSTRUCTION,
+      extraSystemPrompt
+    ]
       .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       .join('\n\n')
 

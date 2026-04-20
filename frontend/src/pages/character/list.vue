@@ -23,7 +23,7 @@
     <section class="category-panel">
       <div class="big-category-row">
         <button
-          v-for="group in categoryGroups"
+          v-for="group in browseCategoryGroups"
           :key="group.label"
           type="button"
           class="category-chip large"
@@ -63,31 +63,16 @@
         class="character-card"
         @click="goToDetail(character.id)"
       >
-        <div class="card-top">
-          <img :src="character.avatar || defaultAvatar" :alt="character.name" class="avatar" />
-
-          <div class="card-copy">
-            <div class="card-header">
-              <h2>{{ character.name }}</h2>
-            </div>
-
-            <p>{{ character.description }}</p>
-
-            <div class="meta-list">
-              <span class="meta-chip">{{ getModeLabel(character.mode) }}</span>
-              <span class="meta-chip subtle">{{ getCategoryLabel(character) }}</span>
-              <span class="meta-chip subtle">{{ formatDate(character.updatedAt) }}</span>
-            </div>
-          </div>
+        <div class="card-topbar">
+          <span class="meta-chip meta-chip--top">{{ getModeLabel(character.mode) }}</span>
+          <span class="meta-chip meta-chip--top subtle">{{ character.category || '剧情' }}</span>
+          <span v-if="character.subCategory" class="meta-chip meta-chip--top subtle">{{ character.subCategory }}</span>
         </div>
 
-        <div class="card-actions">
-          <button type="button" class="action-btn" @click.stop="goToDetail(character.id)">
-            查看详情
-          </button>
-          <button type="button" class="action-btn primary" @click.stop="goToChat(character.id)">
-            开始聊天
-          </button>
+        <div class="card-body">
+          <h2>{{ character.name }}</h2>
+          <p>{{ character.description }}</p>
+          <span class="card-date">{{ formatDate(character.createdAt) }}</span>
         </div>
       </article>
     </section>
@@ -287,7 +272,7 @@ import { dataManagementService } from '@/services/data-management'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
-import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
+import { ensureStoryCharacter, loadStoryLibrary } from '@/services/story-conversations'
 
 type CharacterMode = NonNullable<ICharacter['mode']>
 
@@ -295,7 +280,7 @@ const router = useRouter()
 const characterStore = useCharacterStore()
 
 const searchKeyword = ref('')
-const selectedBigCategory = ref('剧情')
+const selectedBigCategory = ref('全部')
 const selectedSmallCategory = ref('')
 const showCreateSheet = ref(false)
 const showImportSheet = ref(false)
@@ -319,6 +304,12 @@ const categoryGroups = [
   { label: '群聊', items: ['宿舍', '公司', '社团', '亲友', '同好会'] },
   { label: '群聊闯关', items: ['阵营对抗', '团队解谜', '副本合作', '规则推演', '破局逃脱'] }
 ] as const
+
+const browseCategoryGroups = [
+  { label: '全部', items: [] as string[] },
+  { label: '故事', items: ['回声'] },
+  ...categoryGroups.map(group => ({ label: group.label, items: [...group.items] }))
+]
 
 const createForm = ref({
   name: '',
@@ -367,7 +358,7 @@ const quickCreateTemplates = [
 ]
 
 const currentSmallCategories = computed(() => {
-  return categoryGroups.find(group => group.label === selectedBigCategory.value)?.items || []
+  return browseCategoryGroups.find(group => group.label === selectedBigCategory.value)?.items || []
 })
 
 const createFormSmallCategories = computed(() => {
@@ -378,10 +369,13 @@ const filteredCharacters = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
 
   return [...characterStore.characters]
-    .filter(character => character.sourceType !== 'builtin-story')
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .filter(character => {
-      const matchesBig = !selectedBigCategory.value || (character.category || '剧情') === selectedBigCategory.value
+      const characterCategory = character.category || '剧情'
+      const matchesBig =
+        !selectedBigCategory.value ||
+        selectedBigCategory.value === '全部' ||
+        characterCategory === selectedBigCategory.value
       const matchesSmall = !selectedSmallCategory.value || (character.subCategory || '') === selectedSmallCategory.value
       const matchesSearch =
         !keyword ||
@@ -412,12 +406,14 @@ const generatedBackdropPreview = computed(() =>
 const selectedImportFileName = computed(() => selectedImportFile.value?.name || '')
 
 onMounted(async () => {
+  const library = loadStoryLibrary()
+  await ensureStoryCharacter(library.characterName)
   await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
 })
 
 function selectBigCategory(label: string) {
   selectedBigCategory.value = label
-  const group = categoryGroups.find(item => item.label === label)
+  const group = browseCategoryGroups.find(item => item.label === label)
   const hasSelectedSmallCategory = group?.items.some(item => item === selectedSmallCategory.value) ?? false
   if (!hasSelectedSmallCategory) {
     selectedSmallCategory.value = ''
@@ -438,9 +434,6 @@ function getModeLabel(mode?: ICharacter['mode']): string {
   }
 }
 
-function getCategoryLabel(character: ICharacter): string {
-  return [character.category, character.subCategory].filter(Boolean).join(' / ') || '未分类'
-}
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('zh-CN', {
@@ -453,15 +446,6 @@ function goToDetail(id: string) {
   router.push(`/character/detail/${id}`)
 }
 
-function goToChat(id: string) {
-  const target = characterStore.characters.find(character => character.id === id)
-  if (target?.sourceType === 'builtin-story' || id === ECHO_STORY_CHARACTER_ID) {
-    router.push('/dialogue')
-    return
-  }
-
-  router.push(`/chat/${id}`)
-}
 
 
 function buildSettingsSummary() {
@@ -616,7 +600,7 @@ $cyan: #67e8f9;
   box-sizing: border-box;
   height: 100vh;
   overflow-y: auto;
-  padding: 18px 18px 96px;
+  padding: 0 0 96px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.18) 0%, transparent 40%),
@@ -631,7 +615,6 @@ $cyan: #67e8f9;
 }
 
 // ── 通用卡片边框基础 ─────────────────────────────────
-.search-strip,
 .story-spotlight,
 .character-card,
 .empty-card,
@@ -707,53 +690,73 @@ $cyan: #67e8f9;
 
 // ── 搜索条 ───────────────────────────────────────────
 .search-strip {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 18px;
+  gap: 0;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 12px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.search-strip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .circle-tool {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 12px;
-  background: rgba(52, 211, 153, 0.08);
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
-  transition: background var(--transition-base), border-color var(--transition-base);
+  box-shadow: none;
+  transition: transform var(--transition-base), opacity var(--transition-base);
 
   &:hover {
-    background: rgba(52, 211, 153, 0.16);
-    border-color: rgba(52, 211, 153, 0.24);
+    opacity: 0.78;
   }
 }
 
-.tool-icon,
-.search-icon {
-  width: 20px;
-  height: 20px;
+.tool-icon {
+  width: 22px;
+  height: 22px;
   opacity: 0.85;
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 0 16px;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
   border-radius: 12px;
-  background: rgba(52, 211, 153, 0.07);
-  border: 1px solid rgba(52, 211, 153, 0.10);
-  transition: border-color var(--transition-base);
+  background: rgba(255, 255, 255, 0.06);
+}
 
-  &:focus-within {
-    border-color: rgba(56, 189, 248, 0.28);
-  }
+.search-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.75;
 }
 
 .search-input {
@@ -775,7 +778,8 @@ $cyan: #67e8f9;
 
 // ── 分类面板 ─────────────────────────────────────────
 .category-panel {
-  margin-top: 5px;
+  width: min(1080px, calc(100% - 32px));
+  margin: 5px auto 0;
   padding: 0 0 10px;
 }
 
@@ -862,109 +866,108 @@ $cyan: #67e8f9;
 // ── 角色卡片列表 ─────────────────────────────────────
 .featured-panel {
   display: grid;
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
   margin-top: 14px;
 }
 
 .character-card {
-  padding: 18px;
-  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 208px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: rgba(8, 17, 28, 0.96);
+  box-shadow: none;
   cursor: pointer;
-  transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+  overflow: hidden;
+  transition: border-color var(--transition-base);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   &:hover {
-    transform: translateY(-3px);
-    border-color: rgba(56, 189, 248, 0.24);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.50), 0 0 0 1px rgba(56, 189, 248, 0.10);
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.98);
+    box-shadow: none;
   }
 }
 
-.card-top {
+.character-card:nth-child(odd):not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.88);
+}
+
+.card-topbar {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-  object-fit: cover;
-  border: 1px solid rgba(52, 211, 153, 0.18);
-  background: rgba(52, 211, 153, 0.10);
-  flex-shrink: 0;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-
-  .character-card:hover & {
-    border-color: rgba(56, 189, 248, 0.30);
-    box-shadow: 0 8px 24px rgba(56, 189, 248, 0.16);
-  }
-}
-
-.card-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.card-header {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
+  min-height: 54px;
+  padding: 12px;
+  background: transparent;
 }
 
-.card-header h2 {
+.card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 12px 16px;
+}
+
+.card-body h2 {
+  margin: 0;
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
-.card-copy p {
-  margin: 10px 0;
+.card-body p {
+  margin: 0;
   color: var(--text-secondary);
-  line-height: 1.75;
-  font-size: 14px;
+  line-height: 1.55;
+  font-size: 12px;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-
-.meta-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.card-date {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .meta-chip {
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(52, 211, 153, 0.10);
-  border: 1px solid rgba(52, 211, 153, 0.12);
-  color: $mint-light;
-  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
 
   &.subtle {
-    background: rgba(14, 37, 56, 0.30);
-    border-color: transparent;
-    color: var(--text-tertiary);
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.72);
   }
 }
 
-.card-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
+.meta-chip--top {
+  letter-spacing: 0.02em;
 }
 
 .action-btn,
 .primary-btn {
-  min-height: 42px;
-  padding: 0 18px;
-  border-radius: 12px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
   transition: transform var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
@@ -997,7 +1000,8 @@ $cyan: #67e8f9;
 
 // ── 空状态 ───────────────────────────────────────────
 .empty-card {
-  margin-top: 14px;
+  width: min(1080px, calc(100% - 32px));
+  margin: 14px auto 0;
   padding: 36px 28px;
   border-radius: 18px;
   text-align: center;
@@ -1236,30 +1240,26 @@ $cyan: #67e8f9;
     grid-template-columns: 1fr;
   }
 
-  .card-actions,
   .story-spotlight {
-    flex-direction: column;
-  }
-
-  .character-card .card-top {
     flex-direction: column;
   }
 }
 
 @media (max-width: 640px) {
   .character-list-page {
-    padding: 14px 14px 92px;
+    padding: 0 0 92px;
   }
 
   .search-strip {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
-    gap: 10px;
-    padding: 10px;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .circle-tool {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
   }
 
   .overlay {
@@ -1271,6 +1271,11 @@ $cyan: #67e8f9;
     padding: 18px;
     border-radius: 20px 20px 0 0;
     max-height: 92vh;
+  }
+
+  .category-panel,
+  .empty-card {
+    width: calc(100% - 20px);
   }
 }
 </style>

@@ -1,22 +1,31 @@
 <template>
   <div class="character-detail-page">
-    <!-- 顶部导航 -->
     <div class="header">
-      <button class="back-btn" @click="goBack">←</button>
+      <button class="back-btn" @click="goBack" aria-label="返回">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+
       <h1 class="title">{{ character?.name || '角色详情' }}</h1>
+
       <div class="header-actions">
         <button class="action-btn" @click="goToEdit">编辑</button>
       </div>
     </div>
 
-    <!-- 角色信息 -->
     <div v-if="character" class="character-info">
-      <!-- 头像 -->
       <div class="avatar-section">
         <img :src="character.avatar || defaultAvatar" :alt="character.name" class="avatar" />
       </div>
 
-      <!-- 基本信息 -->
       <div class="info-section">
         <div class="info-item">
           <label>名称</label>
@@ -35,28 +44,24 @@
           <p>{{ character.greeting || '无' }}</p>
         </div>
         <div class="info-item">
-          <label>总体设定</label>
+          <label>整体设定</label>
           <p class="settings-text">{{ character.settings }}</p>
         </div>
       </div>
 
-      <!-- 操作按钮 -->
       <div class="action-section">
         <button class="primary-btn" @click="goToChat">开始聊天</button>
         <button class="danger-btn" @click="confirmDelete">删除角色</button>
       </div>
     </div>
 
-    <!-- 加载中 -->
     <div v-else-if="loading" class="loading">加载中...</div>
-
-    <!-- 空状态 -->
     <div v-else class="empty">角色不存在</div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
@@ -88,7 +93,7 @@ async function loadCharacter(id: string) {
         router.back()
       }, 1500)
     }
-  } catch (error) {
+  } catch {
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
     loading.value = false
@@ -112,7 +117,6 @@ function goToChat() {
   router.push(`/chat/${characterId.value}`)
 }
 
-
 function confirmDelete() {
   uni.showModal({
     title: '确认删除',
@@ -121,19 +125,20 @@ function confirmDelete() {
       if (res.confirm) {
         await deleteCharacter()
       }
-    }
+    },
   })
 }
 
 async function deleteCharacter() {
   if (!character.value) return
+
   try {
     await characterStore.deleteCharacter(character.value.id)
     uni.showToast({ title: '删除成功', icon: 'success' })
     setTimeout(() => {
       goBack()
     }, 1500)
-  } catch (error) {
+  } catch {
     uni.showToast({ title: '删除失败', icon: 'none' })
   }
 }
@@ -142,67 +147,92 @@ async function deleteCharacter() {
 <style lang="scss" scoped>
 .character-detail-page {
   min-height: 100vh;
-  padding: 24px 24px 120px;
+  padding: 0 0 120px;
   background: var(--page-backdrop-soft);
 }
 
 .header {
-  max-width: 1200px;
-  margin: 0 auto;
   position: sticky;
-  top: 24px;
+  top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 16px 18px;
-  border: 1px solid var(--border-color);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(34, 38, 43, 0.8), rgba(8, 9, 10, 0.92));
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur));
+  gap: 8px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 44px);
+  padding: calc(env(safe-area-inset-top, 0px) + 4px) 12px 6px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
+}
+
+.back-btn,
+.action-btn {
+  min-height: 34px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+
+  &:hover {
+    opacity: 0.78;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(34, 38, 43, 0.8), rgba(8, 9, 10, 0.92));
-  color: var(--text-primary);
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
+  padding: 0;
+}
+
+.back-icon {
+  width: 15px;
+  height: 15px;
+  overflow: visible;
 }
 
 .title {
-  flex: 1;
-  font-size: 18px;
+  min-width: 0;
+  font-size: 17px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--text-primary);
   text-align: center;
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
-}
-
-.action-btn {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--ghost-gradient);
-  color: var(--text-primary);
-  font-size: 14px;
-  cursor: pointer;
+  justify-content: flex-end;
 }
 
 .character-info {
-  max-width: 1200px;
+  width: min(1200px, calc(100% - 32px));
   margin: 18px auto 0;
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -221,14 +251,14 @@ async function deleteCharacter() {
 }
 
 .avatar-section {
+  position: sticky;
+  top: 108px;
   min-height: 320px;
   padding: 32px;
   border-radius: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: sticky;
-  top: 108px;
   background: var(--hero-gradient);
 }
 
@@ -318,7 +348,7 @@ async function deleteCharacter() {
 
 .loading,
 .empty {
-  max-width: 1200px;
+  width: min(1200px, calc(100% - 32px));
   margin: 18px auto 0;
   min-height: 280px;
   border-radius: 32px;
@@ -329,14 +359,6 @@ async function deleteCharacter() {
 }
 
 @media (max-width: 900px) {
-  .character-detail-page {
-    padding: 16px 16px 118px;
-  }
-
-  .header {
-    top: 16px;
-  }
-
   .character-info {
     grid-template-columns: 1fr;
   }
@@ -348,6 +370,19 @@ async function deleteCharacter() {
 
   .action-section {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .header {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .character-info,
+  .loading,
+  .empty {
+    width: calc(100% - 20px);
   }
 }
 </style>

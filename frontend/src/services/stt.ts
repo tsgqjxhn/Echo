@@ -1,12 +1,7 @@
 import { apiConfigService } from './api-config'
 import { APIError, NetworkError } from './errors'
-import {
-  buildProviderAuthHeaders,
-  buildProviderURL,
-  parseProviderError,
-  requireAPIKey,
-  resolveTranscriptionModel,
-} from './provider-http'
+import { buildProviderURL, requireAPIKey, resolveTranscriptionModel } from './provider-http'
+import { getAdapterOrDefault } from './providers/registry'
 import { base64ToBlob } from './runtime-http'
 
 export enum RecordingState {
@@ -31,23 +26,14 @@ function getRuntimeUni(): any {
 }
 
 function getMediaRecorderConstructor(): typeof MediaRecorder | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
+  if (typeof window === 'undefined') return null
   return window.MediaRecorder || null
 }
 
 function inferAudioFilename(blob: Blob, fallback = 'recording.webm'): string {
-  if (blob.type === 'audio/mpeg') {
-    return 'recording.mp3'
-  }
-  if (blob.type === 'audio/mp4') {
-    return 'recording.m4a'
-  }
-  if (blob.type === 'audio/wav') {
-    return 'recording.wav'
-  }
+  if (blob.type === 'audio/mpeg') return 'recording.mp3'
+  if (blob.type === 'audio/mp4') return 'recording.m4a'
+  if (blob.type === 'audio/wav') return 'recording.wav'
   return fallback
 }
 
@@ -60,22 +46,10 @@ function inferAudioMimeType(source: string): string {
   return 'audio/webm'
 }
 
-async function parseSTTResponse(response: Response): Promise<string> {
-  if (!response.ok) {
-    throw new APIError(response.status, await parseProviderError(response))
-  }
-
-  const payload = await response.json().catch(() => ({}))
-  return String((payload as any)?.text || '').trim()
-}
-
 function readNativeFileAsBlob(path: string): Promise<Blob> {
   const runtimeUni = getRuntimeUni()
   const fs = runtimeUni?.getFileSystemManager?.()
-
-  if (!fs?.readFile) {
-    return Promise.reject(new NetworkError('当前环境无法读取本地音频文件'))
-  }
+  if (!fs?.readFile) return Promise.reject(new NetworkError('当前环境无法读取本地音频文件'))
 
   return new Promise((resolve, reject) => {
     fs.readFile({
@@ -83,11 +57,7 @@ function readNativeFileAsBlob(path: string): Promise<Blob> {
       encoding: 'base64',
       success: (result: { data?: string }) => {
         const base64 = typeof result?.data === 'string' ? result.data : ''
-        if (!base64) {
-          reject(new NetworkError('读取本地音频失败'))
-          return
-        }
-
+        if (!base64) { reject(new NetworkError('读取本地音频失败')); return }
         resolve(base64ToBlob(base64, inferAudioMimeType(path)))
       },
       fail: (error: { errMsg?: string }) => {
@@ -118,17 +88,9 @@ export class STTService {
     }
   }
 
-  getState(): RecordingState {
-    return this.state
-  }
-
-  getRecordedBlob(): Blob | null {
-    return this.recordedBlob
-  }
-
-  getTempAudioPath(): string {
-    return this.tempAudioPath
-  }
+  getState(): RecordingState { return this.state }
+  getRecordedBlob(): Blob | null { return this.recordedBlob }
+  getTempAudioPath(): string { return this.tempAudioPath }
 
   isSupported(): boolean {
     const runtimeUni = getRuntimeUni()
@@ -136,39 +98,26 @@ export class STTService {
   }
 
   async startRecording(): Promise<void> {
-    if (
-      getMediaRecorderConstructor() &&
-      typeof navigator !== 'undefined' &&
-      typeof navigator.mediaDevices?.getUserMedia === 'function'
-    ) {
+    if (getMediaRecorderConstructor() && typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
       return this.startH5Recording()
     }
-
     return this.startNativeRecording()
   }
 
   async stopRecording(): Promise<string> {
-    if (this.mediaRecorder) {
-      return this.stopH5Recording()
-    }
-
+    if (this.mediaRecorder) return this.stopH5Recording()
     return this.stopNativeRecording()
   }
 
   async transcribe(audioPath: string): Promise<string> {
     try {
       let text = ''
-
       if (this.recordedBlob) {
         text = await this.transcribeBlob(this.recordedBlob, inferAudioFilename(this.recordedBlob))
       } else if (audioPath) {
         text = await this.transcribeSource(audioPath)
       }
-
-      if (text) {
-        this.onResultCallback?.(text, true)
-      }
-
+      if (text) this.onResultCallback?.(text, true)
       this.state = RecordingState.IDLE
       return text
     } catch (error) {
@@ -178,13 +127,8 @@ export class STTService {
     }
   }
 
-  onResult(callback: ResultCallback): void {
-    this.onResultCallback = callback
-  }
-
-  onError(callback: ErrorCallback): void {
-    this.onErrorCallback = callback
-  }
+  onResult(callback: ResultCallback): void { this.onResultCallback = callback }
+  onError(callback: ErrorCallback): void { this.onErrorCallback = callback }
 
   cancel(): void {
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -192,12 +136,7 @@ export class STTService {
       this.mediaRecorder.onerror = null
       this.mediaRecorder.stop()
     }
-
-    if (this.recorder) {
-      this.recorder.stop()
-      this.recorder = null
-    }
-
+    if (this.recorder) { this.recorder.stop(); this.recorder = null }
     this.cleanupH5Resources()
     this.recordedBlob = null
     this.tempAudioPath = ''
@@ -213,9 +152,7 @@ export class STTService {
   private async startH5Recording(): Promise<void> {
     try {
       const MediaRecorderCtor = getMediaRecorderConstructor()
-      if (!MediaRecorderCtor || !navigator.mediaDevices?.getUserMedia) {
-        throw new Error('当前环境不支持录音')
-      }
+      if (!MediaRecorderCtor || !navigator.mediaDevices?.getUserMedia) throw new Error('当前环境不支持录音')
 
       this.cleanupH5Resources()
       this.recordedBlob = null
@@ -233,28 +170,16 @@ export class STTService {
         : new MediaRecorderCtor(this.mediaStream)
 
       this.mediaRecorder.ondataavailable = event => {
-        if (event.data && event.data.size > 0) {
-          this.h5Chunks.push(event.data)
-        }
+        if (event.data && event.data.size > 0) this.h5Chunks.push(event.data)
       }
-
       this.mediaRecorder.onerror = event => {
-        const error = new Error((event as any)?.error?.message || '录音失败')
         this.state = RecordingState.ERROR
-        this.onErrorCallback?.(error)
+        this.onErrorCallback?.(new Error((event as any)?.error?.message || '录音失败'))
       }
 
       await new Promise<void>((resolve, reject) => {
-        if (!this.mediaRecorder) {
-          reject(new Error('录音器初始化失败'))
-          return
-        }
-
-        this.mediaRecorder.onstart = () => {
-          this.state = RecordingState.RECORDING
-          resolve()
-        }
-
+        if (!this.mediaRecorder) { reject(new Error('录音器初始化失败')); return }
+        this.mediaRecorder.onstart = () => { this.state = RecordingState.RECORDING; resolve() }
         this.mediaRecorder.start()
       })
     } catch (error) {
@@ -266,34 +191,23 @@ export class STTService {
 
   private stopH5Recording(): Promise<string> {
     return new Promise((resolve, reject) => {
-      if (!this.mediaRecorder) {
-        resolve('')
-        return
-      }
-
+      if (!this.mediaRecorder) { resolve(''); return }
       const recorder = this.mediaRecorder
       recorder.onstop = () => {
         try {
-          const blob = new Blob(this.h5Chunks, {
-            type: recorder.mimeType || 'audio/webm'
-          })
+          const blob = new Blob(this.h5Chunks, { type: recorder.mimeType || 'audio/webm' })
           this.recordedBlob = blob
           this.tempAudioPath = URL.createObjectURL(blob)
           this.state = RecordingState.PROCESSING
           this.cleanupH5Resources(false)
           resolve(this.tempAudioPath)
-        } catch (error) {
-          reject(error)
-        }
+        } catch (error) { reject(error) }
       }
-
       recorder.onerror = event => {
-        const error = new Error((event as any)?.error?.message || '录音失败')
         this.state = RecordingState.ERROR
-        this.onErrorCallback?.(error)
-        reject(error)
+        this.onErrorCallback?.(new Error((event as any)?.error?.message || '录音失败'))
+        reject(new Error((event as any)?.error?.message || '录音失败'))
       }
-
       recorder.stop()
     })
   }
@@ -301,28 +215,19 @@ export class STTService {
   private async startNativeRecording(): Promise<void> {
     try {
       const runtimeUni = getRuntimeUni()
-
-      if (typeof runtimeUni?.getRecorderManager !== 'function') {
-        throw new Error('当前环境不支持录音')
-      }
+      if (typeof runtimeUni?.getRecorderManager !== 'function') throw new Error('当前环境不支持录音')
 
       this.recorder = runtimeUni.getRecorderManager()
       this.recordedBlob = null
       this.tempAudioPath = ''
 
       await new Promise<void>((resolve, reject) => {
-        this.recorder.onStart(() => {
-          this.state = RecordingState.RECORDING
-          resolve()
-        })
-
+        this.recorder.onStart(() => { this.state = RecordingState.RECORDING; resolve() })
         this.recorder.onError((error: any) => {
-          const nextError = new Error(error?.errMsg || '录音失败')
           this.state = RecordingState.ERROR
-          this.onErrorCallback?.(nextError)
-          reject(nextError)
+          this.onErrorCallback?.(new Error(error?.errMsg || '录音失败'))
+          reject(new Error(error?.errMsg || '录音失败'))
         })
-
         this.recorder.start({
           format: this.config.format,
           sampleRate: this.config.sampleRate,
@@ -338,76 +243,72 @@ export class STTService {
 
   private stopNativeRecording(): Promise<string> {
     return new Promise((resolve, reject) => {
-      if (!this.recorder) {
-        resolve('')
-        return
-      }
-
+      if (!this.recorder) { resolve(''); return }
       this.recorder.onStop((result: any) => {
         this.tempAudioPath = result?.tempFilePath || ''
         this.state = RecordingState.PROCESSING
         resolve(this.tempAudioPath)
       })
-
       this.recorder.onError((error: any) => {
-        const nextError = new Error(error?.errMsg || '停止录音失败')
         this.state = RecordingState.ERROR
-        this.onErrorCallback?.(nextError)
-        reject(nextError)
+        this.onErrorCallback?.(new Error(error?.errMsg || '停止录音失败'))
+        reject(new Error(error?.errMsg || '停止录音失败'))
       })
-
       this.recorder.stop()
     })
   }
 
   private async transcribeSource(source: string): Promise<string> {
     const normalized = source.trim()
-    if (!normalized) {
-      return ''
-    }
-
-    const blob =
-      /^blob:|^data:|^https?:/i.test(normalized)
-        ? await (async () => {
-            const response = await fetch(normalized)
-            if (!response.ok) {
-              throw new NetworkError(`Unable to read audio file: HTTP ${response.status}`)
-            }
-            return response.blob()
-          })()
-        : await readNativeFileAsBlob(normalized)
-
+    if (!normalized) return ''
+    const blob = /^blob:|^data:|^https?:/i.test(normalized)
+      ? await (async () => {
+          const response = await fetch(normalized)
+          if (!response.ok) throw new NetworkError(`Unable to read audio file: HTTP ${response.status}`)
+          return response.blob()
+        })()
+      : await readNativeFileAsBlob(normalized)
     return this.transcribeBlob(blob, inferAudioFilename(blob, 'recording.webm'))
   }
 
   private async transcribeBlob(blob: Blob, filename: string): Promise<string> {
     const providerConfig =
+      (await apiConfigService.getDefaultConfig('stt')) ||
       (await apiConfigService.getDefaultConfig('voice')) ||
       (await apiConfigService.getDefaultConfig('text'))
 
-    if (!providerConfig) {
-      throw new Error('请先配置可用的 API 提供商')
+    if (!providerConfig) throw new Error('请先配置可用的 API 提供商')
+
+    const adapter = getAdapterOrDefault(providerConfig.provider)
+
+    if (!adapter.capabilities.stt) {
+      throw new Error(`${adapter.providerId} 不支持语音转文本，请在设置中配置支持 STT 的提供商`)
     }
 
-    const formData = new FormData()
-    formData.append('file', blob, filename)
-    formData.append('model', resolveTranscriptionModel(providerConfig))
-    if (this.config.language?.trim()) {
-      formData.append('language', this.config.language.trim())
-    }
+    const model = resolveTranscriptionModel(providerConfig)
+    const fd = adapter.buildSTTFormData({
+      model,
+      language: this.config.language,
+      file: blob,
+      filename,
+    })
+
+    const url = adapter.resolveEndpoint(providerConfig.baseURL, 'stt')
 
     try {
-      const response = await fetch(buildProviderURL(providerConfig.baseURL, '/audio/transcriptions'), {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: buildProviderAuthHeaders(requireAPIKey(providerConfig)),
-        body: formData
+        headers: adapter.buildAuthHeaders(requireAPIKey(providerConfig)),
+        body: fd,
       })
-      return await parseSTTResponse(response)
-    } catch (error) {
-      if (error instanceof APIError) {
-        throw error
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new APIError(response.status, adapter.parseErrorPayload(errorPayload, response.status))
       }
-
+      const payload = await response.json().catch(() => ({}))
+      return String((payload as Record<string, unknown>)?.text || '').trim()
+    } catch (error) {
+      if (error instanceof APIError) throw error
       throw new NetworkError((error as Error).message || 'Speech-to-text request failed.')
     }
   }
@@ -417,12 +318,7 @@ export class STTService {
       URL.revokeObjectURL(this.tempAudioPath)
       this.tempAudioPath = ''
     }
-
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop())
-      this.mediaStream = null
-    }
-
+    if (this.mediaStream) { this.mediaStream.getTracks().forEach(track => track.stop()); this.mediaStream = null }
     this.mediaRecorder = null
     this.h5Chunks = []
   }

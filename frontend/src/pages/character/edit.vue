@@ -1,123 +1,125 @@
 <template>
   <div class="character-edit-page">
-    <!-- 顶部导航 -->
     <div class="header">
-      <button class="back-btn" @click="goBack">←</button>
+      <button class="back-btn" type="button" aria-label="返回" @click="goBack">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+
       <h1 class="title">{{ isEdit ? '编辑角色' : '创建角色' }}</h1>
-      <div style="width: 36px;"></div>
+
+      <span class="header-placeholder" aria-hidden="true"></span>
     </div>
 
     <div class="form-container">
-      <!-- 头像选择 -->
       <div class="avatar-section">
-        <div class="avatar-wrapper" @click="chooseAvatar">
-          <img 
-            v-if="formData.avatar" 
-            :src="formData.avatar" 
+        <button type="button" class="avatar-wrapper" @click="chooseAvatar">
+          <img
+            v-if="formData.avatar"
+            :src="formData.avatar"
+            alt="角色头像"
             class="avatar-preview"
           />
           <div v-else class="avatar-placeholder">
-            <span class="avatar-icon">📷</span>
+            <span class="avatar-icon">+</span>
             <span class="avatar-tip">点击选择头像</span>
           </div>
-        </div>
+        </button>
       </div>
 
-      <!-- 表单 -->
       <div class="form-content">
-        <!-- 名称 -->
         <div class="form-item">
           <label class="form-label">
             角色名称
             <span class="required">*</span>
           </label>
-          <input 
+          <input
             v-model="formData.name"
             class="form-input"
-            placeholder="请输入角色名称（1-50 字）"
+            type="text"
             maxlength="50"
+            placeholder="请输入角色名称，最多 50 字"
           />
-          <span class="form-hint">{{ formData.name?.length || 0 }}/50</span>
+          <span class="form-hint">{{ formData.name.length }}/50</span>
         </div>
 
-        <!-- 背景 -->
         <div class="form-item">
           <label class="form-label">背景</label>
-          <textarea 
+          <textarea
             v-model="formData.background"
             class="form-textarea"
-            placeholder="角色的背景故事（可选）"
             maxlength="500"
             rows="3"
-          />
-          <span class="form-hint">{{ formData.background?.length || 0 }}/500</span>
+            placeholder="角色背景故事，可选"
+          ></textarea>
+          <span class="form-hint">{{ formData.background.length }}/500</span>
         </div>
 
-        <!-- 描述 -->
         <div class="form-item">
           <label class="form-label">
             描述
             <span class="required">*</span>
           </label>
-          <textarea 
+          <textarea
             v-model="formData.description"
             class="form-textarea"
-            placeholder="角色描述（必填）"
             maxlength="1000"
             rows="4"
-          />
-          <span class="form-hint">{{ formData.description?.length || 0 }}/1000</span>
+            placeholder="角色描述，必填"
+          ></textarea>
+          <span class="form-hint">{{ formData.description.length }}/1000</span>
         </div>
 
-        <!-- 开场白 -->
         <div class="form-item">
           <label class="form-label">开场白</label>
-          <textarea 
+          <textarea
             v-model="formData.greeting"
             class="form-textarea"
-            placeholder="第一次对话的开场白（可选）"
             maxlength="500"
             rows="3"
-          />
-          <span class="form-hint">{{ formData.greeting?.length || 0 }}/500</span>
+            placeholder="首次对话时展示的开场白，可选"
+          ></textarea>
+          <span class="form-hint">{{ formData.greeting.length }}/500</span>
         </div>
 
-        <!-- 总体设定 -->
         <div class="form-item">
           <label class="form-label">
-            总体设定
+            整体设定
             <span class="required">*</span>
           </label>
           <textarea
             v-model="formData.settings"
             class="form-textarea settings-input"
-            placeholder="角色的性格、行为方式等设定（必填）"
             maxlength="2000"
             rows="6"
-          />
-          <span class="form-hint">{{ formData.settings?.length || 0 }}/2000</span>
+            placeholder="角色性格、行为方式、说话风格等设定，必填"
+          ></textarea>
+          <span class="form-hint">{{ formData.settings.length }}/2000</span>
         </div>
 
-        <!-- 场景时间 -->
         <div class="form-item">
           <label class="form-label">场景时间</label>
           <input
             v-model="formData.sceneTime"
             class="form-input"
-            placeholder="例：深夜十一点、黄昏时分（可选）"
+            type="text"
             maxlength="30"
+            placeholder="例如：深夜十一点、黄昏时分"
           />
-          <span class="form-hint">对话时显示在顶栏，留空则不显示</span>
+          <span class="form-hint">聊天页顶部显示的时间文案，留空则不显示</span>
         </div>
       </div>
 
-      <!-- 提交按钮 -->
       <div class="submit-section">
-        <button 
-          class="submit-btn"
-          :disabled="!canSubmit"
-          @click="onSubmit"
-        >
+        <button class="submit-btn" type="button" :disabled="!canSubmit" @click="onSubmit">
           保存
         </button>
       </div>
@@ -126,53 +128,71 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
+
+interface CharacterForm {
+  id?: string
+  name: string
+  avatar: string
+  background: string
+  description: string
+  greeting: string
+  settings: string
+  sceneTime: string
+}
 
 const route = useRoute()
 const router = useRouter()
 const characterStore = useCharacterStore()
 
 const isEdit = ref(false)
-const formData = ref<Partial<ICharacter>>({
+const formData = ref<CharacterForm>({
   name: '',
   avatar: '',
   background: '',
   description: '',
   greeting: '',
-  settings: ''
+  settings: '',
+  sceneTime: '',
 })
 
-const canSubmit = computed(() => {
-  return formData.value.name?.trim() && 
-         formData.value.description?.trim() && 
-         formData.value.settings?.trim()
-})
+const canSubmit = computed(() =>
+  Boolean(
+    formData.value.name.trim() &&
+    formData.value.description.trim() &&
+    formData.value.settings.trim(),
+  ),
+)
 
 onMounted(() => {
   const id = route.query.id as string
   if (id) {
     isEdit.value = true
-    loadCharacter(id)
+    void loadCharacter(id)
   }
 })
 
 async function loadCharacter(id: string) {
   const character = await characterStore.getCharacterById(id)
-  if (character) {
-    formData.value = {
-      id: character.id,
-      name: character.name,
-      avatar: character.avatar || '',
-      background: character.background || '',
-      description: character.description,
-      greeting: character.greeting || '',
-      settings: character.settings,
-      sceneTime: character.sceneTime || '',
-    }
+  if (!character) {
+    uni.showToast({ title: '角色不存在', icon: 'none' })
+    router.back()
+    return
+  }
+
+  formData.value = {
+    id: character.id,
+    name: character.name,
+    avatar: character.avatar || '',
+    background: character.background || '',
+    description: character.description,
+    greeting: character.greeting || '',
+    settings: character.settings,
+    sceneTime: character.sceneTime || '',
   }
 }
 
@@ -184,10 +204,11 @@ function chooseAvatar() {
   uni.chooseImage({
     count: 1,
     success: (res) => {
-      if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-        formData.value.avatar = res.tempFilePaths[0]
+      const imagePath = res.tempFilePaths?.[0]
+      if (imagePath) {
+        formData.value.avatar = imagePath
       }
-    }
+    },
   })
 }
 
@@ -198,17 +219,43 @@ async function onSubmit() {
   }
 
   try {
-    if (isEdit.value) {
-      await characterStore.updateCharacter(formData.value as ICharacter)
+    if (isEdit.value && formData.value.id) {
+      const currentCharacter = await characterStore.getCharacterById(formData.value.id)
+      if (!currentCharacter) {
+        uni.showToast({ title: '角色不存在', icon: 'none' })
+        return
+      }
+
+      await characterStore.updateCharacter({
+        ...currentCharacter,
+        ...formData.value,
+        name: formData.value.name.trim(),
+        background: formData.value.background.trim(),
+        description: formData.value.description.trim(),
+        greeting: formData.value.greeting.trim(),
+        settings: formData.value.settings.trim(),
+        sceneTime: formData.value.sceneTime.trim(),
+      } as ICharacter)
+
       uni.showToast({ title: '保存成功', icon: 'success' })
-    } else {
-      await characterStore.createCharacter(formData.value as ICharacter)
-      uni.showToast({ title: '创建成功', icon: 'success' })
-      setTimeout(() => {
-        goBack()
-      }, 1500)
+      return
     }
-  } catch (error) {
+
+    await characterStore.createCharacter({
+      name: formData.value.name.trim(),
+      avatar: formData.value.avatar,
+      background: formData.value.background.trim(),
+      description: formData.value.description.trim(),
+      greeting: formData.value.greeting.trim(),
+      settings: formData.value.settings.trim(),
+      sceneTime: formData.value.sceneTime.trim(),
+    })
+
+    uni.showToast({ title: '创建成功', icon: 'success' })
+    setTimeout(() => {
+      goBack()
+    }, 1200)
+  } catch {
     uni.showToast({ title: '保存失败', icon: 'none' })
   }
 }
@@ -217,46 +264,87 @@ async function onSubmit() {
 <style lang="scss" scoped>
 .character-edit-page {
   min-height: 100vh;
-  padding: 24px 24px 132px;
+  padding: 0 0 132px;
   background: var(--page-backdrop-soft);
 }
 
 .header {
-  max-width: 920px;
-  margin: 0 auto;
   position: sticky;
-  top: 24px;
+  top: 0;
   z-index: 20;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: center;
-  padding: 16px 18px;
-  border: 1px solid var(--border-color);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(34, 38, 43, 0.8), rgba(8, 9, 10, 0.92));
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur));
+  gap: 12px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--ghost-gradient);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
   color: var(--text-primary);
-  font-size: 20px;
+  box-shadow: none;
   cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.back-btn:hover {
+  opacity: 0.78;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
 }
 
 .title {
-  font-size: 18px;
-  font-weight: 600;
+  min-width: 0;
+  margin: 0;
   color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.header-placeholder {
+  width: 42px;
+  height: 42px;
 }
 
 .form-container {
-  max-width: 920px;
+  width: min(920px, calc(100% - 32px));
   margin: 18px auto 0;
   padding-bottom: 120px;
 }
@@ -298,13 +386,17 @@ async function onSubmit() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   color: var(--text-secondary);
-  font-size: 12px;
 }
 
 .avatar-icon {
-  font-size: 24px;
-  margin-bottom: 4px;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.avatar-tip {
+  font-size: 12px;
 }
 
 .form-content {
@@ -325,15 +417,15 @@ async function onSubmit() {
 
 .form-label {
   display: block;
-  font-size: 14px;
-  color: var(--text-primary);
   margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
   font-weight: 500;
 }
 
 .required {
-  color: #ff9d9d;
   margin-left: 4px;
+  color: #ff9d9d;
 }
 
 .form-input,
@@ -344,25 +436,27 @@ async function onSubmit() {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(46, 51, 57, 0.28), rgba(24, 27, 31, 0.56));
   color: var(--text-primary);
+  font: inherit;
   font-size: 14px;
-  font-family: inherit;
   transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+}
 
-  &:focus {
-    border-color: var(--accent-strong);
-    outline: none;
-    transform: translateY(-1px);
-    box-shadow: var(--focus-ring);
-  }
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--focus-ring);
+}
 
-  &::placeholder {
-    color: var(--text-secondary);
-  }
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--text-secondary);
 }
 
 .form-textarea {
-  resize: vertical;
   min-height: 80px;
+  resize: vertical;
 }
 
 .settings-input {
@@ -371,10 +465,10 @@ async function onSubmit() {
 
 .form-hint {
   display: block;
-  text-align: right;
-  font-size: 12px;
-  color: var(--text-secondary);
   margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: right;
 }
 
 .submit-section {
@@ -403,26 +497,27 @@ async function onSubmit() {
   cursor: pointer;
   transition: transform var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base);
   box-shadow: 0 20px 44px rgba(113, 129, 146, 0.24);
+}
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none;
-  }
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 24px 56px rgba(113, 129, 146, 0.3);
-  }
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 56px rgba(113, 129, 146, 0.3);
 }
 
 @media (max-width: 720px) {
-  .character-edit-page {
-    padding: 16px 16px 132px;
+  .header {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  .header {
-    top: 16px;
+  .form-container {
+    width: calc(100% - 20px);
   }
 
   .submit-section {

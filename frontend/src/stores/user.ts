@@ -10,7 +10,9 @@ export const useUserStore = defineStore('user', () => {
 
   const userName = computed(() => userInfo.value?.name?.trim() || '未命名')
   const userAvatar = computed(() => userInfo.value?.avatar || '')
+  const corePrompt = computed(() => userInfo.value?.corePrompt || '')
   const globalPrompt = computed(() => userInfo.value?.globalPrompt || '')
+  const hasCorePrompt = computed(() => !!userInfo.value?.corePrompt?.trim())
   const hasGlobalPrompt = computed(() => !!userInfo.value?.globalPrompt?.trim())
 
   async function loadUserInfo() {
@@ -53,6 +55,10 @@ export const useUserStore = defineStore('user', () => {
     await updateUserInfo({ avatar })
   }
 
+  async function updateCorePrompt(prompt: string) {
+    await updateUserInfo({ corePrompt: prompt })
+  }
+
   async function updateGlobalPrompt(prompt: string) {
     await updateUserInfo({ globalPrompt: prompt })
   }
@@ -87,12 +93,15 @@ export const useUserStore = defineStore('user', () => {
     error,
     userName,
     userAvatar,
+    corePrompt,
     globalPrompt,
+    hasCorePrompt,
     hasGlobalPrompt,
     loadUserInfo,
     updateUserInfo,
     updateUserName,
     updateUserAvatar,
+    updateCorePrompt,
     updateGlobalPrompt,
     hasAPIKey,
     clearAllData,

@@ -1,18 +1,44 @@
 <template>
   <div class="data-page">
     <header class="page-header">
-      <div>
-        <p class="eyebrow">数据管理</p>
-        <h1>导出、备份和导入都放在这里</h1>
-        <p class="header-copy">
-          这里可以导出当前资料，也可以完整备份角色、聊天记录和配置数据。导入时支持合并导入与替换恢复两种方式。
-        </p>
-      </div>
-
-      <button type="button" class="ghost-btn" @click="router.back()">返回</button>
+      <button type="button" class="back-btn" aria-label="返回" @click="router.back()">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+      <h1 class="page-title">数据导入导出</h1>
+      <span class="header-placeholder" aria-hidden="true"></span>
     </header>
 
-    <section class="summary-grid">
+    <div class="view-switcher" role="tablist" aria-label="导入导出切换">
+      <button
+        type="button"
+        class="view-switch-btn"
+        :class="{ active: activeDataView === 'export' }"
+        :aria-pressed="activeDataView === 'export'"
+        @click="setActiveDataView('export')"
+      >
+        导出
+      </button>
+      <button
+        type="button"
+        class="view-switch-btn"
+        :class="{ active: activeDataView === 'import' }"
+        :aria-pressed="activeDataView === 'import'"
+        @click="setActiveDataView('import')"
+      >
+        导入
+      </button>
+    </div>
+
+    <section v-if="activeDataView === 'export'" class="summary-grid">
       <article class="summary-card">
         <span>角色数量</span>
         <strong>{{ stats.characterCount }}</strong>
@@ -31,16 +57,16 @@
       </article>
     </section>
 
-    <section class="panel-grid">
+    <section v-if="activeDataView === 'export'" class="panel-grid">
       <article
         ref="exportCardRef"
         class="content-card"
         :class="{ focused: highlightedPanel === 'export' }"
       >
-        <p class="section-title">标准导出</p>
-        <p class="section-copy">
-          导出角色、会话、消息和用户资料。`JSON` 适合后续导入恢复，`Markdown` 更适合查看整理或分享内容。
-        </p>
+        <div class="section-head export-head">
+          <p class="section-title">标准导出</p>
+          <span class="section-note">含用户资料、角色、会话、消息</span>
+        </div>
 
         <div class="format-list">
           <button
@@ -50,7 +76,6 @@
             @click="selectedFormat = 'json'"
           >
             <strong>JSON</strong>
-            <span>结构化导出，可再次导入。</span>
           </button>
 
           <button
@@ -60,7 +85,6 @@
             @click="selectedFormat = 'markdown'"
           >
             <strong>Markdown</strong>
-            <span>更易阅读，适合查看与归档。</span>
           </button>
         </div>
 
@@ -70,16 +94,9 @@
       </article>
 
       <article class="content-card">
-        <p class="section-title">完整备份</p>
-        <p class="section-copy">
-          在标准导出的基础上，额外保留 API 配置、游戏设置和游戏状态，适合迁移设备或进行完整恢复。
-        </p>
-
-        <div class="badge-row">
-          <span class="badge">API 配置</span>
-          <span class="badge">游戏设置</span>
-          <span class="badge">游戏状态</span>
-          <span class="badge">用户资料</span>
+        <div class="section-head export-head">
+          <p class="section-title">完整备份</p>
+          <span class="section-note">额外含 API 配置、游戏设置、游戏进度</span>
         </div>
 
         <button type="button" class="primary-btn" :disabled="isBusy" @click="handleBackupExport">
@@ -89,6 +106,7 @@
     </section>
 
     <section
+      v-if="activeDataView === 'import'"
       ref="importCardRef"
       class="content-card import-card"
       :class="{ focused: highlightedPanel === 'import' }"
@@ -96,9 +114,6 @@
       <div class="section-head">
         <div>
           <p class="section-title">导入与恢复</p>
-          <p class="section-copy">
-            支持导入标准 JSON 导出文件和完整备份文件。合并模式会保留本地已有数据，替换模式会先清空再恢复。
-          </p>
         </div>
 
         <label class="mode-field">
@@ -133,10 +148,6 @@
       >
         开始导入
       </button>
-
-      <p class="tip-text">
-        导入成功后，当前页面统计会自动刷新；如果你导入了主题或 API 配置，也会同步到当前运行环境。
-      </p>
     </section>
 
     <Loading :visible="isBusy" :message="busyMessage" />
@@ -165,6 +176,7 @@ const gameStore = useGameStore()
 
 const selectedFormat = ref<'json' | 'markdown'>('json')
 const importMode = ref<'merge' | 'replace'>('merge')
+const activeDataView = ref<'export' | 'import'>('export')
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const exportCardRef = ref<HTMLElement | null>(null)
@@ -197,10 +209,20 @@ watch(
 
 async function focusActionPanel(action: string) {
   highlightedPanel.value = action === 'import' || action === 'export' ? action : ''
+
+  if (action === 'import' || action === 'export') {
+    activeDataView.value = action
+  }
+
   await nextTick()
 
   const target = action === 'import' ? importCardRef.value : action === 'export' ? exportCardRef.value : null
   target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function setActiveDataView(view: 'export' | 'import') {
+  activeDataView.value = view
+  highlightedPanel.value = view
 }
 
 async function runBusyTask<T>(message: string, task: () => Promise<T>): Promise<T> {
@@ -328,7 +350,7 @@ async function handleImport() {
 <style lang="scss" scoped>
 .data-page {
   min-height: 100vh;
-  padding: 24px;
+  padding: 0 0 100px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.14) 0%, transparent 40%),
@@ -346,31 +368,50 @@ async function handleImport() {
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 28px;
-  border-radius: 32px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 44px);
+  padding: calc(env(safe-area-inset-top, 0px) + 4px) 12px 6px;
+  border: none;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
 }
 
-.eyebrow {
-  color: rgba(226, 232, 240, 0.7);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 12px;
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
-.page-header h1 {
-  margin: 12px 0 10px;
+.page-title {
+  min-width: 0;
+  margin: 0;
   color: var(--text-primary);
-  font-size: clamp(28px, 4vw, 40px);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
-.header-copy,
-.section-copy,
-.tip-text {
-  color: var(--text-secondary);
-  line-height: 1.8;
+.header-placeholder {
+  display: block;
+  width: 48px;
+  height: 48px;
 }
 
 .ghost-btn,
@@ -390,6 +431,74 @@ async function handleImport() {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
+}
+
+.back-btn {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  box-shadow: none;
+  cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.back-btn:hover {
+  opacity: 0.78;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 22px;
+  height: 22px;
+  color: currentColor;
+  overflow: visible;
+}
+
+.view-switcher {
+  width: min(1080px, calc(100% - 32px));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px auto 18px;
+}
+
+.view-switch-btn {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform var(--transition-base),
+    background var(--transition-base),
+    color var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.view-switch-btn:hover {
+  transform: translateY(-1px);
+  color: var(--text-primary);
+}
+
+.view-switch-btn.active {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.24), rgba(56, 189, 248, 0.18));
+  color: var(--text-primary);
+  box-shadow: 0 12px 30px rgba(56, 189, 248, 0.16);
 }
 
 .primary-btn {
@@ -414,10 +523,11 @@ async function handleImport() {
 }
 
 .summary-grid {
+  width: min(1080px, calc(100% - 32px));
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin: 18px 0;
+  margin: 18px auto;
 }
 
 .summary-card {
@@ -438,9 +548,11 @@ async function handleImport() {
 }
 
 .panel-grid {
+  width: min(1080px, calc(100% - 32px));
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  margin: 0 auto;
 }
 
 .content-card {
@@ -467,11 +579,24 @@ async function handleImport() {
   margin-bottom: 22px;
 }
 
+.export-head {
+  align-items: baseline;
+  gap: 16px;
+}
+
 .section-title {
   margin-bottom: 10px;
   color: var(--text-primary);
   font-size: 20px;
   font-weight: 600;
+}
+
+.section-note {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
 }
 
 .format-list {
@@ -519,7 +644,8 @@ async function handleImport() {
 }
 
 .import-card {
-  margin-top: 16px;
+  width: min(1080px, calc(100% - 32px));
+  margin: 16px auto 0;
 }
 
 .mode-field {
@@ -570,13 +696,17 @@ async function handleImport() {
   .section-head {
     flex-direction: column;
   }
+
+  .export-head {
+    gap: 6px;
+  }
+
+  .section-note {
+    text-align: left;
+  }
 }
 
 @media (max-width: 760px) {
-  .data-page {
-    padding: 16px;
-  }
-
   .summary-grid,
   .panel-grid,
   .format-list {
@@ -584,12 +714,23 @@ async function handleImport() {
   }
 
   .page-header {
-    flex-direction: column;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .view-switcher {
+    width: calc(100% - 20px);
   }
 
   .import-actions {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .summary-grid,
+  .panel-grid,
+  .import-card {
+    width: calc(100% - 20px);
   }
 }
 </style>

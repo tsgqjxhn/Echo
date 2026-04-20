@@ -1048,15 +1048,31 @@ onUnmounted(() => {
 }
 
 .dialogue-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(9, 10, 12, 0.92);
-  backdrop-filter: blur(16px);
+  gap: 8px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 44px);
+  padding: calc(env(safe-area-inset-top, 0px) + 4px) 12px 6px;
+  border-bottom: 1px solid var(--top-bar-border);
+  background: var(--top-bar-surface);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.dialogue-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .btn-back,
@@ -1071,8 +1087,8 @@ onUnmounted(() => {
 
 .btn-back {
   grid-column: 1;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1125,14 +1141,14 @@ onUnmounted(() => {
 
 .header-copy strong {
   color: var(--text-primary);
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .header-time {
   grid-column: 3;
   color: var(--text-secondary);
-  font-size: 12px;
-  min-width: 52px;
+  font-size: 11px;
+  min-width: 46px;
   text-align: right;
 }
 
@@ -1481,7 +1497,7 @@ onUnmounted(() => {
 
 @media (max-width: 720px) {
   .dialogue-header {
-    grid-template-columns: 42px minmax(0, 1fr) auto;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
   }
 
   .bubble-stack {

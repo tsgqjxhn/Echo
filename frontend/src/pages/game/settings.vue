@@ -1,7 +1,18 @@
 <template>
   <div class="game-settings-page">
     <div class="header">
-      <button class="back-btn" @click="goBack" aria-label="返回">←</button>
+      <button class="back-btn" @click="goBack" aria-label="返回">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
       <h1 class="title">游戏设置</h1>
       <span class="header-placeholder" aria-hidden="true"></span>
     </div>
@@ -16,7 +27,7 @@
           </div>
           <div class="item-right">
             <label class="switch">
-              <input type="checkbox" v-model="globalEnabled" @change="saveSettings" />
+              <input v-model="globalEnabled" type="checkbox" @change="saveSettings" />
               <span class="slider"></span>
             </label>
           </div>
@@ -63,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 
@@ -102,7 +113,7 @@ function saveSettings() {
   min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
   border-bottom: 1px solid var(--top-bar-border);
-  border-radius: 0 0 30px 30px;
+  border-radius: 0;
   background: var(--top-bar-surface);
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(28px) saturate(1.45);
@@ -122,28 +133,32 @@ function saveSettings() {
 }
 
 .back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
   border-radius: 14px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 20px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition:
-    background var(--transition-base),
-    border-color var(--transition-base),
-    transform var(--transition-base);
+  box-shadow: none;
+  transition: opacity var(--transition-base), transform var(--transition-base);
 
   &:hover {
-    border-color: rgba(186, 230, 253, 0.22);
-    background: rgba(255, 255, 255, 0.08);
+    opacity: 0.78;
   }
 
   &:active {
     transform: scale(0.95);
   }
+}
+
+.back-icon {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
 }
 
 .header-placeholder {
@@ -177,12 +192,12 @@ function saveSettings() {
 }
 
 .section-title {
+  margin: 0;
   padding: 20px 20px 10px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  margin: 0;
 }
 
 .setting-item {
@@ -253,9 +268,9 @@ function saveSettings() {
   height: 28px;
 
   input {
-    opacity: 0;
     width: 0;
     height: 0;
+    opacity: 0;
 
     &:checked + .slider {
       background: var(--interactive-gradient);
@@ -271,20 +286,20 @@ function saveSettings() {
     inset: 0;
     cursor: pointer;
     border: 1px solid var(--border-color);
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.06);
     transition: 0.3s;
-    border-radius: 999px;
 
     &:before {
       position: absolute;
-      content: '';
-      height: 20px;
-      width: 20px;
       left: 3px;
       bottom: 3px;
-      background-color: white;
-      transition: 0.3s;
+      width: 20px;
+      height: 20px;
+      content: '';
       border-radius: 50%;
+      background-color: #fff;
+      transition: 0.3s;
     }
   }
 }
@@ -297,7 +312,7 @@ function saveSettings() {
   .header {
     padding-left: 16px;
     padding-right: 16px;
-    border-radius: 0 0 24px 24px;
+    border-radius: 0;
   }
 
   .settings-content {
@@ -305,8 +320,8 @@ function saveSettings() {
   }
 
   .setting-item {
-    align-items: flex-start;
     flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

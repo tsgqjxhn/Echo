@@ -49,12 +49,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/settings/global-prompt',
     component: () => import('./pages/settings/global-prompt.vue'),
-    meta: { title: '全局提示词' }
+    meta: { title: '配置提示词' }
   },
   {
     path: '/settings/api-config',
     component: () => import('./pages/settings/api-config.vue'),
-    meta: { title: 'API 配置' }
+    meta: { title: '配置全局大模型' }
   },
   {
     path: '/settings/export',

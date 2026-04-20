@@ -1,11 +1,20 @@
 <template>
   <div class="api-config-page">
     <header class="page-header">
-      <div>
-        <p class="eyebrow">模型连接</p>
-        <h1>API 配置</h1>
-      </div>
-      <button type="button" class="ghost-btn" @click="router.back()">返回</button>
+      <button type="button" class="back-btn" aria-label="返回" @click="router.back()">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+      <h1 class="page-title">配置全局大模型</h1>
+      <span class="header-placeholder" aria-hidden="true"></span>
     </header>
 
     <div class="type-tabs">
@@ -53,8 +62,16 @@
           <input v-model="form.name" type="text" maxlength="40" placeholder="例如：主账号" />
         </label>
         <label class="field">
+          <span>Provider 类型</span>
+          <select v-model="form.provider" class="field-select" @change="onProviderChange">
+            <option v-for="(label, key) in providerOptions" :key="key" :value="key">
+              {{ label }}
+            </option>
+          </select>
+        </label>
+        <label class="field">
           <span>Base URL</span>
-          <input v-model="form.baseURL" type="text" placeholder="留空使用 OpenAI 默认地址" />
+          <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
         </label>
         <label class="field">
           <span>API Key</span>
@@ -67,6 +84,7 @@
             {{ showKey ? '隐藏' : '显示' }}
           </button>
         </label>
+        <p v-if="capabilityWarning" class="hint warning">{{ capabilityWarning }}</p>
       </div>
 
       <div class="config-actions">
@@ -92,9 +110,6 @@
         </button>
       </div>
 
-      <p v-if="!canConnect" class="hint">请先填写 API Key 后点击连接获取模型列表</p>
-      <p v-if="noModelsAfterConnect" class="hint">该接口不支持模型列表，请在下方手动输入模型名称</p>
-
       <select
         v-if="availableModels.length > 0"
         v-model="selectedModel"
@@ -119,10 +134,6 @@
       >
         设为此类型默认配置
       </button>
-
-      <p v-if="currentDefault" class="default-hint">
-        当前默认：{{ currentDefault.name }} · {{ currentDefault.model || '未选择模型' }}
-      </p>
     </section>
   </div>
 </template>
@@ -130,8 +141,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { APIConfig, APIConfigType } from '@/types/api-config'
+import type { APIConfig, APIConfigType, APIProvider } from '@/types/api-config'
+import { PROVIDER_DISPLAY_NAMES } from '@/types/api-config'
 import { apiConfigService } from '@/services/api-config'
+import { getAdapterOrDefault } from '@/services/providers/registry'
 import { generateUUID } from '@/utils/uuid'
 import { uni } from '@/utils/uni-polyfill'
 
@@ -161,7 +174,39 @@ const saving = ref(false)
 const showKey = ref(false)
 const modelSectionRef = ref<HTMLElement | null>(null)
 
-const form = ref({ name: '', baseURL: '', apiKey: '' })
+const form = ref({ name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' as APIProvider })
+
+const providerOptions = PROVIDER_DISPLAY_NAMES
+
+const DEFAULT_URLS: Record<string, string> = {
+  openai: 'https://api.openai.com/v1',
+  'openai-compatible': '',
+  anthropic: 'https://api.anthropic.com',
+  dashscope: 'https://dashscope.aliyuncs.com',
+  volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
+}
+
+const baseURLPlaceholder = computed(() => {
+  const def = DEFAULT_URLS[form.value.provider]
+  return def ? `留空使用默认: ${def}` : '例如: https://api.example.com/v1'
+})
+
+const capabilityWarning = computed(() => {
+  const adapter = getAdapterOrDefault(form.value.provider)
+  const type = effectiveConfigType.value
+  const warnings: string[] = []
+  if ((type === 'stt' || type === 'tts') && !adapter.capabilities.tts && !adapter.capabilities.stt) {
+    warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持语音服务，请为语音类型配置其他提供商`)
+  }
+  if (type === 'image' && !adapter.capabilities.imageGeneration) {
+    warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持图片生成`)
+  }
+  if (type === 'video' && !adapter.capabilities.videoGeneration) {
+    warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持视频生成`)
+  }
+  return warnings.join('；')
+})
 
 const effectiveConfigType = computed<APIConfigType>(() =>
   activeType.value === 'voice' ? voiceSubType.value : activeType.value
@@ -210,8 +255,18 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
 }
 
 function clearForm() {
-  form.value = { name: '', baseURL: '', apiKey: '' }
+  form.value = { name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' }
   showKey.value = false
+}
+
+function onProviderChange() {
+  const def = DEFAULT_URLS[form.value.provider]
+  if (def && !form.value.baseURL.trim()) {
+    form.value.baseURL = def
+  }
+  availableModels.value = []
+  selectedModel.value = ''
+  noModelsAfterConnect.value = false
 }
 
 function startNew() {
@@ -231,6 +286,7 @@ function onConfigSelect() {
     form.value.name = config.name
     form.value.baseURL = config.baseURL ?? ''
     form.value.apiKey = ''
+    form.value.provider = config.provider || 'openai-compatible'
     selectedModel.value = config.model ?? ''
   } else {
     clearForm()
@@ -252,7 +308,7 @@ async function saveConfig() {
     const payload: APIConfig = {
       id: existing?.id ?? generateUUID(),
       name: form.value.name.trim(),
-      provider: 'openai-compatible',
+      provider: form.value.provider || 'openai-compatible',
       apiKey: form.value.apiKey.trim() || existing?.apiKey || '',
       baseURL: form.value.baseURL.trim() || undefined,
       model: selectedModel.value || existing?.model || '',
@@ -306,7 +362,7 @@ async function connectModels() {
     const draftConfig: APIConfig = {
       id: existing?.id ?? generateUUID(),
       name: form.value.name.trim() || existing?.name || 'Temp Config',
-      provider: existing?.provider || 'openai-compatible',
+      provider: form.value.provider || existing?.provider || 'openai-compatible',
       apiKey,
       baseURL,
       model: selectedModel.value.trim() || existing?.model || '',
@@ -327,7 +383,7 @@ async function connectModels() {
 
     let models: string[] = []
     try {
-      models = await apiConfigService.fetchModels(baseURL, apiKey, effectiveConfigType.value)
+      models = await apiConfigService.fetchModels(baseURL, apiKey, effectiveConfigType.value, form.value.provider || existing?.provider)
     } catch {
       models = []
     }
@@ -382,7 +438,7 @@ $mint-light: #6ee7b7;
 
 .api-config-page {
   min-height: 100vh;
-  padding: 24px 20px 100px;
+  padding: 0 0 100px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.14) 0%, transparent 40%),
@@ -390,56 +446,90 @@ $mint-light: #6ee7b7;
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 22px 24px;
-  border-radius: 24px;
-  border: 1px solid rgba(52, 211, 153, 0.12);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+  min-height: calc(env(safe-area-inset-top, 0px) + 44px);
+  padding: calc(env(safe-area-inset-top, 0px) + 4px) 12px 6px;
+  border: none;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
 }
 
-.eyebrow {
-  color: $mint-light;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.85;
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
-.page-header h1 {
-  margin-top: 8px;
+.page-title {
+  min-width: 0;
+  margin: 0;
   color: var(--text-primary);
-  font-size: clamp(24px, 4vw, 34px);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
-.ghost-btn {
-  flex-shrink: 0;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
+.header-placeholder {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+
+.back-btn {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
-  transition: background var(--transition-base);
+  box-shadow: none;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.10);
-  }
+.back-btn:hover {
+  opacity: 0.78;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
 }
 
 .type-tabs {
+  width: min(960px, calc(100% - 32px));
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 16px;
+  margin: 16px auto 0;
 }
 
 .voice-sub-tabs {
@@ -473,7 +563,8 @@ $mint-light: #6ee7b7;
 }
 
 .card {
-  margin-top: 16px;
+  width: min(960px, calc(100% - 32px));
+  margin: 16px auto 0;
   padding: 22px;
   border-radius: 22px;
   border: 1px solid rgba(52, 211, 153, 0.12);
@@ -666,6 +757,10 @@ $mint-light: #6ee7b7;
   line-height: 1.6;
 }
 
+.hint.warning {
+  color: #fbbf24;
+}
+
 .field-input {
   width: 100%;
   height: 46px;
@@ -714,5 +809,17 @@ $mint-light: #6ee7b7;
   color: var(--text-tertiary);
   font-size: 12px;
   text-align: center;
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .type-tabs,
+  .card {
+    width: calc(100% - 20px);
+  }
 }
 </style>

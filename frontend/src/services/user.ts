@@ -2,8 +2,9 @@ import type { UserInfo } from '@/types/user'
 import { storageDriver } from './storage'
 import { apiConfigService } from './api-config'
 
-const DEFAULT_USER_INFO: Required<Pick<UserInfo, 'name' | 'globalPrompt'>> = {
+const DEFAULT_USER_INFO: Required<Pick<UserInfo, 'name' | 'corePrompt' | 'globalPrompt'>> = {
   name: '',
+  corePrompt: '',
   globalPrompt: ''
 }
 
@@ -36,6 +37,15 @@ class UserService {
   async getGlobalPrompt(): Promise<string> {
     const info = await this.getUserInfo()
     return info.globalPrompt || ''
+  }
+
+  async getCorePrompt(): Promise<string> {
+    const info = await this.getUserInfo()
+    return info.corePrompt || ''
+  }
+
+  async updateCorePrompt(prompt: string): Promise<void> {
+    await this.updateUserInfo({ corePrompt: prompt })
   }
 
   async updateGlobalPrompt(prompt: string): Promise<void> {

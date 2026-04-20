@@ -715,7 +715,7 @@ onUnmounted(() => {
 .chat-page {
   box-sizing: border-box;
   min-height: 100vh;
-  padding: 58px 16px 170px;
+  padding: 48px 16px 170px;
   background:
     radial-gradient(ellipse at 20% 5%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.18) 0%, transparent 40%),
@@ -741,17 +741,17 @@ onUnmounted(() => {
   right: 0;
   z-index: 100;
   display: grid;
-  grid-template-columns: 40px 1fr 40px;
+  grid-template-columns: 36px 1fr 36px;
   align-items: center;
-  padding: 6px 12px;
+  padding: 2px 10px;
   background: rgba(5, 13, 20, 0.68);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
 .btn-back {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   border: none;
   border-radius: 0;
@@ -773,27 +773,27 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 2px 4px;
+  padding: 1px 2px;
   border: none;
   background: transparent;
   cursor: pointer;
 
   strong {
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.2;
   }
 
   .header-scene {
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: 10px;
   }
 }
 
 .header-right-pad {
   /* mirror of btn-back width so center column stays geometrically centered */
   display: block;
-  width: 40px;
+  width: 36px;
 }
 
 .detail-avatar {
@@ -1203,11 +1203,11 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .chat-page {
-    padding: 54px 12px 170px;
+    padding: 44px 12px 170px;
   }
 
   .chat-header {
-    padding: 5px 10px;
+    padding: 2px 8px;
   }
 
   .composer-shell {

@@ -1,15 +1,26 @@
 <template>
   <div class="voice-page">
     <header class="page-header">
-      <div>
+      <button type="button" class="back-btn" aria-label="返回" @click="router.back()">
+        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M14.5 5.5L8 12l6.5 6.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2.2"
+          />
+        </svg>
+      </button>
+
+      <div class="page-header-main">
         <p class="eyebrow">语音设置</p>
         <h1>调整朗读与录音偏好</h1>
         <p class="header-copy">
           这里的设置会影响消息朗读效果，也会为后续语音输入能力预留默认参数。
         </p>
       </div>
-
-      <button type="button" class="ghost-btn" @click="router.back()">返回</button>
     </header>
 
     <section class="settings-grid">
@@ -176,7 +187,7 @@ function resetSettings() {
 <style lang="scss" scoped>
 .voice-page {
   min-height: 100vh;
-  padding: 24px;
+  padding: 0 0 100px;
   background:
     radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.14) 0%, transparent 40%),
@@ -193,11 +204,38 @@ function resetSettings() {
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 28px;
-  border-radius: 32px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border: none;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.page-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
+}
+
+.page-header-main {
+  min-width: 0;
 }
 
 .eyebrow {
@@ -208,9 +246,9 @@ function resetSettings() {
 }
 
 .page-header h1 {
-  margin: 12px 0 10px;
+  margin: 4px 0 0;
   color: var(--text-primary);
-  font-size: clamp(28px, 4vw, 38px);
+  font-size: clamp(18px, 3vw, 24px);
 }
 
 .header-copy {
@@ -233,6 +271,37 @@ function resetSettings() {
   color: var(--text-primary);
 }
 
+.back-btn {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  box-shadow: none;
+  cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.back-btn:hover {
+  opacity: 0.78;
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+}
+
 .primary-btn {
   border: none;
   background: linear-gradient(135deg, #4a90d9, #356fb7);
@@ -241,10 +310,11 @@ function resetSettings() {
 }
 
 .settings-grid {
+  width: min(1080px, calc(100% - 32px));
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  margin-top: 18px;
+  margin: 18px auto 0;
 }
 
 .settings-card {
@@ -306,12 +376,13 @@ function resetSettings() {
 }
 
 @media (max-width: 640px) {
-  .voice-page {
-    padding: 16px;
+  .page-header {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
-  .page-header {
-    flex-direction: column;
+  .settings-grid {
+    width: calc(100% - 20px);
   }
 }
 </style>
