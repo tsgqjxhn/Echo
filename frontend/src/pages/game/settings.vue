@@ -1,14 +1,12 @@
 <template>
   <div class="game-settings-page">
-    <!-- 顶部导航 -->
     <div class="header">
-      <button class="back-btn" @click="goBack">←</button>
+      <button class="back-btn" @click="goBack" aria-label="返回">←</button>
       <h1 class="title">游戏设置</h1>
-      <div style="width: 36px;"></div>
+      <span class="header-placeholder" aria-hidden="true"></span>
     </div>
 
     <div class="settings-content">
-      <!-- 全局开关 -->
       <div class="setting-section">
         <h2 class="section-title">通用</h2>
         <div class="setting-item">
@@ -25,7 +23,6 @@
         </div>
       </div>
 
-      <!-- 逃跑游戏设置 -->
       <div class="setting-section">
         <h2 class="section-title">逃跑游戏</h2>
         <div class="setting-item">
@@ -49,7 +46,6 @@
         </div>
       </div>
 
-      <!-- 关于 -->
       <div class="setting-section">
         <h2 class="section-title">关于</h2>
         <div class="setting-item">
@@ -92,46 +88,79 @@ function saveSettings() {
 <style lang="scss" scoped>
 .game-settings-page {
   min-height: 100vh;
-  padding: 24px 24px 120px;
+  padding: 0 0 120px;
   background: var(--page-backdrop-soft);
 }
 
 .header {
-  max-width: 960px;
-  margin: 0 auto;
   position: sticky;
-  top: 24px;
+  top: 0;
   z-index: 20;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 18px;
-  border: 1px solid var(--border-color);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(34, 38, 43, 0.8), rgba(8, 9, 10, 0.92));
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur));
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0 0 30px 30px;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--ghost-gradient);
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: var(--top-bar-button-surface);
   color: var(--text-primary);
   font-size: 20px;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    transform var(--transition-base);
+
+  &:hover {
+    border-color: rgba(186, 230, 253, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.header-placeholder {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
 }
 
 .title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--text-primary);
 }
 
 .settings-content {
-  max-width: 960px;
+  width: min(960px, calc(100% - 32px));
   margin: 18px auto 0;
   display: grid;
   gap: 16px;
@@ -139,11 +168,12 @@ function saveSettings() {
 
 .setting-section {
   border: 1px solid var(--border-color);
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--surface-gradient);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  backdrop-filter: blur(var(--backdrop-blur));
+  backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
 }
 
 .section-title {
@@ -261,11 +291,17 @@ function saveSettings() {
 
 @media (max-width: 720px) {
   .game-settings-page {
-    padding: 16px 16px 118px;
+    padding: 0 0 118px;
   }
 
   .header {
-    top: 16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .settings-content {
+    width: calc(100% - 20px);
   }
 
   .setting-item {

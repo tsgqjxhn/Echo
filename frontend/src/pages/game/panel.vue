@@ -33,7 +33,6 @@
         </div>
       </div>
     </div>
-
   </div>
 </template>
 
@@ -55,41 +54,60 @@ function goToSettings() {
 .game-panel-page {
   min-height: 100vh;
   padding: 0 0 120px;
-  background: var(--page-backdrop);
+  background: var(--page-backdrop-soft);
 }
 
 .header {
-  position: relative;
-  max-width: 1080px;
-  margin: 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 12px 22px;
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(34, 38, 43, 0.8), rgba(8, 9, 10, 0.92));
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur));
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border-bottom: 1px solid var(--top-bar-border);
+  border-radius: 0 0 30px 30px;
+  background: var(--top-bar-surface);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
 }
 
 .menu-btn {
   position: absolute;
-  left: 22px;
+  left: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: var(--top-bar-button-surface);
   color: var(--text-primary);
   cursor: pointer;
-  transition: background var(--transition-base), transform var(--transition-base);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    transform var(--transition-base);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(186, 230, 253, 0.22);
+    background: rgba(255, 255, 255, 0.08);
   }
 
   &:active {
@@ -98,23 +116,24 @@ function goToSettings() {
 }
 
 .title {
-  margin: 6px 0;
+  margin: 0;
   font-size: 20px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--text-primary);
 }
 
 .game-list {
-  max-width: 1080px;
+  width: min(1080px, calc(100% - 32px));
   margin: 18px auto 0;
 }
 
-.game-card,
-.settings-item {
+.game-card {
   border: 1px solid var(--border-color);
   background: var(--surface-gradient);
   box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur));
+  backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
 }
 
 .game-card {
@@ -122,7 +141,7 @@ function goToSettings() {
   align-items: center;
   gap: 16px;
   padding: 20px;
-  border-radius: 18px;
+  border-radius: 24px;
   margin-bottom: 14px;
   cursor: pointer;
   transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
@@ -137,6 +156,12 @@ function goToSettings() {
 .game-card.disabled {
   opacity: 0.72;
   cursor: not-allowed;
+}
+
+.game-card.disabled .play-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  box-shadow: none;
 }
 
 .game-card.disabled:hover {
@@ -190,10 +215,7 @@ function goToSettings() {
 }
 
 .coming {
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.08);
-  padding: 4px 12px;
-  border-radius: 999px;
+  padding: 0;
   font-size: 12px;
 }
 
@@ -208,12 +230,26 @@ function goToSettings() {
   }
 
   .header {
-    top: 16px;
+    padding-left: 16px;
+    padding-right: 16px;
+    border-radius: 0 0 24px 24px;
+  }
+
+  .menu-btn {
+    left: 16px;
+  }
+
+  .game-list {
+    width: calc(100% - 20px);
   }
 
   .game-card {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .play-btn {
+    align-self: flex-start;
   }
 }
 </style>

@@ -2,12 +2,9 @@ import type { UserInfo } from '@/types/user'
 import { storageDriver } from './storage'
 import { apiConfigService } from './api-config'
 
-const DEFAULT_USER_INFO: Required<Pick<UserInfo, 'name' | 'globalPrompt' | 'fortuneCoins' | 'chatLevel' | 'gameLevel'>> = {
+const DEFAULT_USER_INFO: Required<Pick<UserInfo, 'name' | 'globalPrompt'>> = {
   name: '',
-  globalPrompt: '',
-  fortuneCoins: 0,
-  chatLevel: 1,
-  gameLevel: 1
+  globalPrompt: ''
 }
 
 class UserService {

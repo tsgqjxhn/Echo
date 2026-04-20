@@ -11,9 +11,6 @@ export const useUserStore = defineStore('user', () => {
   const userName = computed(() => userInfo.value?.name?.trim() || '未命名')
   const userAvatar = computed(() => userInfo.value?.avatar || '')
   const globalPrompt = computed(() => userInfo.value?.globalPrompt || '')
-  const fortuneCoins = computed(() => userInfo.value?.fortuneCoins ?? 0)
-  const chatLevel = computed(() => userInfo.value?.chatLevel ?? 1)
-  const gameLevel = computed(() => userInfo.value?.gameLevel ?? 1)
   const hasGlobalPrompt = computed(() => !!userInfo.value?.globalPrompt?.trim())
 
   async function loadUserInfo() {
@@ -91,9 +88,6 @@ export const useUserStore = defineStore('user', () => {
     userName,
     userAvatar,
     globalPrompt,
-    fortuneCoins,
-    chatLevel,
-    gameLevel,
     hasGlobalPrompt,
     loadUserInfo,
     updateUserInfo,

@@ -67,16 +67,6 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '语音设置' }
   },
   {
-    path: '/settings/coins',
-    component: () => import('./pages/settings/coins.vue'),
-    meta: { title: '我的卜币' }
-  },
-  {
-    path: '/settings/levels',
-    component: () => import('./pages/settings/levels.vue'),
-    meta: { title: '我的等级' }
-  },
-  {
     path: '/moments',
     component: () => import('./pages/moments/moments.vue'),
     meta: { title: '朋友圈' }

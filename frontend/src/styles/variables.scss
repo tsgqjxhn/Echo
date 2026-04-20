@@ -167,6 +167,27 @@ $transition-slow: 0.3s ease;
   --hero-gradient:
     linear-gradient(180deg, rgba(56, 189, 248, 0.14), transparent 55%),
     linear-gradient(180deg, rgba(10, 15, 26, 0.90), rgba(10, 15, 26, 0.96));
+  --top-bar-height: 80px;
+  --top-bar-surface:
+    linear-gradient(
+      180deg,
+      rgba(240, 246, 252, 0.18) 0%,
+      rgba(125, 211, 252, 0.12) 11%,
+      rgba(10, 15, 26, 0.82) 42%,
+      rgba(10, 15, 26, 0.94) 100%
+    );
+  --top-bar-border: rgba(186, 230, 253, 0.22);
+  --top-bar-highlight:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(226, 232, 240, 0.26) 18%,
+      rgba(125, 211, 252, 0.34) 50%,
+      rgba(110, 231, 183, 0.28) 82%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  --top-bar-button-surface:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
 
   // ── Interactive button gradients ──
   --interactive-gradient:

@@ -2,9 +2,6 @@ export interface UserInfo {
   name?: string
   avatar?: string
   globalPrompt?: string
-  fortuneCoins?: number
-  chatLevel?: number
-  gameLevel?: number
 }
 
 export type ThemeType = 'auto' | 'light' | 'dark'
