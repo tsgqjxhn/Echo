@@ -19,24 +19,17 @@
 
     <main class="form-body">
       <div class="field-block">
-        <span class="field-label">大类型</span>
-        <div class="chip-row">
-          <button
-            v-for="group in categoryGroups"
-            :key="group.label"
-            type="button"
-            class="category-chip"
-            :class="{ active: createForm.category === group.label }"
-            @click="createForm.category = group.label"
-          >
+        <span class="field-label">分类</span>
+        <select v-model="createForm.category" class="category-select">
+          <option v-for="group in categoryGroups" :key="group.label" :value="group.label">
             {{ group.label }}
-          </button>
-        </div>
-        <p class="field-hint">按交互方式归类，系统会自动匹配为 {{ resolvedModeLabel }} 模式。</p>
+          </option>
+        </select>
+        <p class="field-hint">系统会自动匹配为 {{ resolvedModeLabel }} 模式。</p>
       </div>
 
-      <div class="field-block">
-        <span class="field-label">小类型</span>
+      <div v-if="createFormSmallCategories.length" class="field-block">
+        <span class="field-label">子分类</span>
         <div class="chip-row">
           <button
             v-for="item in createFormSmallCategories"
@@ -47,6 +40,32 @@
             @click="createForm.subCategory = item"
           >
             {{ item }}
+          </button>
+        </div>
+      </div>
+
+      <div class="field-block">
+        <span class="field-label">主题</span>
+        <select v-model="createForm.themeGroup" class="category-select">
+          <option value="">选择主题大类</option>
+          <option v-for="tg in themeGroups" :key="tg.label" :value="tg.label">
+            {{ tg.label }}
+          </option>
+        </select>
+      </div>
+
+      <div v-if="currentThemeLeaves.length" class="field-block">
+        <span class="field-label">主题细类</span>
+        <div class="chip-row">
+          <button
+            v-for="leaf in currentThemeLeaves"
+            :key="leaf"
+            type="button"
+            class="category-chip theme-chip"
+            :class="{ active: createForm.themeType === leaf }"
+            @click="createForm.themeType = leaf"
+          >
+            {{ leaf }}
           </button>
         </div>
       </div>
@@ -134,6 +153,7 @@ import {
   DEFAULT_CATEGORY,
   getCategoryGroups,
   getFirstSubCategory,
+  getThemeGroups,
   inferCharacterMode
 } from '@/data/taxonomy'
 
@@ -145,17 +165,24 @@ const submitting = ref(false)
 const showAdvanced = ref(false)
 
 const categoryGroups = getCategoryGroups()
+const themeGroups = getThemeGroups()
 
 const createForm = ref({
   name: '',
   category: DEFAULT_CATEGORY,
   subCategory: getFirstSubCategory(DEFAULT_CATEGORY),
+  themeGroup: '',
+  themeType: '',
   description: '',
   greeting: '',
   personality: '',
   behavior: '',
   values: '',
   membersInput: ''
+})
+
+const currentThemeLeaves = computed(() => {
+  return themeGroups.find(g => g.label === createForm.value.themeGroup)?.items || []
 })
 
 const createFormSmallCategories = computed(() => {
@@ -179,6 +206,13 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => createForm.value.themeGroup,
+  () => {
+    createForm.value.themeType = ''
+  }
 )
 
 const generatedAvatarPreview = computed(() => createSilverAvatarDataUrl(createForm.value.name || '银'))
@@ -209,8 +243,9 @@ function normalizeMembers(value: string): string[] {
 
 function buildSettingsSummary(): string {
   return [
-    `大类型：${createForm.value.category}`,
-    `小类型：${createForm.value.subCategory}`,
+    `分类：${createForm.value.category}`,
+    `子分类：${createForm.value.subCategory}`,
+    `主题：${createForm.value.themeType || '未选择'}`,
     `系统模式：${resolvedModeLabel.value}`,
     `性格：${createForm.value.personality || '未补充'}`,
     `行为：${createForm.value.behavior || '未补充'}`,
@@ -246,7 +281,7 @@ async function submitCreateCharacter() {
       behavior: createForm.value.behavior.trim(),
       values: createForm.value.values.trim(),
       members: normalizeMembers(createForm.value.membersInput),
-      tags: [createForm.value.category, createForm.value.subCategory],
+      tags: [createForm.value.category, createForm.value.subCategory, createForm.value.themeType].filter(Boolean),
       sourceType: 'manual'
     }
 
@@ -361,6 +396,32 @@ $mint-light: #6ee7b7;
   gap: 10px;
 }
 
+.category-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.36);
+  }
+
+  option {
+    background: #0a1e2c;
+    color: var(--text-primary);
+  }
+}
+
 .category-chip {
   min-height: 38px;
   padding: 0 16px;
@@ -383,6 +444,15 @@ $mint-light: #6ee7b7;
     border-color: transparent;
     color: #fff;
     font-weight: 700;
+  }
+
+  &.theme-chip {
+    border-color: rgba(56, 189, 248, 0.14);
+    background: rgba(56, 189, 248, 0.06);
+
+    &:hover {
+      background: rgba(56, 189, 248, 0.12);
+    }
   }
 }
 

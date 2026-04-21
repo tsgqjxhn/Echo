@@ -178,6 +178,7 @@ import {
   clearConversationMessages,
   ensureConversationSession,
   ensureStoryCharacter,
+  ECHO_STORY_CHARACTER_ID,
   ECHO_STORY_NAME,
   getConversationById,
   getConversationMessages,
