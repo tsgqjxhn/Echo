@@ -447,11 +447,19 @@ $mint-light: #6ee7b7;
   }
 
   &.theme-chip {
-    border-color: rgba(56, 189, 248, 0.14);
-    background: rgba(56, 189, 248, 0.06);
+    border-color: rgba(56, 189, 248, 0.18);
+    background: rgba(56, 189, 248, 0.08);
 
     &:hover {
-      background: rgba(56, 189, 248, 0.12);
+      background: rgba(56, 189, 248, 0.15);
+    }
+
+    &.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.80));
+      border-color: transparent;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.30);
     }
   }
 }

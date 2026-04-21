@@ -38,20 +38,20 @@
         <button
           type="button"
           class="category-chip"
-          :class="{ active: selectedSmallCategory === '' }"
-          @click="selectedSmallCategory = ''"
+          :class="{ active: selectedTheme === '' }"
+          @click="selectedTheme = ''"
         >
           全部
         </button>
         <button
-          v-for="item in currentSmallCategories"
-          :key="item"
+          v-for="theme in allThemes"
+          :key="theme"
           type="button"
           class="category-chip"
-          :class="{ active: selectedSmallCategory === item }"
-          @click="selectedSmallCategory = item"
+          :class="{ active: selectedTheme === theme }"
+          @click="selectedTheme = theme"
         >
-          {{ item }}
+          {{ theme }}
         </button>
       </div>
     </section>
@@ -183,6 +183,7 @@ import type { ICharacter } from '@/types/character'
 import { ensureStoryCharacter, loadStoryLibrary } from '@/services/story-conversations'
 import {
   DEFAULT_CATEGORY,
+  getAllThemeLeaves,
   getBrowseCategoryGroups,
   getCategoryGroups,
   getFirstSubCategory
@@ -193,7 +194,7 @@ const characterStore = useCharacterStore()
 
 const searchKeyword = ref('')
 const selectedBigCategory = ref('全部')
-const selectedSmallCategory = ref('')
+const selectedTheme = ref('')
 const showImportSheet = ref(false)
 const showImportSubCategoryMenu = ref(false)
 const importFileInput = ref<HTMLInputElement | null>(null)
@@ -203,6 +204,7 @@ const importSubCategory = ref(getFirstSubCategory(DEFAULT_CATEGORY))
 
 const categoryGroups = getCategoryGroups()
 const browseCategoryGroups = getBrowseCategoryGroups()
+const allThemes = getAllThemeLeaves()
 
 const currentSmallCategories = computed(() => {
   return browseCategoryGroups.find(group => group.label === selectedBigCategory.value)?.items || []
@@ -222,7 +224,10 @@ const filteredCharacters = computed(() => {
         !selectedBigCategory.value ||
         selectedBigCategory.value === '全部' ||
         characterCategory === selectedBigCategory.value
-      const matchesSmall = !selectedSmallCategory.value || (character.subCategory || '') === selectedSmallCategory.value
+      const matchesTheme =
+        !selectedTheme.value ||
+        (character.tags || []).includes(selectedTheme.value) ||
+        (character.subCategory || '') === selectedTheme.value
       const matchesSearch =
         !keyword ||
         [
@@ -238,7 +243,7 @@ const filteredCharacters = computed(() => {
           .toLowerCase()
           .includes(keyword)
 
-      return matchesBig && matchesSmall && matchesSearch
+      return matchesBig && matchesTheme && matchesSearch
     })
 })
 
@@ -264,11 +269,6 @@ onMounted(async () => {
 
 function selectBigCategory(label: string) {
   selectedBigCategory.value = label
-  const group = browseCategoryGroups.find(item => item.label === label)
-  const hasSelectedSmallCategory = group?.items.some(item => item === selectedSmallCategory.value) ?? false
-  if (!hasSelectedSmallCategory) {
-    selectedSmallCategory.value = ''
-  }
 }
 
 function getModeLabel(mode?: ICharacter['mode']): string {
