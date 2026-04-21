@@ -261,9 +261,7 @@ function clearForm() {
 
 function onProviderChange() {
   const def = DEFAULT_URLS[form.value.provider]
-  if (def && !form.value.baseURL.trim()) {
-    form.value.baseURL = def
-  }
+  form.value.baseURL = def || ''
   availableModels.value = []
   selectedModel.value = ''
   noModelsAfterConnect.value = false

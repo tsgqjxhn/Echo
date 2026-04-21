@@ -136,8 +136,8 @@ function saveSettings() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   border: none;
   border-radius: 14px;
   background: transparent;
@@ -156,14 +156,14 @@ function saveSettings() {
 }
 
 .back-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   overflow: visible;
 }
 
 .header-placeholder {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 

@@ -1,7 +1,7 @@
 <template>
   <div class="character-list-page">
     <section class="search-strip">
-      <button type="button" class="circle-tool" @click="showCreateSheet = true">
+      <button type="button" class="circle-tool" @click="router.push('/character/create')">
         <img :src="createCharacterIcon" alt="创建角色" class="tool-icon" />
       </button>
 
@@ -65,7 +65,7 @@
       >
         <div class="card-topbar">
           <span class="meta-chip meta-chip--top">{{ getModeLabel(character.mode) }}</span>
-          <span class="meta-chip meta-chip--top subtle">{{ character.category || '剧情' }}</span>
+          <span class="meta-chip meta-chip--top subtle">{{ character.category || DEFAULT_CATEGORY }}</span>
           <span v-if="character.subCategory" class="meta-chip meta-chip--top subtle">{{ character.subCategory }}</span>
         </div>
 
@@ -81,150 +81,20 @@
       <p class="eyebrow">内容为空</p>
       <h2>当前条件下还没有角色</h2>
       <p>可以换个分类看看，或者直接用左侧创建按钮生成一个新角色。</p>
-      <button type="button" class="primary-btn" @click="showCreateSheet = true">立即创建</button>
+      <button type="button" class="primary-btn" @click="router.push('/character/create')">立即创建</button>
     </section>
 
-    <div v-if="showCreateSheet" class="overlay" @click.self="showCreateSheet = false">
-      <section class="sheet">
-        <div class="sheet-head">
-          <div>
-            <p class="eyebrow">创建角色</p>
-            <h2>先定玩法，再补全设定</h2>
-          </div>
-          <button type="button" class="close-btn" @click="showCreateSheet = false">关闭</button>
-        </div>
-
-        <div class="sheet-scroll">
-          <div class="field-block">
-            <span class="field-label">快速模板</span>
-            <div class="chip-row template-row">
-              <button
-                v-for="template in quickCreateTemplates"
-                :key="template.label"
-                type="button"
-                class="category-chip"
-                @click="applyCreateTemplate(template)"
-              >
-                {{ template.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="field-block">
-            <span class="field-label">大类型</span>
-            <div class="chip-row">
-              <button
-                v-for="mode in modeOptions"
-                :key="mode.value"
-                type="button"
-                class="category-chip"
-                :class="{ active: createForm.mode === mode.value }"
-                @click="createForm.mode = mode.value"
-              >
-                {{ mode.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="field-grid">
-            <label class="field">
-              <span>角色名称</span>
-              <input v-model="createForm.name" type="text" maxlength="30" placeholder="例如：银翼调查员" />
-            </label>
-
-            <label class="field">
-              <span>大分类</span>
-              <select v-model="createForm.category">
-                <option v-for="group in categoryGroups" :key="group.label" :value="group.label">
-                  {{ group.label }}
-                </option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>小分类</span>
-              <select v-model="createForm.subCategory">
-                <option v-for="item in createFormSmallCategories" :key="item" :value="item">
-                  {{ item }}
-                </option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>开场白</span>
-              <textarea v-model="createForm.greeting" rows="3" placeholder="第一次见面时角色会说什么"></textarea>
-            </label>
-          </div>
-
-          <label class="field">
-            <span>角色描述</span>
-            <textarea
-              v-model="createForm.description"
-              rows="5"
-              placeholder="写下角色背景、任务、关系、目标等信息"
-            ></textarea>
-          </label>
-
-          <button type="button" class="advanced-toggle" @click="showAdvancedCreateFields = !showAdvancedCreateFields">
-            {{ showAdvancedCreateFields ? '收起高级设定' : '展开高级设定' }}
-          </button>
-
-          <div v-if="showAdvancedCreateFields">
-            <div class="field-grid dual">
-              <label class="field">
-                <span>性格</span>
-                <textarea v-model="createForm.personality" rows="3" placeholder="例如：冷静、克制、观察力强"></textarea>
-              </label>
-
-              <label class="field">
-                <span>行为</span>
-                <textarea v-model="createForm.behavior" rows="3" placeholder="例如：先分析再下结论"></textarea>
-              </label>
-            </div>
-
-            <div class="field-grid dual">
-              <label class="field">
-                <span>价值观</span>
-                <textarea v-model="createForm.values" rows="3" placeholder="例如：真相优先、保护同伴"></textarea>
-              </label>
-
-              <label class="field">
-                <span>群聊成员</span>
-                <input v-model="createForm.membersInput" type="text" placeholder="多个成员用顿号或逗号分隔" />
-              </label>
-            </div>
-
-            <div class="preview-grid">
-              <article class="preview-card">
-                <p class="field-label">银色头像预览</p>
-                <img :src="generatedAvatarPreview" alt="银色头像预览" class="preview-avatar" />
-              </article>
-
-              <article class="preview-card">
-                <p class="field-label">银色背景预览</p>
-                <img :src="generatedBackdropPreview" alt="银色背景预览" class="preview-backdrop" />
-              </article>
-            </div>
-          </div>
-        </div>
-
-        <button type="button" class="primary-btn full" @click="submitCreateCharacter">
-          创建角色
-        </button>
-      </section>
-    </div>
-
-    <div v-if="showImportSheet" class="overlay" @click.self="showImportSheet = false">
+    <div v-if="showImportSheet" class="overlay" @click.self="closeImportSheet">
       <section class="sheet import-sheet">
         <div class="sheet-head">
           <div>
             <p class="eyebrow">导入文档</p>
             <h2>从文件里提取角色设定</h2>
           </div>
-          <button type="button" class="close-btn" @click="showImportSheet = false">关闭</button>
+          <button type="button" class="close-btn" @click="closeImportSheet">关闭</button>
         </div>
 
-        <div class="sheet-scroll">
+        <div class="sheet-scroll" @click="showImportSubCategoryMenu = false">
           <p class="sheet-copy">
             当前优先支持 `txt`、`md`、`json`、`csv`。导入后会自动生成银色头像和背景，并将文档内容整理成角色设定。
           </p>
@@ -243,13 +113,52 @@
           </div>
 
           <label class="field">
-            <span>导入后使用的大分类</span>
+            <span>导入后使用的大类型</span>
             <select v-model="importCategory">
               <option v-for="group in categoryGroups" :key="group.label" :value="group.label">
                 {{ group.label }}
               </option>
             </select>
           </label>
+
+          <div class="field field--dropdown">
+            <span>导入后使用的小类型</span>
+            <button
+              type="button"
+              class="select-trigger"
+              :aria-expanded="showImportSubCategoryMenu"
+              @click.stop="showImportSubCategoryMenu = !showImportSubCategoryMenu"
+            >
+              <span>{{ importSubCategory }}</span>
+              <svg class="select-caret" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 10.5L12 15.5L17 10.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                />
+              </svg>
+            </button>
+
+            <div
+              v-if="showImportSubCategoryMenu"
+              class="select-menu select-menu--up"
+              @click.stop
+            >
+              <button
+                v-for="item in importSmallCategories"
+                :key="item"
+                type="button"
+                class="select-option"
+                :class="{ active: importSubCategory === item }"
+                @click="selectImportSubCategory(item)"
+              >
+                {{ item }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <button type="button" class="primary-btn full" :disabled="!selectedImportFile" @click="submitImportDocument">
@@ -261,20 +170,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import createCharacterIcon from '@/static/images/create-character.svg'
 import importCharacterIcon from '@/static/images/import-character.svg'
 import searchIcon from '@/static/images/search-action.svg'
-import defaultAvatar from '@/static/images/default-avatar.svg'
 import { useCharacterStore } from '@/stores/character'
 import { dataManagementService } from '@/services/data-management'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
 import { ensureStoryCharacter, loadStoryLibrary } from '@/services/story-conversations'
-
-type CharacterMode = NonNullable<ICharacter['mode']>
+import {
+  DEFAULT_CATEGORY,
+  getBrowseCategoryGroups,
+  getCategoryGroups,
+  getFirstSubCategory
+} from '@/data/taxonomy'
 
 const router = useRouter()
 const characterStore = useCharacterStore()
@@ -282,87 +194,21 @@ const characterStore = useCharacterStore()
 const searchKeyword = ref('')
 const selectedBigCategory = ref('全部')
 const selectedSmallCategory = ref('')
-const showCreateSheet = ref(false)
 const showImportSheet = ref(false)
-const showAdvancedCreateFields = ref(false)
+const showImportSubCategoryMenu = ref(false)
 const importFileInput = ref<HTMLInputElement | null>(null)
 const selectedImportFile = ref<File | null>(null)
-const importCategory = ref('剧情')
+const importCategory = ref(DEFAULT_CATEGORY)
+const importSubCategory = ref(getFirstSubCategory(DEFAULT_CATEGORY))
 
-const modeOptions: Array<{ label: string; value: CharacterMode }> = [
-  { label: '闯关式对话', value: 'challenge-dialogue' },
-  { label: '自由对话', value: 'free-dialogue' },
-  { label: '群聊', value: 'group-chat' },
-  { label: '群聊闯关', value: 'group-challenge' }
-]
-
-const categoryGroups = [
-  { label: '剧情', items: ['都市', '校园', '悬疑', '古风', '治愈'] },
-  { label: '游戏剧情', items: ['冒险', '推理', '末日', '战术', '生存'] },
-  { label: '对话闯关', items: ['密室', '解谜', '副本', '逃生', '多结局'] },
-  { label: '自由对话', items: ['陪伴', '恋爱', '日常', '脑洞', '养成'] },
-  { label: '群聊', items: ['宿舍', '公司', '社团', '亲友', '同好会'] },
-  { label: '群聊闯关', items: ['阵营对抗', '团队解谜', '副本合作', '规则推演', '破局逃脱'] }
-] as const
-
-const browseCategoryGroups = [
-  { label: '全部', items: [] as string[] },
-  { label: '故事', items: ['回声'] },
-  ...categoryGroups.map(group => ({ label: group.label, items: [...group.items] }))
-]
-
-const createForm = ref({
-  name: '',
-  mode: 'free-dialogue' as CharacterMode,
-  category: '剧情',
-  subCategory: '都市',
-  description: '',
-  greeting: '',
-  personality: '',
-  behavior: '',
-  values: '',
-  membersInput: ''
-})
-
-const quickCreateTemplates = [
-  {
-    label: '陪伴型',
-    mode: 'free-dialogue' as CharacterMode,
-    category: '自由对话',
-    subCategory: '陪伴',
-    personality: '温和，敏感，会接住情绪',
-    behavior: '先共情，再顺着你的话题继续聊',
-    values: '陪伴感和稳定感优先',
-    greeting: '我在，你慢慢说。',
-  },
-  {
-    label: '悬疑型',
-    mode: 'challenge-dialogue' as CharacterMode,
-    category: '剧情',
-    subCategory: '悬疑',
-    personality: '冷静，谨慎，观察力强',
-    behavior: '优先梳理线索，再推进判断',
-    values: '真相优先',
-    greeting: '先别急，把你看到的细节按顺序告诉我。',
-  },
-  {
-    label: '群像型',
-    mode: 'group-chat' as CharacterMode,
-    category: '群聊',
-    subCategory: '社团',
-    personality: '活跃，互相抬杠，但关系熟',
-    behavior: '多人插话，节奏快',
-    values: '热闹和关系感优先',
-    greeting: '人齐了，今天谁先开口？',
-  }
-]
+const categoryGroups = getCategoryGroups()
+const browseCategoryGroups = getBrowseCategoryGroups()
 
 const currentSmallCategories = computed(() => {
   return browseCategoryGroups.find(group => group.label === selectedBigCategory.value)?.items || []
 })
-
-const createFormSmallCategories = computed(() => {
-  return categoryGroups.find(group => group.label === createForm.value.category)?.items || []
+const importSmallCategories = computed(() => {
+  return categoryGroups.find(group => group.label === importCategory.value)?.items || []
 })
 
 const filteredCharacters = computed(() => {
@@ -371,7 +217,7 @@ const filteredCharacters = computed(() => {
   return [...characterStore.characters]
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .filter(character => {
-      const characterCategory = character.category || '剧情'
+      const characterCategory = character.category || DEFAULT_CATEGORY
       const matchesBig =
         !selectedBigCategory.value ||
         selectedBigCategory.value === '全部' ||
@@ -385,7 +231,8 @@ const filteredCharacters = computed(() => {
           character.category || '',
           character.subCategory || '',
           character.personality || '',
-          character.behavior || ''
+          character.behavior || '',
+          ...(character.tags || [])
         ]
           .join(' ')
           .toLowerCase()
@@ -396,14 +243,18 @@ const filteredCharacters = computed(() => {
 })
 
 
-const generatedAvatarPreview = computed(() => createSilverAvatarDataUrl(createForm.value.name || '银'))
-const generatedBackdropPreview = computed(() =>
-  createSilverBackdropDataUrl(
-    createForm.value.name || '银色角色',
-    `${getModeLabel(createForm.value.mode)} · ${createForm.value.category} · ${createForm.value.subCategory}`
-  )
-)
 const selectedImportFileName = computed(() => selectedImportFile.value?.name || '')
+
+watch(
+  () => importCategory.value,
+  nextCategory => {
+    showImportSubCategoryMenu.value = false
+    if (!importSmallCategories.value.includes(importSubCategory.value)) {
+      importSubCategory.value = getFirstSubCategory(nextCategory)
+    }
+  },
+  { immediate: true }
+)
 
 onMounted(async () => {
   const library = loadStoryLibrary()
@@ -448,92 +299,19 @@ function goToDetail(id: string) {
 
 
 
-function buildSettingsSummary() {
-  return [
-    `玩法类型：${getModeLabel(createForm.value.mode)}`,
-    `大分类：${createForm.value.category}`,
-    `小分类：${createForm.value.subCategory}`,
-    `性格：${createForm.value.personality || '未补充'}`,
-    `行为：${createForm.value.behavior || '未补充'}`,
-    `价值观：${createForm.value.values || '未补充'}`,
-    `群聊成员：${normalizeMembers(createForm.value.membersInput).join('、') || '无'}`
-  ].join('\n')
-}
-
-
-function applyCreateTemplate(template: typeof quickCreateTemplates[number]) {
-  createForm.value.mode = template.mode
-  createForm.value.category = template.category
-  createForm.value.subCategory = template.subCategory
-  createForm.value.personality = template.personality
-  createForm.value.behavior = template.behavior
-  createForm.value.values = template.values
-  createForm.value.greeting = template.greeting
-  showAdvancedCreateFields.value = true
-}
-
-function normalizeMembers(value: string): string[] {
-  return value
-    .split(/[，,、]/)
-    .map(item => item.trim())
-    .filter(Boolean)
-}
-
-async function submitCreateCharacter() {
-  if (!createForm.value.name.trim() || !createForm.value.description.trim()) {
-    uni.showToast({ title: '请先补全角色名称和描述', icon: 'none' })
-    return
-  }
-
-  const character: Partial<ICharacter> = {
-    name: createForm.value.name.trim(),
-    avatar: createSilverAvatarDataUrl(createForm.value.name),
-    background: `${createForm.value.category} / ${createForm.value.subCategory}`,
-    description: createForm.value.description.trim(),
-    greeting: createForm.value.greeting.trim(),
-    settings: buildSettingsSummary(),
-    mode: createForm.value.mode,
-    category: createForm.value.category,
-    subCategory: createForm.value.subCategory,
-    avatarTone: 'silver',
-    backgroundImage: createSilverBackdropDataUrl(
-      createForm.value.name,
-      `${getModeLabel(createForm.value.mode)} · ${createForm.value.category}`
-    ),
-    personality: createForm.value.personality.trim(),
-    behavior: createForm.value.behavior.trim(),
-    values: createForm.value.values.trim(),
-    members: normalizeMembers(createForm.value.membersInput),
-    tags: [createForm.value.category, createForm.value.subCategory],
-    sourceType: 'manual'
-  }
-
-  await characterStore.createCharacter(character)
-  await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
-
-  showCreateSheet.value = false
-  uni.showToast({ title: '角色已创建', icon: 'success' })
-  resetCreateForm()
-}
-
-function resetCreateForm() {
-  createForm.value = {
-    name: '',
-    mode: 'free-dialogue',
-    category: '剧情',
-    subCategory: '都市',
-    description: '',
-    greeting: '',
-    personality: '',
-    behavior: '',
-    values: '',
-    membersInput: ''
-  }
-  showAdvancedCreateFields.value = false
-}
-
 function openImportSheet() {
   showImportSheet.value = true
+  showImportSubCategoryMenu.value = false
+}
+
+function closeImportSheet() {
+  showImportSheet.value = false
+  showImportSubCategoryMenu.value = false
+}
+
+function selectImportSubCategory(item: string) {
+  importSubCategory.value = item
+  showImportSubCategoryMenu.value = false
 }
 
 function triggerImportFile() {
@@ -552,26 +330,26 @@ async function submitImportDocument() {
   }
 
   try {
-    const firstSubCategory = categoryGroups.find(group => group.label === importCategory.value)?.items[0] || '通用'
     const importedCharacter = await dataManagementService.importCharacterDocument(
       selectedImportFile.value,
-      importCategory.value
+      importCategory.value,
+      importSubCategory.value
     )
 
     await characterStore.updateCharacter({
       ...importedCharacter,
       avatar: importedCharacter.avatar || createSilverAvatarDataUrl(importedCharacter.name),
-      background: importedCharacter.background || `${importCategory.value} / ${firstSubCategory}`,
-      subCategory: importedCharacter.subCategory || firstSubCategory,
+      background: importedCharacter.background || `${importCategory.value} / ${importSubCategory.value}`,
+      subCategory: importedCharacter.subCategory || importSubCategory.value,
       avatarTone: importedCharacter.avatarTone || 'silver',
       backgroundImage:
         importedCharacter.backgroundImage ||
-        createSilverBackdropDataUrl(importedCharacter.name, `${importCategory.value} · 文档导入`),
-      tags: Array.from(new Set([...(importedCharacter.tags || []), importCategory.value, firstSubCategory, '文档导入']))
+        createSilverBackdropDataUrl(importedCharacter.name, `${importCategory.value} · ${importSubCategory.value}`),
+      tags: Array.from(new Set([...(importedCharacter.tags || []), importCategory.value, importSubCategory.value, '文档导入']))
     })
 
     await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
-    showImportSheet.value = false
+    closeImportSheet()
     selectedImportFile.value = null
     if (importFileInput.value) {
       importFileInput.value.value = ''
@@ -1128,6 +906,10 @@ $cyan: #67e8f9;
   margin-top: 14px;
 }
 
+.field--dropdown {
+  position: relative;
+}
+
 .field-label,
 .field span {
   color: var(--text-secondary);
@@ -1155,6 +937,93 @@ $cyan: #67e8f9;
 
 .field textarea {
   resize: vertical;
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid rgba(52, 211, 153, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.36);
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+
+.select-caret {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.select-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.16);
+  border-radius: 14px;
+  background: rgba(11, 22, 32, 0.98);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  max-height: min(260px, 42vh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.select-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.select-menu--up {
+  bottom: calc(100% + 8px);
+}
+
+.select-option {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(52, 211, 153, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), color var(--transition-base);
+
+  &:hover {
+    background: rgba(52, 211, 153, 0.10);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    border-color: transparent;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(52, 211, 153, 0.78));
+    color: #fff;
+    font-weight: 600;
+  }
 }
 
 .preview-grid {

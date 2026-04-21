@@ -1,5 +1,12 @@
 import type { ICharacter } from '@/types/character'
 import { generateUUID } from '@/utils/uuid'
+import {
+  DEFAULT_CATEGORY,
+  DEFAULT_SUBCATEGORY,
+  getFirstSubCategory,
+  inferCharacterMode,
+  normalizeTaxonomySelection
+} from '@/data/taxonomy'
 import { AppError } from './errors'
 import {
   getSnapshotOverview,
@@ -32,7 +39,11 @@ export interface StoryImportResult {
   segments: Array<Record<string, unknown>>
 }
 
-function buildCharacterFromDocument(filename: string, content: string, category: string): ICharacter {
+function buildCharacterFromDocument(filename: string, content: string, category: string, subCategory?: string): ICharacter {
+  const selection = normalizeTaxonomySelection({
+    category,
+    subCategory: subCategory || getFirstSubCategory(category)
+  })
   const normalized = content.replace(/\s+/g, ' ').trim()
   const timestamp = Date.now()
   const description = (normalized.slice(0, 180) || '由导入文档生成的角色设定。').trim()
@@ -42,23 +53,23 @@ function buildCharacterFromDocument(filename: string, content: string, category:
     id: generateUUID(),
     name: filename.replace(/\.[^.]+$/, '') || '导入角色',
     avatar: '',
-    background: `${category} / 导入文档`,
+    background: `${selection.category} / ${selection.subCategory}`,
     description,
     greeting: `我已经读完《${filename || '导入文档'}》里的内容，你想从哪里开始聊？`,
     settings: `文档导入设定\n\n内容摘要：${excerpt}`,
     isFavorite: false,
     createdAt: timestamp,
     updatedAt: timestamp,
-    mode: 'free-dialogue',
-    category,
-    subCategory: '导入文档',
+    mode: inferCharacterMode(selection),
+    category: selection.category,
+    subCategory: selection.subCategory,
     avatarTone: 'silver',
     backgroundImage: '',
     personality: '善于根据资料展开交流',
     behavior: '优先围绕导入内容继续展开',
     values: '保留原文档中的关键信息',
     members: [],
-    tags: [category, '导入文档'],
+    tags: [selection.category, selection.subCategory, '文档导入'],
     sourceType: 'document-import',
     sourceName: filename,
   }
@@ -89,9 +100,13 @@ class DataManagementService {
     }
   }
 
-  async importCharacterDocument(file: File, category: string): Promise<ICharacter> {
+  async importCharacterDocument(
+    file: File,
+    category: string = DEFAULT_CATEGORY,
+    subCategory: string = DEFAULT_SUBCATEGORY
+  ): Promise<ICharacter> {
     try {
-      return buildCharacterFromDocument(file.name, await file.text(), category)
+      return buildCharacterFromDocument(file.name, await file.text(), category, subCategory)
     } catch (error) {
       console.error('[DataManagementService] character import failed:', error)
       if (error instanceof AppError) {

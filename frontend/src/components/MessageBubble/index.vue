@@ -4,7 +4,7 @@
       :src="avatarUrl"
       :alt="isUser ? 'User' : 'Assistant'"
       class="avatar"
-      @click="!isUser && emit('avatar-click')"
+      @click="!isUser && handleAvatarClick($event)"
     />
 
     <div class="bubble-main">
@@ -122,7 +122,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: []
-  'avatar-click': []
+  'avatar-click': [rect: DOMRect]
 }>()
 
 const isPlayingVoice = ref(false)
@@ -196,6 +196,11 @@ function onPointerUp() {
     clearTimeout(longPressTimer)
     longPressTimer = null
   }
+}
+
+function handleAvatarClick(event: MouseEvent) {
+  const target = event.currentTarget as HTMLElement
+  emit('avatar-click', target.getBoundingClientRect())
 }
 
 function openMenu() {

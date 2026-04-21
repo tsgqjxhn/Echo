@@ -7,12 +7,27 @@
             <path d="M768 112.512L718.016 64 256 512l462.016 448 49.984-48.512L355.968 512z" fill="currentColor" />
           </svg>
         </button>
+        <ConversationSwitchButton
+          v-else-if="showRandomSwitchButton"
+          class="header-switch"
+          :disabled="switchingCharacter || isBusy"
+          @click="switchToRandomCharacter"
+        />
 
         <div class="header-copy">
           <strong>{{ headerTitle }}</strong>
         </div>
 
-        <div class="header-time">{{ currentGameTime }}</div>
+        <div class="header-actions">
+          <div class="header-time">{{ currentGameTime }}</div>
+          <button type="button" class="btn-more" aria-label="更多">
+            <svg viewBox="0 0 1024 1024" width="20" height="20">
+              <path d="M512 298.6496a85.3504 85.3504 0 1 0 0-170.6496 85.3504 85.3504 0 0 0 0 170.6496z" fill="currentColor"/>
+              <path d="M512 512m-85.3504 0a85.3504 85.3504 0 1 0 170.7008 0 85.3504 85.3504 0 1 0-170.7008 0Z" fill="currentColor"/>
+              <path d="M512 896a85.3504 85.3504 0 1 0 0-170.7008 85.3504 85.3504 0 0 0 0 170.7008z" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
       </header>
 
       <main ref="messageScroller" class="message-scroller">
@@ -152,8 +167,10 @@
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { DialogueMessage } from '@/data/story'
+import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import defaultAvatar from '@/static/images/default-avatar.svg'
 import xingAvatar from '@/static/images/头像.png'
+import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { useUserStore } from '@/stores/user'
 import {
   appendConversationMessage,
@@ -174,6 +191,7 @@ import {
   type StoryLibrary,
   type StoryRuntimeState,
 } from '@/services/story-conversations'
+import { uni } from '@/utils/uni-polyfill'
 
 interface VisibleMessage {
   id: string
@@ -222,12 +240,14 @@ const showRollbackModal = ref(false)
 const isTyping = ref(false)
 const isBusy = ref(false)
 const pendingInlineBranchReply = ref<PendingInlineBranchReply | null>(null)
+const switchingCharacter = ref(false)
 
 let activeRunToken = 0
 let bgmAudio: HTMLAudioElement | null = null
 let audioUnlocked = false
 
 const activeConversationId = computed(() => runtimeState.value.activeConversationId)
+const showRandomSwitchButton = computed(() => route.query.from !== 'history')
 const activeConversation = computed<StoryConversationDefinition | null>(() =>
   getConversationById(storyLibrary.value.conversations, activeConversationId.value)
 )
@@ -373,6 +393,32 @@ const replyOptions = computed<ReplyOption[]>(() => {
 
   return suggestedReplyOptions.value
 })
+
+async function switchToRandomCharacter() {
+  if (switchingCharacter.value || isBusy.value || !showRandomSwitchButton.value) {
+    return
+  }
+
+  switchingCharacter.value = true
+
+  try {
+    const target = await switchToRandomLocalCharacter(router, {
+      excludeCharacterIds: [ECHO_STORY_CHARACTER_ID]
+    })
+    if (!target) {
+      uni.showToast({ title: '没有可切换的本地角色', icon: 'none' })
+    }
+  } catch (error) {
+    uni.showToast({
+      title: (error as Error).message || '切换失败',
+      icon: 'none'
+    })
+  } finally {
+    window.setTimeout(() => {
+      switchingCharacter.value = false
+    }, 180)
+  }
+}
 
 function persistRuntime() {
   saveStoryRuntimeState(runtimeState.value)
@@ -1012,6 +1058,7 @@ onActivated(() => {
   if (bgmAudio && audioUnlocked) {
     void bgmAudio.play().catch(() => undefined)
   }
+  void scrollToBottom('auto')
 })
 
 onDeactivated(() => {
@@ -1052,7 +1099,7 @@ onUnmounted(() => {
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: calc(env(safe-area-inset-top, 0px) + 44px);
@@ -1087,8 +1134,8 @@ onUnmounted(() => {
 
 .btn-back {
   grid-column: 1;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1103,6 +1150,11 @@ onUnmounted(() => {
 
 .btn-back:hover {
   color: var(--text-primary);
+}
+
+.header-switch {
+  grid-column: 1;
+  justify-self: start;
 }
 
 .avatar-trigger {
@@ -1144,12 +1196,38 @@ onUnmounted(() => {
   font-size: 16px;
 }
 
-.header-time {
+.header-actions {
   grid-column: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
+}
+
+.header-time {
   color: var(--text-secondary);
   font-size: 11px;
   min-width: 46px;
   text-align: right;
+}
+
+.btn-more {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition-base);
+
+  &:hover {
+    color: var(--text-primary);
+  }
 }
 
 .message-scroller {
@@ -1497,7 +1575,7 @@ onUnmounted(() => {
 
 @media (max-width: 720px) {
   .dialogue-header {
-    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
   }
 
   .bubble-stack {

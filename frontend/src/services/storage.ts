@@ -3,6 +3,7 @@ import type { IMessage, IChatSession } from '@/types/chat'
 import type { ICharacter } from '@/types/character'
 import type { GameState } from '@/types/game'
 import type { ThemeType, UserInfo as AppUserInfo } from '@/types/user'
+import { normalizeCharacterTaxonomy } from '@/data/taxonomy'
 
 export const STORAGE_KEYS = {
   CHARACTERS: 'xiang_characters',
@@ -79,6 +80,15 @@ function lsSetMap<T>(key: string, data: Record<string, T>): void {
   window.localStorage.setItem(key, JSON.stringify(data))
 }
 
+function hasCharacterTaxonomyChanged(before: ICharacter, after: ICharacter): boolean {
+  return (
+    before.category !== after.category ||
+    before.subCategory !== after.subCategory ||
+    before.background !== after.background ||
+    JSON.stringify(before.tags || []) !== JSON.stringify(after.tags || [])
+  )
+}
+
 export class LocalStorageDriver implements StorageDriver {
   private messageKey(sessionId: string): string {
     return `${STORAGE_KEYS.MESSAGES}_${sessionId}`
@@ -98,16 +108,43 @@ export class LocalStorageDriver implements StorageDriver {
 
   async saveCharacter(character: ICharacter): Promise<void> {
     const map = lsGetMap<ICharacter>(STORAGE_KEYS.CHARACTERS)
-    map[character.id] = character
+    map[character.id] = normalizeCharacterTaxonomy(character)
     lsSetMap(STORAGE_KEYS.CHARACTERS, map)
   }
 
   async getCharacter(id: string): Promise<ICharacter | null> {
-    return lsGetMap<ICharacter>(STORAGE_KEYS.CHARACTERS)[id] ?? null
+    const map = lsGetMap<ICharacter>(STORAGE_KEYS.CHARACTERS)
+    const character = map[id]
+    if (!character) {
+      return null
+    }
+
+    const normalized = normalizeCharacterTaxonomy(character)
+    if (hasCharacterTaxonomyChanged(character, normalized)) {
+      map[id] = normalized
+      lsSetMap(STORAGE_KEYS.CHARACTERS, map)
+    }
+
+    return normalized
   }
 
   async getAllCharacters(): Promise<ICharacter[]> {
-    return Object.values(lsGetMap<ICharacter>(STORAGE_KEYS.CHARACTERS))
+    const map = lsGetMap<ICharacter>(STORAGE_KEYS.CHARACTERS)
+    let changed = false
+    const characters = Object.values(map).map(character => {
+      const normalized = normalizeCharacterTaxonomy(character)
+      if (hasCharacterTaxonomyChanged(character, normalized)) {
+        map[character.id] = normalized
+        changed = true
+      }
+      return normalized
+    })
+
+    if (changed) {
+      lsSetMap(STORAGE_KEYS.CHARACTERS, map)
+    }
+
+    return characters
   }
 
   async deleteCharacter(id: string): Promise<void> {

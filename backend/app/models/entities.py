@@ -18,7 +18,7 @@ class CharacterRecord(Base, TimestampMixin):
     __tablename__ = "characters"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
     background: Mapped[str | None] = mapped_column(Text, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)

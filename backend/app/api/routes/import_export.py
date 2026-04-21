@@ -24,6 +24,8 @@ from app.services.utils import new_id, now_ms
 
 router = APIRouter(prefix="/api", tags=["import-export"])
 settings = get_settings()
+DEFAULT_CATEGORY = "剧情模式"
+DEFAULT_SUB_CATEGORY = "现实悬疑"
 
 
 def _task_response(task: ExportTaskRecord, asset: AssetRecord | None) -> ExportTaskResponse:
@@ -131,33 +133,34 @@ async def import_full(
 @router.post("/import/character", response_model=CharacterResponse)
 async def import_character(
     file: UploadFile = File(...),
-    category: str = Form(default="剧情"),
+    category: str = Form(default=DEFAULT_CATEGORY),
+    subCategory: str = Form(default=DEFAULT_SUB_CATEGORY),
     db: Session = Depends(get_db),
 ) -> CharacterResponse:
     content = (await file.read()).decode("utf-8", errors="ignore")
-    parsed = create_character_from_document(file.filename or "导入角色.txt", content, category)
+    parsed = create_character_from_document(file.filename or "导入角色.txt", content, category, subCategory)
     timestamp = now_ms()
     record = CharacterRecord(
         id=new_id("character"),
         name=parsed["name"],
         avatar=None,
-        background=f"{category} / 导入文档",
+        background=f"{category} / {subCategory}",
         description=parsed["description"],
         greeting=f"我已经读完《{file.filename or '导入文档'}》里的内容，你想从哪里开始聊？",
         settings=parsed["settings"],
         is_favorite=False,
         created_at=timestamp,
         updated_at=timestamp,
-        mode="free-dialogue",
+        mode=parsed["mode"],
         category=category,
-        sub_category="导入文档",
+        sub_category=subCategory,
         avatar_tone="silver",
         background_image=None,
         personality="善于根据资料展开交流",
         behavior="优先围绕导入内容继续展开",
         values="保留原文档中的关键信息",
         members=[],
-        tags=[category, "导入文档"],
+        tags=[category, subCategory, "文档导入"],
         source_type="document-import",
         source_name=file.filename,
     )

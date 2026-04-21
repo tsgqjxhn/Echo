@@ -27,6 +27,11 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '编辑角色' }
   },
   {
+    path: '/character/create',
+    component: () => import('./pages/character/create.vue'),
+    meta: { title: '创建角色' }
+  },
+  {
     path: '/chat/:characterId',
     component: () => import('./pages/chat/chat.vue'),
     meta: { title: '聊天' }

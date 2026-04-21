@@ -43,9 +43,164 @@
       </button>
     </header>
 
-    <section v-if="activeTab === 'friends'" class="card-grid">
+    <div v-if="activeTab === 'contacts'" class="contacts-sub-tabs">
+      <button
+        type="button"
+        class="sub-tab"
+        :class="{ active: contactsSubTab === 'friends' }"
+        @click="contactsSubTab = 'friends'"
+      >好友</button>
+      <button
+        type="button"
+        class="sub-tab"
+        :class="{ active: contactsSubTab === 'groups' }"
+        @click="contactsSubTab = 'groups'"
+      >群聊</button>
+      <button type="button" class="sub-tab-add" @click="openContactSearch" title="搜索联系人">+</button>
+    </div>
+
+    <Teleport to="body">
+      <div v-if="showContactSearch" class="contact-search-page">
+        <header class="contact-search-topbar">
+          <button type="button" class="contact-topbar-back" @click="closeContactSearch">
+            <svg viewBox="0 0 1024 1024" width="20" height="20">
+              <path d="M768 112.512L718.016 64 256 512l462.016 448 49.984-48.512L355.968 512z" fill="currentColor"/>
+            </svg>
+          </button>
+          <div class="contact-search-input-wrap">
+            <svg viewBox="0 0 24 24" width="15" height="15" class="contact-search-icon">
+              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
+            </svg>
+            <input
+              ref="contactSearchInputRef"
+              v-model="contactSearchKeyword"
+              class="contact-search-input"
+              type="search"
+              placeholder="搜索用户/群聊"
+              @keydown.esc="closeContactSearch"
+            />
+          </div>
+        </header>
+
+        <div class="contact-search-body">
+          <button type="button" class="create-group-btn" @click="goToCreateGroup">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/>
+            </svg>
+            创建群聊
+          </button>
+
+          <div class="contact-search-results">
+            <template v-if="contactSearchKeyword.trim()">
+              <template v-if="contactSearchFriends.length > 0">
+                <p class="contact-search-section">好友</p>
+                <article
+                  v-for="c in contactSearchFriends"
+                  :key="c.id"
+                  class="contact-search-item"
+                  @click="goToChat(c.id); closeContactSearch()"
+                >
+                  <img :src="c.avatar || defaultAvatar" :alt="c.name" class="contact-search-avatar" />
+                  <div class="contact-search-info">
+                    <span class="contact-search-name">{{ c.name }}</span>
+                    <span class="contact-search-bio">{{ friendBios[c.id] || c.description?.slice(0, 40) || '暂无签名' }}</span>
+                  </div>
+                </article>
+              </template>
+
+              <template v-if="contactSearchGroups.length > 0">
+                <p class="contact-search-section">群聊</p>
+                <article
+                  v-for="c in contactSearchGroups"
+                  :key="c.id"
+                  class="contact-search-item"
+                >
+                  <img :src="c.avatar || defaultAvatar" :alt="c.name" class="contact-search-avatar" />
+                  <div class="contact-search-info">
+                    <span class="contact-search-name">{{ c.name }}</span>
+                    <span class="contact-search-bio">{{ c.description?.slice(0, 40) || '暂无公告' }}</span>
+                  </div>
+                  <button type="button" class="join-group-btn" @click.stop="openJoinDialog(c)">申请加入</button>
+                </article>
+              </template>
+
+              <div v-if="contactSearchFriends.length === 0 && contactSearchGroups.length === 0" class="contact-search-empty">
+                未找到匹配的联系人
+              </div>
+            </template>
+
+            <div v-else class="contact-search-hint">
+              输入用户名或群聊名搜索
+            </div>
+          </div>
+        </div>
+
+        <div v-if="joinGroupTarget" class="join-overlay" @click.self="joinGroupTarget = null">
+          <section class="join-modal">
+            <strong class="join-modal-title">申请加入「{{ joinGroupTarget.name }}」</strong>
+            <p class="join-modal-hint">验证消息会被评测，通过后即可加入群聊。</p>
+            <textarea v-model="joinVerifyText" class="join-verify-input" placeholder="填写验证消息…"></textarea>
+            <div class="join-modal-actions">
+              <button type="button" class="join-cancel-btn" @click="joinGroupTarget = null">取消</button>
+              <button type="button" class="join-submit-btn" :disabled="!joinVerifyText.trim()" @click="submitJoinGroup">发送申请</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </Teleport>
+
+    <section v-if="activeTab === 'contacts'" class="card-grid">
       <article
         v-for="character in filteredCollectedCharacters"
+        :key="character.id"
+        class="friend-card"
+        :class="{ 'friend-card--group': isGroupCharacter(character) }"
+        @click="goToChat(character.id)"
+      >
+        <img
+          :src="character.avatar || defaultAvatar"
+          :alt="character.name"
+          class="friend-avatar"
+          @click.stop="isGroupCharacter(character) ? openGroupSheet(character) : undefined"
+        />
+        <div class="friend-info">
+          <span class="friend-name">{{ character.name }}</span>
+          <span v-if="isGroupCharacter(character)" class="friend-bio">
+            {{ character.members?.length || 0 }} 位成员<template v-if="friendBios[character.id]"> · {{ friendBios[character.id] }}</template>
+          </span>
+          <span v-else class="friend-bio">{{ friendBios[character.id] || '…' }}</span>
+        </div>
+        <div v-if="isGroupCharacter(character) && character.members?.length" class="group-member-cluster">
+          <img
+            v-for="memberId in (character.members || []).slice(0, 4)"
+            :key="memberId"
+            :src="getCharacterAvatar(memberId)"
+            :alt="getCharacterName(memberId)"
+            class="group-member-thumb"
+            @click.stop="openGroupSheet(character)"
+          />
+        </div>
+      </article>
+    </section>
+
+    <Teleport to="body">
+      <div v-if="groupSheetTarget" class="group-sheet-overlay" @click.self="groupSheetTarget = null">
+        <section class="group-sheet">
+          <div class="group-sheet-head">
+            <img :src="groupSheetTarget.avatar || defaultAvatar" :alt="groupSheetTarget.name" class="group-sheet-avatar" />
+            <div class="group-sheet-info">
+              <strong>{{ groupSheetTarget.name }}</strong>
+              <span>{{ groupSheetTarget.members?.length || 0 }} 位成员</span>
+            </div>
+          </div>
+          <button type="button" class="group-sheet-btn" @click="groupSheetTarget && enterGroup(groupSheetTarget)">进入该群</button>
+        </section>
+      </div>
+    </Teleport>
+
+    <section v-if="activeTab === 'liked'" class="card-grid">
+      <article
+        v-for="character in filteredLikedCharacters"
         :key="character.id"
         class="friend-card"
         @click="goToChat(character.id)"
@@ -53,12 +208,12 @@
         <img :src="character.avatar || defaultAvatar" :alt="character.name" class="friend-avatar" />
         <div class="friend-info">
           <span class="friend-name">{{ character.name }}</span>
-          <span class="friend-bio">{{ friendBios[character.id] || '…' }}</span>
+          <span class="friend-bio">{{ character.description?.slice(0, 40) || '…' }}</span>
         </div>
       </article>
     </section>
 
-    <section v-else class="card-grid session-list">
+    <section v-if="activeTab === 'chatted'" class="card-grid session-list">
       <article
         v-for="session in filteredSessionCardsForTab"
         :key="session.id"
@@ -75,7 +230,7 @@
           <div class="card-header">
             <h2>{{ session.title }}</h2>
             <span v-if="session.unreadCount > 0" class="pill unread">{{ session.unreadCount }}</span>
-            <span v-else class="pill subtle">{{ formatRelativeTime(session.updatedAt) }}</span>
+            <span v-else-if="activeTab === 'chatted'" class="pill subtle">{{ formatRelativeTime(session.updatedAt) }}</span>
           </div>
 
           <p class="card-text">{{ session.preview }}</p>
@@ -131,7 +286,8 @@ import { uni } from '@/utils/uni-polyfill'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 
-type HistoryTab = 'friends' | 'liked' | 'chatted'
+type HistoryTab = 'contacts' | 'liked' | 'chatted'
+type ContactsSubTab = 'friends' | 'groups'
 
 interface SessionCard {
   id: string
@@ -152,7 +308,14 @@ const characterStore = useCharacterStore()
 const storage = getStorageDriver()
 
 const activeTab = ref<HistoryTab>('chatted')
+const contactsSubTab = ref<ContactsSubTab>('friends')
 const showSearch = ref(false)
+const showContactSearch = ref(false)
+const contactSearchKeyword = ref('')
+const contactSearchInputRef = ref<HTMLInputElement | null>(null)
+const groupSheetTarget = ref<ICharacter | null>(null)
+const joinGroupTarget = ref<ICharacter | null>(null)
+const joinVerifyText = ref('')
 const friendBios = reactive<Record<string, string>>({})
 const searchKeyword = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -166,25 +329,25 @@ const storyRuntimeSnapshot = ref(getStoredStoryRuntimeState())
 const suppressSessionClick = ref(false)
 
 const tabs = [
-  { key: 'friends', label: '好友' },
+  { key: 'contacts', label: '联系人' },
   { key: 'liked', label: '赞过' },
   { key: 'chatted', label: '聊过' }
 ] as const
 
 const tabMeta: Record<HistoryTab, { eyebrow: string; title: string; emptyEyebrow: string; emptyTitle: string; emptyCopy: string }> = {
-  friends: {
-    eyebrow: '我的好友',
-    title: '添加好友后，好友会在这里出现',
-    emptyEyebrow: '暂无好友',
+  contacts: {
+    eyebrow: '我的联系人',
+    title: '好友和群聊都在这里',
+    emptyEyebrow: '暂无联系人',
     emptyTitle: '还没有添加好友',
     emptyCopy: '在聊天页点击头像，选择"添加好友"即可。'
   },
   liked: {
-    eyebrow: '赞过内容',
-    title: '你真正点过赞的消息会收在这里',
+    eyebrow: '赞过角色',
+    title: '你点过赞的角色会在这里',
     emptyEyebrow: '暂无点赞',
     emptyTitle: '还没有点赞记录',
-    emptyCopy: '去聊天里点个赞，喜欢的消息就会在这里留下入口。'
+    emptyCopy: '去聊天里点个赞，角色就会在这里留下。'
   },
   chatted: {
     eyebrow: '聊过内容',
@@ -195,11 +358,49 @@ const tabMeta: Record<HistoryTab, { eyebrow: string; title: string; emptyEyebrow
   }
 }
 
-const collectedCharacters = computed(() =>
+function isGroupCharacter(character: ICharacter): boolean {
+  return character.mode === 'group-chat' || character.mode === 'group-challenge'
+}
+
+const friendCharacters = computed(() =>
   [...characterStore.characters]
-    .filter(character => character.isFriend)
-    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .filter(c => c.isFriend && !isGroupCharacter(c))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
 )
+
+const groupCharacters = computed(() =>
+  [...characterStore.characters]
+    .filter(c => isGroupCharacter(c))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+)
+
+const likedCharacters = computed(() =>
+  [...characterStore.characters]
+    .filter(c => c.isLiked)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+)
+
+const contactsCharacters = computed(() =>
+  contactsSubTab.value === 'friends' ? friendCharacters.value : groupCharacters.value
+)
+
+const collectedCharacters = computed(() => contactsCharacters.value)
+
+const contactSearchFriends = computed(() => {
+  const keyword = contactSearchKeyword.value.trim().toLowerCase()
+  if (!keyword) return []
+  return characterStore.characters
+    .filter(c => c.isFriend && !isGroupCharacter(c) && c.name.toLowerCase().includes(keyword))
+    .slice(0, 10)
+})
+
+const contactSearchGroups = computed(() => {
+  const keyword = contactSearchKeyword.value.trim().toLowerCase()
+  if (!keyword) return []
+  return characterStore.characters
+    .filter(c => isGroupCharacter(c) && c.name.toLowerCase().includes(keyword))
+    .slice(0, 10)
+})
 
 const likedSessions = computed(() => {
   return [...chatStore.sessions]
@@ -295,10 +496,7 @@ function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
   }
 
   for (const session of normalSessions) {
-    const previewSource =
-      activeTab.value === 'liked'
-        ? likedPreviewMap.value[session.id] || previewMap.value[session.id]
-        : previewMap.value[session.id]
+    const previewSource = previewMap.value[session.id]
 
     cards.push({
       id: session.id,
@@ -318,22 +516,20 @@ function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
   return cards
 }
 
-const filteredCollectedCharacters = computed(() => {
+function filterCharacters(list: ICharacter[]) {
   const keyword = searchKeyword.value.trim().toLowerCase()
-  if (!keyword) {
-    return collectedCharacters.value
-  }
-
-  return collectedCharacters.value.filter(character =>
-    [character.name, character.description, character.category || '', character.subCategory || '']
-      .join(' ')
-      .toLowerCase()
-      .includes(keyword)
+  if (!keyword) return list
+  return list.filter(c =>
+    [c.name, c.description, c.category || '', c.subCategory || '']
+      .join(' ').toLowerCase().includes(keyword)
   )
-})
+}
+
+const filteredCollectedCharacters = computed(() => filterCharacters(collectedCharacters.value))
+const filteredLikedCharacters = computed(() => filterCharacters(likedCharacters.value))
 
 const filteredSessionCardsForTab = computed(() => {
-  const source = activeTab.value === 'liked' ? likedSessions.value : chattedSessions.value
+  const source = chattedSessions.value
   const cards = buildSessionCards(source)
   const keyword = searchKeyword.value.trim().toLowerCase()
 
@@ -358,13 +554,15 @@ const filteredSessionCardsForTab = computed(() => {
 })
 
 const currentMeta = computed(() => tabMeta[activeTab.value])
-const currentCount = computed(() =>
-  activeTab.value === 'friends' ? filteredCollectedCharacters.value.length : filteredSessionCardsForTab.value.length
-)
+const currentCount = computed(() => {
+  if (activeTab.value === 'contacts') return filteredCollectedCharacters.value.length
+  if (activeTab.value === 'liked') return filteredLikedCharacters.value.length
+  return filteredSessionCardsForTab.value.length
+})
 const isEmpty = computed(() => currentCount.value === 0)
 
 const searchPlaceholder = computed(() =>
-  activeTab.value === 'friends' ? '搜索好友角色' : '搜索角色名或聊天内容'
+  activeTab.value === 'contacts' ? '搜索联系人' : '搜索角色名或聊天内容'
 )
 
 onMounted(async () => {
@@ -374,11 +572,10 @@ onMounted(async () => {
 
 async function generateFriendBios() {
   const apiConfig = await apiConfigService.getDefaultConfig('text')
-  const friends = characterStore.friendCharacters
-  if (friends.length === 0) return
+  const contacts = [...friendCharacters.value, ...groupCharacters.value]
+  if (contacts.length === 0) return
 
-  // Load cached bios from localStorage first
-  for (const f of friends) {
+  for (const f of contacts) {
     const cached = localStorage.getItem(`echo_friend_bio_${f.id}`)
     if (cached) friendBios[f.id] = cached
   }
@@ -386,8 +583,8 @@ async function generateFriendBios() {
   if (!apiConfig) return
   const llm = new LLMAPIService(apiConfig)
 
-  for (const f of friends) {
-    if (friendBios[f.id]) continue  // already cached
+  for (const f of contacts) {
+    if (friendBios[f.id]) continue
     try {
       const bio = await llm.chat({
         systemPrompt: (f.settings || '').trim(),
@@ -474,31 +671,18 @@ function getCharacterCategory(characterId: string): string {
 
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp
+  if (diff < 60_000) return '刚刚'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分钟前`
 
-  if (diff < 60_000) {
-    return '刚刚'
+  const d = new Date(timestamp)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
-
-  if (diff < 3_600_000) {
-    return `${Math.floor(diff / 60_000)} 分钟前`
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}/${d.getDate()}`
   }
-
-  if (diff < 86_400_000) {
-    return `${Math.floor(diff / 3_600_000)} 小时前`
-  }
-
-  if (diff < 604_800_000) {
-    return `${Math.floor(diff / 86_400_000)} 天前`
-  }
-
-  return formatDate(timestamp)
-}
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric'
-  })
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
 }
 
 function goToDetail(characterId: string) {
@@ -566,6 +750,51 @@ async function toggleSearch() {
   } else {
     searchKeyword.value = ''
   }
+}
+
+async function openContactSearch() {
+  showContactSearch.value = true
+  contactSearchKeyword.value = ''
+  await nextTick()
+  contactSearchInputRef.value?.focus()
+}
+
+function closeContactSearch() {
+  showContactSearch.value = false
+  contactSearchKeyword.value = ''
+  joinGroupTarget.value = null
+  joinVerifyText.value = ''
+}
+
+function openGroupSheet(group: ICharacter) {
+  groupSheetTarget.value = group
+}
+
+function enterGroup(group: ICharacter) {
+  groupSheetTarget.value = null
+  goToChat(group.id)
+}
+
+function openJoinDialog(group: ICharacter) {
+  joinGroupTarget.value = group
+  joinVerifyText.value = ''
+}
+
+function submitJoinGroup() {
+  if (!joinGroupTarget.value || !joinVerifyText.value.trim()) return
+  const target = joinGroupTarget.value
+  joinGroupTarget.value = null
+  joinVerifyText.value = ''
+  closeContactSearch()
+  uni.showToast({ title: '申请已发送，请稍候', icon: 'none' })
+  window.setTimeout(() => {
+    goToChat(target.id)
+  }, 1200)
+}
+
+function goToCreateGroup() {
+  closeContactSearch()
+  router.push('/character/create?mode=group-chat')
 }
 
 function closeSearch() {
@@ -829,6 +1058,80 @@ async function handleImportFile(event: Event) {
   margin: 14px auto 0;
 }
 
+.contacts-sub-tabs {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0 16px;
+  min-height: 44px;
+  background: var(--top-bar-surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--top-bar-border);
+}
+
+.contacts-sub-tabs::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--top-bar-highlight);
+  pointer-events: none;
+}
+
+.sub-tab {
+  flex: none;
+  min-height: 44px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color var(--transition-base), box-shadow var(--transition-base);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  &.active {
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: inset 0 -2px 0 rgba(125, 211, 252, 0.72);
+  }
+}
+
+.sub-tab-add {
+  margin-left: auto;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 30px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-base);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
 // friend card
 .friend-card {
   display: flex;
@@ -1010,9 +1313,9 @@ async function handleImportFile(event: Event) {
 .action-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 10000;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   padding: 16px;
   background: rgba(0, 0, 0, 0.58);
@@ -1077,6 +1380,407 @@ async function handleImportFile(event: Event) {
   margin-bottom: 18px;
   color: var(--text-secondary);
   line-height: 1.8;
+}
+
+// ── contact search page ──────────────────────────────────────────────
+.contact-search-page {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
+    radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.16) 0%, transparent 44%),
+    linear-gradient(160deg, #0a0f1a 0%, #0f1626 32%, #141d32 68%, #0d121f 100%);
+}
+
+.contact-search-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  background: var(--top-bar-surface);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-bottom: 1px solid var(--top-bar-border);
+}
+
+.contact-topbar-back {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: color var(--transition-base);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.contact-search-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  min-height: 40px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.contact-search-icon {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.contact-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+.contact-search-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 40px;
+}
+
+.create-group-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  margin: 14px 0 4px;
+  padding: 0 18px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 16px;
+  background: rgba(56, 189, 248, 0.07);
+  color: #7dd3fc;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.28);
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.contact-search-results {
+  padding-top: 4px;
+}
+
+.contact-search-section {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 20px 0 8px;
+
+  &:first-child {
+    margin-top: 8px;
+  }
+}
+
+.contact-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 8px;
+  transition: background var(--transition-base), border-color var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.06);
+    border-color: rgba(56, 189, 248, 0.18);
+  }
+}
+
+.contact-search-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.contact-search-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.contact-search-name {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-search-bio {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-search-empty,
+.contact-search-hint {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.join-group-btn {
+  flex-shrink: 0;
+  padding: 0 14px;
+  height: 34px;
+  border: 1px solid rgba(56, 189, 248, 0.24);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.10);
+  color: #7dd3fc;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.18);
+  }
+}
+
+// ── join dialog ───────────────────────────────────────────────────────
+.join-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.join-modal {
+  width: min(440px, 100%);
+  padding: 22px 20px 18px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+.join-modal-title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.join-modal-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.join-verify-input {
+  display: block;
+  width: 100%;
+  min-height: 88px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  resize: none;
+  box-sizing: border-box;
+  margin-bottom: 14px;
+
+  &:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.28);
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+.join-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.join-cancel-btn,
+.join-submit-btn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.join-cancel-btn {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+}
+
+.join-submit-btn {
+  border: none;
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.96), rgba(56, 189, 248, 0.96));
+  color: #09121f;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+// ── group member cluster ──────────────────────────────────────────────
+.group-member-cluster {
+  display: flex;
+  flex-direction: row-reverse;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.group-member-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  object-fit: cover;
+  border: 2px solid rgba(10, 16, 27, 0.9);
+  cursor: pointer;
+  transition: transform var(--transition-base);
+
+  & + & {
+    margin-right: -8px;
+  }
+
+  &:hover {
+    transform: scale(1.15);
+    z-index: 1;
+  }
+}
+
+// ── group sheet ───────────────────────────────────────────────────────
+.group-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.52);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.group-sheet {
+  width: min(480px, 100%);
+  padding: 18px 18px calc(env(safe-area-inset-bottom, 0px) + 18px);
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%);
+  box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.36);
+}
+
+.group-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.group-sheet-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+}
+
+.group-sheet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 16px;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+}
+
+.group-sheet-btn {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 16px;
+  background: rgba(56, 189, 248, 0.10);
+  color: #7dd3fc;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.18);
+  }
 }
 
 @media (max-width: 720px) {

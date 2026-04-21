@@ -6,6 +6,11 @@ import {
   type DialogueSegment,
 } from '@/data/story'
 import type { ICharacter } from '@/types/character'
+import {
+  STORY_CHARACTER_TAGS,
+  STORY_CHARACTER_TAXONOMY,
+  normalizeCharacterTaxonomy
+} from '@/data/taxonomy'
 import type { IChatSession, IMessage } from '@/types/chat'
 import { getStorageDriver } from './storage'
 import { generateUUID } from '@/utils/uuid'
@@ -392,18 +397,40 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
   const existing = await storage.getCharacter(ECHO_STORY_CHARACTER_ID)
 
   if (existing) {
-    if (existing.avatar !== xingAvatar || existing.name !== characterName || existing.sourceType !== 'builtin-story') {
+    const normalizedExisting = normalizeCharacterTaxonomy(existing)
+    const tags = Array.from(new Set([...(normalizedExisting.tags || []), ...STORY_CHARACTER_TAGS]))
+    if (
+      normalizedExisting.avatar !== xingAvatar ||
+      normalizedExisting.name !== characterName ||
+      normalizedExisting.sourceType !== 'builtin-story' ||
+      normalizedExisting.category !== STORY_CHARACTER_TAXONOMY.category ||
+      normalizedExisting.subCategory !== STORY_CHARACTER_TAXONOMY.subCategory ||
+      normalizedExisting.background !== `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`
+    ) {
       const updated: ICharacter = {
-        ...existing,
+        ...normalizedExisting,
         avatar: xingAvatar,
         name: characterName,
+        background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
+        category: STORY_CHARACTER_TAXONOMY.category,
+        subCategory: STORY_CHARACTER_TAXONOMY.subCategory,
+        tags,
         sourceType: 'builtin-story',
       }
       await storage.saveCharacter(updated)
       return updated
     }
 
-    return existing
+    if (JSON.stringify(tags) !== JSON.stringify(normalizedExisting.tags || [])) {
+      const updated: ICharacter = {
+        ...normalizedExisting,
+        tags
+      }
+      await storage.saveCharacter(updated)
+      return updated
+    }
+
+    return normalizedExisting
   }
 
   const timestamp = Date.now()
@@ -411,7 +438,7 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
     id: ECHO_STORY_CHARACTER_ID,
     name: characterName,
     avatar: xingAvatar,
-    background: ECHO_STORY_NAME,
+    background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
     description: '内置故事角色，会话由导入剧本驱动。',
     greeting: '',
     settings: '你是内置故事角色，只按导入剧本和玩家选择推进，不进行自由发挥。',
@@ -419,15 +446,15 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
     createdAt: timestamp,
     updatedAt: timestamp,
     mode: 'free-dialogue',
-    category: '故事',
-    subCategory: ECHO_STORY_NAME,
+    category: STORY_CHARACTER_TAXONOMY.category,
+    subCategory: STORY_CHARACTER_TAXONOMY.subCategory,
     avatarTone: 'default',
     backgroundImage: '',
     personality: '',
     behavior: '',
     values: '',
     members: [],
-    tags: [ECHO_STORY_NAME],
+    tags: [ECHO_STORY_NAME, ...STORY_CHARACTER_TAGS],
     sourceType: 'builtin-story',
     sourceName: ECHO_STORY_NAME,
   }

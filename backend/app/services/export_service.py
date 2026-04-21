@@ -26,6 +26,20 @@ from app.services.utils import new_id, now_ms
 
 settings = get_settings()
 
+DEFAULT_IMPORT_MODE = "free-dialogue"
+
+
+def infer_character_mode(category: str) -> str:
+    category_mode_map = {
+        "剧情模式": "free-dialogue",
+        "自由对话": "free-dialogue",
+        "游戏剧情": "challenge-dialogue",
+        "群聊互动": "group-chat",
+        "群聊闯关": "group-challenge",
+        "实用助手": "free-dialogue",
+    }
+    return category_mode_map.get(category, DEFAULT_IMPORT_MODE)
+
 
 def _profile_to_dict(profile: UserProfileRecord | None) -> dict[str, Any] | None:
     if profile is None:
@@ -385,13 +399,21 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
     )
 
 
-def create_character_from_document(filename: str, content: str, category: str) -> dict[str, Any]:
+def create_character_from_document(
+    filename: str,
+    content: str,
+    category: str,
+    sub_category: str | None = None,
+) -> dict[str, Any]:
     normalized = " ".join(content.split()).strip()
     description = (normalized[:180] or "由导入文档生成的角色设定。").strip()
     excerpt = (normalized[:520] or "原文档内容为空。").strip()
+    safe_sub_category = (sub_category or "现实悬疑").strip() or "现实悬疑"
     return {
         "name": Path(filename).stem or "导入角色",
         "description": description,
         "settings": f"文档导入设定\n\n内容摘要：{excerpt}",
+        "mode": infer_character_mode(category),
         "category": category,
+        "subCategory": safe_sub_category,
     }

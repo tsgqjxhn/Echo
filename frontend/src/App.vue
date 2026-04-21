@@ -12,12 +12,13 @@ import { getStorageDriver } from '@/services/storage'
 import {
   ECHO_STORY_CHARACTER_ID,
   ensureStoryCharacter,
-  getConversationById,
   loadStoryLibrary,
   loadStoryRuntimeState,
+  getConversationById,
   resetConversationState,
   saveStoryRuntimeState,
 } from '@/services/story-conversations'
+import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { uni } from '@/utils/uni-polyfill'
 import '@/styles/theme.scss'
 
@@ -33,17 +34,6 @@ interface AnchorRect {
   width: number
   height: number
 }
-
-type RandomConversationTarget =
-  | {
-      type: 'chat'
-      sessionId: string
-      characterId: string
-    }
-  | {
-      type: 'story'
-      conversationId: string
-    }
 
 const route = useRoute()
 const router = useRouter()
@@ -101,6 +91,13 @@ function updateActiveTab() {
   if (path.includes('/settings') || path.includes('/profile')) {
     activeTab.value = 'profile'
   }
+}
+
+function canUseRandomCharacterSwitch() {
+  return (
+    (route.path.includes('/dialogue') || route.path.includes('/chat')) &&
+    route.query.from !== 'history'
+  )
 }
 
 function getStorySnapshot() {
@@ -221,106 +218,27 @@ async function toggleDialogueCharacterFlag(flag: 'friend' | 'like') {
   }
 }
 
-async function getRandomConversationTargets(): Promise<RandomConversationTarget[]> {
-  const sessions = await storage.getAllSessions()
-  const chatTargets = sessions
-    .filter(session => session.mode !== 'story' && session.characterId !== ECHO_STORY_CHARACTER_ID)
-    .filter(session => session.messageCount > 0)
-    .map<RandomConversationTarget>(session => ({
-      type: 'chat',
-      sessionId: session.id,
-      characterId: session.characterId
-    }))
-
-  const { library, runtime } = getStorySnapshot()
-  const storyTargets = library.conversations
-    .filter(conversation => {
-      const state = runtime.states[conversation.id]
-      if (!state?.sessionId) {
-        return false
-      }
-
-      const matchedSession = sessions.find(session => session.id === state.sessionId)
-      return Boolean((matchedSession?.messageCount || 0) > 0 || state.lastUpdatedAt > 0)
-    })
-    .map<RandomConversationTarget>(conversation => ({
-      type: 'story',
-      conversationId: conversation.id
-    }))
-
-  return [...chatTargets, ...storyTargets]
-}
-
-function isCurrentConversationTarget(target: RandomConversationTarget): boolean {
-  if (target.type === 'story') {
-    if (!route.path.includes('/dialogue')) {
-      return false
-    }
-
-    const { runtime } = getStorySnapshot()
-    return runtime.activeConversationId === target.conversationId
-  }
-
-  if (!route.path.includes('/chat')) {
-    return false
-  }
-
-  const routeSessionId = typeof route.query.sessionId === 'string' ? route.query.sessionId : ''
-  if (routeSessionId) {
-    return routeSessionId === target.sessionId
-  }
-
-  return String(route.params.characterId || '') === target.characterId
-}
-
-async function openConversationTarget(target: RandomConversationTarget) {
-  closeDialogueSheet()
-  const shouldKeepHistoryMode = route.query.from === 'history'
-
-  if (target.type === 'chat') {
-    await router.push({
-      path: `/chat/${encodeURIComponent(target.characterId)}`,
-      query: {
-        sessionId: target.sessionId,
-        ...(shouldKeepHistoryMode ? { from: 'history' } : {})
-      }
-    })
-    return
-  }
-
-  const { runtime } = getStorySnapshot()
-  runtime.activeConversationId = target.conversationId
-  saveStoryRuntimeState(runtime)
-
-  if (route.path.includes('/dialogue')) {
-    remountDialogueView()
-    return
-  }
-
-  await router.push({
-    path: '/dialogue',
-    query: shouldKeepHistoryMode ? { from: 'history' } : {}
-  })
-}
-
 async function switchToRandomConversation() {
-  if (switchingConversation.value) {
+  if (switchingConversation.value || !canUseRandomCharacterSwitch()) {
     return
   }
 
   switchingConversation.value = true
 
   try {
-    const targets = await getRandomConversationTargets()
-    const candidates = targets.filter(target => !isCurrentConversationTarget(target))
+    const excludedCharacterIds = route.path.includes('/dialogue')
+      ? [ECHO_STORY_CHARACTER_ID]
+      : [String(route.params.characterId || '')].filter(Boolean)
+    const nextCharacter = await switchToRandomLocalCharacter(router, {
+      excludeCharacterIds: excludedCharacterIds
+    })
 
-    if (candidates.length === 0) {
-      showToast('没有可切换的对话')
+    if (!nextCharacter) {
+      showToast('没有可切换的本地角色')
       return
     }
 
-    const target = candidates[Math.floor(Math.random() * candidates.length)]
-    await openConversationTarget(target)
+    closeDialogueSheet()
   } catch (error) {
     showToast((error as Error).message || '切换失败')
   } finally {
@@ -336,7 +254,7 @@ function toElement(target: EventTarget | null): Element | null {
 
 function canStartConversationSwipe(target: EventTarget | null, pointerY?: number): boolean {
   const element = toElement(target)
-  if (!element || dialogueSheetVisible.value) {
+  if (!element || dialogueSheetVisible.value || !canUseRandomCharacterSwitch()) {
     return false
   }
 
@@ -582,7 +500,7 @@ watch(
             />
             <div class="dialogue-action-copy">
               <strong>{{ dialogueCharacterName }}</strong>
-              <span>当前故事角色操作</span>
+              <span>{{ dialogueCharacter?.description?.slice(0, 48) || '当前故事角色' }}</span>
             </div>
           </div>
 

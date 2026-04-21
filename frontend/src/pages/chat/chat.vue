@@ -1,18 +1,39 @@
 <template>
   <div class="chat-page">
     <header class="chat-header">
-      <button type="button" class="btn-back" @click="router.back()">
+      <button v-if="showBackButton" type="button" class="btn-back" @click="router.back()">
         <svg viewBox="0 0 1024 1024" width="20" height="20">
           <path d="M768 112.512L718.016 64 256 512l462.016 448 49.984-48.512L355.968 512z" fill="currentColor"/>
         </svg>
       </button>
+      <ConversationSwitchButton
+        v-else-if="showRandomSwitchButton"
+        class="header-switch"
+        :disabled="switchingCharacter || chatStore.isGenerating"
+        @click="switchToRandomCharacter"
+      />
 
       <button type="button" class="header-center" @click="showDetailSheet = true">
         <strong>{{ character?.name || '角色' }}</strong>
         <span v-if="character?.sceneTime" class="header-scene">{{ character.sceneTime }}</span>
       </button>
 
-      <span class="header-right-pad" aria-hidden="true"></span>
+      <button type="button" class="btn-tts" :class="{ active: isHeaderTTSSpeaking }" @click="toggleHeaderTTS" aria-label="语音朗读">
+        <svg v-if="isHeaderTTSSpeaking" viewBox="0 0 1024 1024" width="22" height="22">
+          <path d="M257.5 322.4l215.6-133c24.98-15.4 57.88-7.9 73.5 16.75A51.2 51.2 0 0 1 554.7 234v556c0 29.4-23.9 53-53.3 53a53.3 53.3 0 0 1-28.3-8L257.5 701.6H160c-41.2 0-74.7-33-74.7-73.7V396.1c0-40.7 33.5-73.7 74.7-73.7h97.5zm26.1 58.4a32.3 32.3 0 0 1-17 4.8H160c-5.9 0-10.7 4.7-10.7 10.5v231.8c0 5.8 4.8 10.5 10.7 10.5h106.7c6 0 11.9 1.7 17 4.8L490.7 771V253L283.6 380.8zM801 830a32.3 32.3 0 0 1-45.2-.8 31.3 31.3 0 0 1 .8-44.7c157.6-150.5 157.6-394 0-544.4a31.3 31.3 0 0 1-.8-44.7 32.3 32.3 0 0 1 45.2-.8c183.7 175.3 183.7 460 0 635.3zm-107-126.2a32.3 32.3 0 0 1-45.2-1.2 31.3 31.3 0 0 1 1.2-44.7c86.2-80.6 86.2-210.6 0-291.2a31.3 31.3 0 0 1-1.2-44.7 32.3 32.3 0 0 1 45.2-1.2c112.9 105.5 112.9 277.4 0 383z" fill="currentColor"/>
+        </svg>
+        <svg v-else viewBox="0 0 1026 1024" width="22" height="22">
+          <path d="M240.023158 329.356725H144.719298c-8.819774 0-15.968811 7.149037-15.968811 15.968811v328.358675c0 8.819774 7.149037 15.96881 15.968811 15.96881h193.621833c0 0.07685 0.036928 0.149708 0.099805 0.195618l182.323898 133.236772a7.984405 7.984405 0 0 0 12.695205-6.446409V622.793606l64.374269 64.374269v240.995306c0 8.819774-7.149037 15.968811-15.968811 15.968811a15.968811 15.968811 0 0 1-9.422596-3.075992L320.078799 756.605255a15.968811 15.968811 0 0 0-9.422596-3.07699H128.750487c-35.277099 0-63.875244-28.598144-63.875243-63.875244V329.356725c0-35.277099 28.598144-63.875244 63.875243-63.875244h47.397427l63.875244 63.875244zM533.460039 442.126472V203.34584a7.984405 7.984405 0 0 0-12.695205-6.446409l-134.351594 98.180242-45.171774-45.171774L572.443899 80.92694c7.120094-5.204834 17.110581-3.650869 22.314417 3.469224A15.968811 15.968811 0 0 1 597.834308 93.816764v412.683977l-64.374269-64.374269z m336.776234 336.776234l-43.516008-43.51501C873.074729 672.799938 896.251462 598.005021 896.251462 511.001949c0-138.745014-58.939883-246.440671-176.820647-323.088967A47.906433 47.906433 0 0 1 697.639376 147.751423V144.717349c0-14.036585 11.378776-25.415361 25.415361-25.415361 4.359485 0 8.644117 1.120811 12.445692 3.255642C885.249949 206.655376 960.126706 336.137481 960.126706 511.001949c0 114.37062-40.59671 203.053411-89.890433 267.900757z m-90.129965 90.537169C737.183142 902.479345 702.280312 917.638737 697.639376 916.210526c-12.974659-3.992203-19.961014-16.269224-19.961013-34.931774 0-11.10531 5.301645-21.265466 15.903937-30.480467a45.910331 45.910331 0 0 1 6.746823-4.863501c11.948663-7.066199 23.35239-14.421832 34.208187-22.063907l45.568998 45.568998z m0.504016-180.163119l-47.753731-47.753731C755.502363 603.286706 768.500975 558.661864 768.500975 511.001949c0-88.404335-44.723649-166.363072-112.779727-212.48499-15.968811-11.078363-33.933723-31.039376-29.941521-48.006238s17.964912-29.94152 29.941521-25.916382C760.489622 277.271454 832.376218 385.741598 832.376218 511.001949c0 67.674823-18.361138 128.419181-51.765894 178.274807zM688.117973 777.45154A323.332491 323.332491 0 0 1 664.703704 790.45614c-13.97271 4.895439-24.951267 4.990253-36.927876-14.97076-9.769918-16.283197-1.60786-29.909583 15.275166-43.100819l45.066979 45.065981zM90.7537 90.752749c12.472639-12.472639 32.694144-12.472639 45.166783 0L936.922027 891.753294c12.472639 12.472639 12.472639 32.694144 0 45.166784s-32.694144 12.472639-45.166783 0L90.754698 135.918534c-12.472639-12.472639-12.472639-32.694144 0-45.166784z" fill="currentColor"/>
+        </svg>
+      </button>
+
+      <button type="button" class="btn-more" aria-label="更多">
+        <svg viewBox="0 0 1024 1024" width="22" height="22">
+          <path d="M512 298.6496a85.3504 85.3504 0 1 0 0-170.6496 85.3504 85.3504 0 0 0 0 170.6496z" fill="currentColor"/>
+          <path d="M512 512m-85.3504 0a85.3504 85.3504 0 1 0 170.7008 0 85.3504 85.3504 0 1 0-170.7008 0Z" fill="currentColor"/>
+          <path d="M512 896a85.3504 85.3504 0 1 0 0-170.7008 85.3504 85.3504 0 0 0 0 170.7008z" fill="currentColor"/>
+        </svg>
+      </button>
     </header>
 
     <main class="message-list">
@@ -182,22 +203,67 @@
     <div class="page-floor" aria-hidden="true"></div>
 
     <Teleport to="body">
-      <div v-if="showCharacterSheet" class="overlay" @click.self="showCharacterSheet = false">
-        <section class="char-sheet">
-          <div class="char-sheet-head">
-            <img :src="characterAvatar" :alt="character?.name" class="char-sheet-avatar" />
-            <strong>{{ character?.name }}</strong>
+      <div
+        v-if="charPopoverVisible"
+        class="char-popover-overlay"
+        @click.self="charPopoverVisible = false"
+      >
+        <section
+          class="char-popover"
+          :class="`char-popover--${charPopoverPlacement}`"
+          :style="charPopoverStyle"
+        >
+          <div class="char-popover-head">
+            <img v-if="characterAvatar" :src="characterAvatar" :alt="character?.name" class="char-popover-avatar" />
+            <div class="char-popover-copy">
+              <strong>{{ character?.name || '角色' }}</strong>
+              <span>{{ character?.description?.slice(0, 48) || '角色简介' }}</span>
+            </div>
           </div>
-          <div class="char-sheet-actions">
-            <button type="button" class="char-action" @click="sheetClearHistory">
-              <span class="char-action-icon">清</span>清空记录
+          <div class="char-popover-list">
+            <button type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetClearHistory">
+              清空聊天记录
             </button>
-            <button type="button" class="char-action" @click="sheetToggleFriend">
-              <span class="char-action-icon">{{ character?.isFriend ? '已' : '+' }}</span>{{ character?.isFriend ? '取消好友' : '加入好友' }}
+            <button type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetToggleFriend">
+              {{ character?.isFriend ? '取消好友' : '添加好友' }}
             </button>
-            <button type="button" class="char-action" @click="sheetToggleLike">
-              <span class="char-action-icon">{{ character?.isLiked ? '已' : '赞' }}</span>{{ character?.isLiked ? '取消喜欢' : '标记喜欢' }}
+            <button type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetToggleLike">
+              {{ character?.isLiked ? '取消点赞' : '点赞' }}
             </button>
+            <button v-if="character?.isFriend" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetInviteToGroup">
+              邀请进入群聊
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showInviteModal" class="invite-overlay" @click.self="showInviteModal = false">
+        <section class="invite-modal">
+          <div class="invite-modal-head">
+            <strong>邀请进入群聊</strong>
+            <button type="button" class="invite-close-btn" @click="showInviteModal = false">×</button>
+          </div>
+          <p class="invite-hint">选择要邀请 <b>{{ character?.name }}</b> 加入的群聊</p>
+          <div v-if="groupCharacters.length > 0" class="invite-list">
+            <article
+              v-for="group in groupCharacters"
+              :key="group.id"
+              class="invite-group-item"
+              @click="confirmInviteToGroup(group)"
+            >
+              <img :src="group.avatar || defaultAvatar" :alt="group.name" class="invite-group-avatar" />
+              <div class="invite-group-info">
+                <span class="invite-group-name">{{ group.name }}</span>
+                <span class="invite-group-meta">{{ group.members?.length || 0 }} 位成员</span>
+              </div>
+              <span class="invite-arrow">›</span>
+            </article>
+          </div>
+          <div v-else class="invite-empty">
+            <p>暂无可用群聊</p>
+            <small>先创建一个群聊角色</small>
           </div>
         </section>
       </div>
@@ -249,8 +315,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import { useChatStore } from '@/stores/chat'
 import { useCharacterStore } from '@/stores/character'
+import type { ICharacter } from '@/types/character'
 import { useUserStore } from '@/stores/user'
 import { uni } from '@/utils/uni-polyfill'
 import MessageBubble from '@/components/MessageBubble/index.vue'
@@ -258,6 +326,7 @@ import { TTSService } from '@/services/tts'
 import { DEFAULT_STT_CONFIG, loadVoiceSettings } from '@/services/voice-settings'
 import { RecordingState, STTService } from '@/services/stt'
 import { loadCharacterMemory } from '@/services/chat-memory'
+import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { getStorageDriver } from '@/services/storage'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
 
@@ -275,7 +344,10 @@ const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const isInputFocused = ref(false)
 const showDetailSheet = ref(false)
-const showCharacterSheet = ref(false)
+const charPopoverVisible = ref(false)
+const charPopoverBusy = ref(false)
+const charPopoverAnchor = ref<{ top: number; left: number; width: number; height: number } | null>(null)
+const showInviteModal = ref(false)
 const autoVoicePlayback = ref(false)
 const voiceMode = ref(false)
 const showTools = ref(false)
@@ -283,22 +355,27 @@ const recordingState = ref<RecordingState>(RecordingState.IDLE)
 const recordingStartedAt = ref(0)
 const memorySummary = ref('')
 const memoryPreferences = ref<string[]>([])
+const switchingCharacter = ref(false)
 
 const sttService = ref<STTService | null>(null)
 const ttsService = ref<TTSService | null>(null)
 const lastAutoSpokenMessageId = ref('')
+const isHeaderTTSSpeaking = ref(false)
 
 let longPressTimer: ReturnType<typeof setTimeout> | null = null
 
 const defaultAvatar = '/src/static/images/default-avatar.svg'
 const characterId = computed(() => route.params.characterId as string)
 const sessionId = computed(() => (route.query.sessionId as string) || '')
+const isHistoryEntry = computed(() => route.query.from === 'history')
 const messages = computed(() => chatStore.messages)
 const hasComposerContent = computed(() => inputText.value.length > 0)
 const hasSendableContent = computed(() => inputText.value.trim().length > 0)
 const showBracketButton = computed(() => !voiceMode.value && (hasComposerContent.value || isInputFocused.value))
 const showVoiceToggle = computed(() => !hasComposerContent.value)
 const showSendButton = computed(() => hasComposerContent.value)
+const showBackButton = computed(() => isHistoryEntry.value)
+const showRandomSwitchButton = computed(() => !isHistoryEntry.value)
 const characterAvatar = computed(() => character.value?.avatar || defaultAvatar)
 const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
 const characterMeta = computed(() =>
@@ -326,7 +403,43 @@ const recordingCopy = computed(() => {
 })
 
 
-onActivated(() => {
+const groupCharacters = computed(() =>
+  characterStore.characters.filter(c => c.mode === 'group-chat' || c.mode === 'group-challenge')
+)
+
+const charPopoverPlacement = computed<'top' | 'bottom'>(() => {
+  const a = charPopoverAnchor.value
+  if (!a) return 'top'
+  const estimatedHeight = 220
+  return a.top < estimatedHeight && (window.innerHeight - a.top - a.height) > a.top ? 'bottom' : 'top'
+})
+
+const charPopoverStyle = computed(() => {
+  const a = charPopoverAnchor.value
+  if (!a) return { top: '16px', left: '16px' }
+  const pw = Math.min(248, Math.max(212, window.innerWidth - 32))
+  const eh = 220
+  const gap = 14
+  const hp = 12
+  const bss = 160
+  const left = Math.min(Math.max(hp, window.innerWidth - pw - hp), Math.max(hp, a.left + a.width / 2 - pw / 2))
+  const rawTop = charPopoverPlacement.value === 'top' ? a.top - eh - gap : a.top + a.height + gap
+  const top = Math.min(Math.max(12, window.innerHeight - bss - eh), Math.max(12, rawTop))
+  const arrowLeft = Math.min(pw - 28, Math.max(28, a.left + a.width / 2 - left))
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${pw}px`,
+    '--char-popover-arrow-left': `${arrowLeft}px`
+  }
+})
+
+onActivated(async () => {
+  // Re-initialize if keep-alive reactivates this instance while chatStore holds a different character's data.
+  if (chatStore.currentCharacterId && chatStore.currentCharacterId !== characterId.value) {
+    await initChat()
+    await loadCharacter()
+  }
   scrollToBottom()
 })
 
@@ -372,7 +485,9 @@ watch(hasComposerContent, hasContent => {
 
 function scrollToBottom() {
   nextTick(() => {
-    window.scrollTo({ top: document.body.scrollHeight })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: document.body.scrollHeight })
+    })
   })
 }
 
@@ -394,6 +509,33 @@ async function initChat() {
 
 async function loadCharacter() {
   character.value = await characterStore.getCharacterById(characterId.value)
+}
+
+async function switchToRandomCharacter() {
+  if (switchingCharacter.value || chatStore.isGenerating || !showRandomSwitchButton.value) {
+    return
+  }
+
+  switchingCharacter.value = true
+
+  try {
+    const target = await switchToRandomLocalCharacter(router, {
+      excludeCharacterIds: characterId.value ? [characterId.value] : []
+    })
+
+    if (!target) {
+      uni.showToast({ title: '没有可切换的本地角色', icon: 'none' })
+    }
+  } catch (error) {
+    uni.showToast({
+      title: (error as Error).message || '切换失败',
+      icon: 'none'
+    })
+  } finally {
+    window.setTimeout(() => {
+      switchingCharacter.value = false
+    }, 180)
+  }
 }
 
 async function refreshMemory() {
@@ -433,6 +575,33 @@ async function maybeAutoSpeak() {
     await ttsService.value.speak(lastMessage.content)
   } catch {
     // Ignore autoplay failures.
+  }
+}
+
+async function toggleHeaderTTS() {
+  if (isHeaderTTSSpeaking.value) {
+    ttsService.value?.stop()
+    isHeaderTTSSpeaking.value = false
+    return
+  }
+
+  const lastAssistant = [...messages.value].reverse().find(m => m.role === 'assistant')
+  if (!lastAssistant?.content.trim()) return
+
+  const settings = await loadVoiceSettings()
+  ttsService.value?.destroy()
+  ttsService.value = new TTSService({
+    ...settings.tts,
+    language: settings.tts.language || 'zh-CN',
+  })
+  ttsService.value.onEnd(() => { isHeaderTTSSpeaking.value = false })
+  ttsService.value.onError(() => { isHeaderTTSSpeaking.value = false })
+
+  isHeaderTTSSpeaking.value = true
+  try {
+    await ttsService.value.speak(lastAssistant.content)
+  } catch {
+    isHeaderTTSSpeaking.value = false
   }
 }
 
@@ -679,27 +848,49 @@ function confirmClearHistory() {
   })
 }
 
-function openCharacterSheet() {
-  showCharacterSheet.value = true
+function openCharacterSheet(rect: DOMRect) {
+  charPopoverAnchor.value = { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+  charPopoverVisible.value = true
 }
 
 async function sheetClearHistory() {
-  showCharacterSheet.value = false
+  charPopoverVisible.value = false
   confirmClearHistory()
 }
 
 async function sheetToggleFriend() {
-  if (!characterId.value) return
-  await characterStore.toggleFriend(characterId.value)
-  character.value = await characterStore.getCharacterById(characterId.value)
-  uni.showToast({ title: character.value?.isFriend ? '已加入好友' : '已取消好友', icon: 'none' })
+  if (!characterId.value || charPopoverBusy.value) return
+  charPopoverBusy.value = true
+  try {
+    await characterStore.toggleFriend(characterId.value)
+    character.value = await characterStore.getCharacterById(characterId.value)
+    uni.showToast({ title: character.value?.isFriend ? '已加入好友' : '已取消好友', icon: 'none' })
+  } finally {
+    charPopoverBusy.value = false
+  }
 }
 
 async function sheetToggleLike() {
-  if (!characterId.value) return
-  await characterStore.toggleLike(characterId.value)
-  character.value = await characterStore.getCharacterById(characterId.value)
-  uni.showToast({ title: character.value?.isLiked ? '已标记喜欢' : '已取消喜欢', icon: 'none' })
+  if (!characterId.value || charPopoverBusy.value) return
+  charPopoverBusy.value = true
+  try {
+    await characterStore.toggleLike(characterId.value)
+    character.value = await characterStore.getCharacterById(characterId.value)
+    uni.showToast({ title: character.value?.isLiked ? '已标记喜欢' : '已取消喜欢', icon: 'none' })
+  } finally {
+    charPopoverBusy.value = false
+  }
+}
+
+async function sheetInviteToGroup() {
+  charPopoverVisible.value = false
+  await characterStore.loadCharacters()
+  showInviteModal.value = true
+}
+
+function confirmInviteToGroup(group: ICharacter) {
+  showInviteModal.value = false
+  uni.showToast({ title: `已邀请加入「${group.name}」`, icon: 'success' })
 }
 
 onUnmounted(() => {
@@ -741,7 +932,7 @@ onUnmounted(() => {
   right: 0;
   z-index: 100;
   display: grid;
-  grid-template-columns: 36px 1fr 36px;
+  grid-template-columns: 44px 1fr 44px 44px;
   align-items: center;
   padding: 2px 10px;
   background: rgba(5, 13, 20, 0.68);
@@ -749,9 +940,13 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(20px);
 }
 
+.header-switch {
+  justify-self: start;
+}
+
 .btn-back {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   border: none;
   border-radius: 0;
@@ -790,10 +985,48 @@ onUnmounted(() => {
   }
 }
 
-.header-right-pad {
-  /* mirror of btn-back width so center column stays geometrically centered */
-  display: block;
-  width: 36px;
+.btn-more {
+  justify-self: end;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition-base);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.btn-tts {
+  justify-self: end;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition-base), opacity var(--transition-base);
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  &.active {
+    color: #38bdf8;
+  }
 }
 
 .detail-avatar {
@@ -880,15 +1113,7 @@ onUnmounted(() => {
 }
 
 .page-floor {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 160px;
-  /* Transparent at top so messages fade out naturally, solid from ~100px up from bottom */
-  background: linear-gradient(to bottom, transparent 0%, #071520 50px);
-  pointer-events: none;
-  z-index: 9;
+  display: none;
 }
 
 .composer-shell {
@@ -1044,79 +1269,113 @@ onUnmounted(() => {
   color: #09121f;
 }
 
-.overlay {
+.char-popover-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.64);
-  backdrop-filter: blur(16px);
-  z-index: 10000;
+  z-index: 10040;
+  background: transparent;
 }
 
-.char-sheet {
-  width: min(360px, 100%);
-  padding: 20px 16px 16px;
+.char-popover {
+  position: fixed;
+  width: min(248px, calc(100vw - 32px));
+  border: 1px solid rgba(56, 189, 248, 0.18);
   border-radius: 22px;
-  background: rgba(12, 20, 30, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(24px);
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+  isolation: isolate;
 }
 
-.char-sheet-head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
-
-  strong {
-    color: var(--text-primary);
-    font-size: 16px;
-  }
+.char-popover::before {
+  content: '';
+  position: absolute;
+  left: var(--char-popover-arrow-left, 50%);
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(180deg, rgba(8, 14, 24, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%);
+  border-left: 1px solid rgba(56, 189, 248, 0.18);
+  border-top: 1px solid rgba(56, 189, 248, 0.18);
+  transform: translateX(-50%) rotate(45deg);
+  z-index: -1;
 }
 
-.char-sheet-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+.char-popover--top::before {
+  bottom: -10px;
 }
 
-.char-sheet-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.char-popover--bottom::before {
+  top: -10px;
+  transform: translateX(-50%) rotate(225deg);
 }
 
-.char-action {
+.char-popover-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 13px 14px;
-  border: none;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 15px;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s;
+  padding: 18px 18px 10px;
+}
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.10);
+.char-popover-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.char-popover-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
-.char-action-icon {
-  font-size: 18px;
-  width: 24px;
-  text-align: center;
+.char-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px 16px;
+}
+
+.char-popover-btn {
+  width: 100%;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), transform var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.24);
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
 }
 
 .detail-sheet {
@@ -1214,6 +1473,144 @@ onUnmounted(() => {
     right: 12px;
     bottom: 70px;
     left: 12px;
+  }
+}
+
+.invite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.invite-modal {
+  width: min(480px, 100%);
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.invite-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 10px;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 16px;
+  }
+}
+
+.invite-close-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invite-hint {
+  padding: 0 18px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+
+  b {
+    color: var(--text-primary);
+  }
+}
+
+.invite-list {
+  overflow-y: auto;
+  padding: 0 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-group-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(56, 189, 248, 0.10);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.22);
+  }
+}
+
+.invite-group-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.invite-group-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.invite-group-name {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invite-group-meta {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.invite-arrow {
+  color: var(--text-tertiary);
+  font-size: 20px;
+}
+
+.invite-empty {
+  padding: 24px 18px 28px;
+  text-align: center;
+
+  p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  small {
+    color: var(--text-tertiary);
+    font-size: 12px;
   }
 }
 </style>
