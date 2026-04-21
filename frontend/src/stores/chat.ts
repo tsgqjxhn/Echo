@@ -47,7 +47,7 @@ export const useChatStore = defineStore('chat', () => {
     return createChatService(getStorageDriver(), createLLMAPI(config))
   }
 
-  async function initChat(characterId?: string, sessionId?: string) {
+  async function initChat(characterId?: string, sessionId?: string, greetingIndex?: number) {
     const chatService = getLocalChatService()
 
     if (sessionId) {
@@ -68,7 +68,7 @@ export const useChatStore = defineStore('chat', () => {
 
     currentCharacterId.value = characterId
     const latestSession = await chatService.getLatestSessionByCharacter(characterId)
-    currentSessionId.value = latestSession?.id || (await chatService.createSession(characterId))
+    currentSessionId.value = latestSession?.id || (await chatService.createSession(characterId, greetingIndex))
     await loadMessages()
   }
 

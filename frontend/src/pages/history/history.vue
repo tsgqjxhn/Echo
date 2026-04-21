@@ -1154,7 +1154,7 @@ async function handleImportFile(event: Event) {
 .friend-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.06);
@@ -1531,7 +1531,7 @@ async function handleImportFile(event: Event) {
 .contact-search-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1695,7 +1695,7 @@ async function handleImportFile(event: Event) {
 .group-member-thumb {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(10, 16, 27, 0.9);
   cursor: pointer;
@@ -1744,7 +1744,7 @@ async function handleImportFile(event: Event) {
 .group-sheet-avatar {
   width: 52px;
   height: 52px;
-  border-radius: 16px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(56, 189, 248, 0.18);
 }

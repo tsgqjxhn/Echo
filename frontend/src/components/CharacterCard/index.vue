@@ -124,7 +124,7 @@ function handleClick() {
 .card-avatar {
   width: 56px;
   height: 56px;
-  border-radius: 20px;
+  border-radius: 50%;
   overflow: hidden;
   margin-right: 12px;
   flex-shrink: 0;

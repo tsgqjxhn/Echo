@@ -6,12 +6,17 @@ const MEMORY_KEY_PREFIX = 'chat_memory::'
 const MAX_FACTS = 8
 const MAX_PREFERENCES = 8
 const MAX_EVENTS = 10
+const MAX_TOPICS = 3
+const MAX_KNOWLEDGE = 5
 
 export interface CharacterMemoryProfile {
   characterId: string
   characterName: string
   summary: string
   relationshipStage: '初识' | '熟悉' | '亲近'
+  emotionalState: string
+  lastTopics: string[]
+  characterKnowledge: string[]
   userFacts: string[]
   userPreferences: string[]
   keyEvents: string[]
@@ -105,10 +110,46 @@ function extractUserPreferences(text: string): string[] {
   return [...positives, ...negatives]
 }
 
+function inferEmotionalState(text: string): string {
+  const positive = /(开心|高兴|快乐|笑|幸福|兴奋|喜欢|爱|温暖|甜蜜)/
+  const negative = /(难过|伤心|害怕|担心|焦虑|生气|愤怒|绝望|哭|痛苦)/
+  const calm = /(平静|放松|安心|踏实|还好|没事|嗯|好的)/
+
+  if (positive.test(text)) return '开心'
+  if (negative.test(text)) return '低落'
+  if (calm.test(text)) return '平静'
+  return ''
+}
+
+function extractTopics(text: string): string[] {
+  const topicPatterns: RegExp[] = [
+    /(?:聊聊|说说|谈谈|讨论)([^，。！？\n]{2,12})/,
+    /(?:关于|有关)([^，。！？\n]{2,12})/,
+  ]
+  return extractMatches(text, topicPatterns)
+}
+
+function extractCharacterKnowledge(text: string): string[] {
+  const knowledgePatterns: RegExp[] = [
+    /(?:记住|记得|别忘了)([^，。！？\n]{2,24})/,
+    /(?:其实|事实上)([^，。！？\n]{2,24})/,
+    /(?:我告诉你|跟你说)([^，。！？\n]{2,24})/,
+  ]
+  return extractMatches(text, knowledgePatterns)
+}
+
 function buildSummary(profile: Omit<CharacterMemoryProfile, 'summary'>): string {
   const lines: string[] = [
     `当前关系阶段：${profile.relationshipStage}。`,
   ]
+
+  if (profile.emotionalState) {
+    lines.push(`当前情绪：${profile.emotionalState}。`)
+  }
+
+  if (profile.lastTopics.length > 0) {
+    lines.push(`近期话题：${profile.lastTopics.join('、')}。`)
+  }
 
   if (profile.userFacts.length > 0) {
     lines.push(`用户信息：${profile.userFacts.join('；')}。`)
@@ -116,6 +157,10 @@ function buildSummary(profile: Omit<CharacterMemoryProfile, 'summary'>): string 
 
   if (profile.userPreferences.length > 0) {
     lines.push(`用户偏好：${profile.userPreferences.join('；')}。`)
+  }
+
+  if (profile.characterKnowledge.length > 0) {
+    lines.push(`角色已知信息：${profile.characterKnowledge.join('；')}。`)
   }
 
   if (profile.keyEvents.length > 0) {
@@ -130,6 +175,9 @@ function createEmptyProfile(characterId: string, characterName: string): Charact
     characterId,
     characterName,
     relationshipStage: '初识',
+    emotionalState: '',
+    lastTopics: [],
+    characterKnowledge: [],
     userFacts: [],
     userPreferences: [],
     keyEvents: [],
@@ -206,21 +254,34 @@ export async function updateCharacterMemoryFromMessage(
   const nextFacts = [...profile.userFacts]
   const nextPreferences = [...profile.userPreferences]
   const nextEvents = [...profile.keyEvents]
+  const nextTopics = [...profile.lastTopics]
+  const nextKnowledge = [...profile.characterKnowledge]
   let nextExchangeCount = profile.exchangeCount
+  let nextEmotionalState = profile.emotionalState
 
   if (message.role === 'user') {
     nextFacts.push(...extractUserFacts(text))
     nextPreferences.push(...extractUserPreferences(text))
     nextEvents.push(`用户：${text.slice(0, 36)}`)
+    nextTopics.push(...extractTopics(text))
     nextExchangeCount += 1
   } else {
     nextEvents.push(`${character?.name || '角色'}：${text.slice(0, 36)}`)
+    const inferred = inferEmotionalState(text)
+    if (inferred) {
+      nextEmotionalState = inferred
+    }
   }
+
+  nextKnowledge.push(...extractCharacterKnowledge(text))
 
   const nextProfileBase: Omit<CharacterMemoryProfile, 'summary'> = {
     characterId: profile.characterId,
     characterName: character?.name || profile.characterName,
     relationshipStage: inferRelationshipStage(nextExchangeCount),
+    emotionalState: nextEmotionalState,
+    lastTopics: clampList(nextTopics, MAX_TOPICS),
+    characterKnowledge: clampList(nextKnowledge, MAX_KNOWLEDGE),
     userFacts: clampList(nextFacts, MAX_FACTS),
     userPreferences: clampList(nextPreferences, MAX_PREFERENCES),
     keyEvents: clampList(nextEvents, MAX_EVENTS),
@@ -257,10 +318,16 @@ export async function rebuildCharacterMemoryFromSession(
       profile.userFacts = clampList([...profile.userFacts, ...extractUserFacts(text)], MAX_FACTS)
       profile.userPreferences = clampList([...profile.userPreferences, ...extractUserPreferences(text)], MAX_PREFERENCES)
       profile.keyEvents = clampList([...profile.keyEvents, `用户：${text.slice(0, 36)}`], MAX_EVENTS)
+      profile.lastTopics = clampList([...profile.lastTopics, ...extractTopics(text)], MAX_TOPICS)
       profile.exchangeCount += 1
     } else {
       profile.keyEvents = clampList([...profile.keyEvents, `${profile.characterName}：${text.slice(0, 36)}`], MAX_EVENTS)
+      const inferred = inferEmotionalState(text)
+      if (inferred) {
+        profile.emotionalState = inferred
+      }
     }
+    profile.characterKnowledge = clampList([...profile.characterKnowledge, ...extractCharacterKnowledge(text)], MAX_KNOWLEDGE)
   }
 
   profile.relationshipStage = inferRelationshipStage(profile.exchangeCount)

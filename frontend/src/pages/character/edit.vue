@@ -371,7 +371,7 @@ async function onSubmit() {
   width: 136px;
   height: 136px;
   border: 1px solid var(--border-light);
-  border-radius: 36px;
+  border-radius: 50%;
   object-fit: cover;
   box-shadow: var(--shadow-xl);
 }
@@ -380,7 +380,7 @@ async function onSubmit() {
   width: 136px;
   height: 136px;
   border: 1px dashed var(--border-light);
-  border-radius: 36px;
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;

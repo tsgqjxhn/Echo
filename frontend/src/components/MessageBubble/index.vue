@@ -329,7 +329,7 @@ onUnmounted(() => {
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.10);

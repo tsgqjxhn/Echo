@@ -117,6 +117,9 @@ export class LLMAPIService {
     for (const message of context.messages) {
       messages.push({ role: message.role, content: await this.serializeContent(message.content) })
     }
+    if (context.postHistoryPrompt?.trim()) {
+      messages.push({ role: 'system', content: context.postHistoryPrompt.trim() })
+    }
     return messages
   }
 

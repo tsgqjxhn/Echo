@@ -80,6 +80,8 @@ export interface ChatContext {
   systemPrompt: string
   /** 消息历史 */
   messages: ChatMessage[]
+  /** 历史之后的角色维持提醒 */
+  postHistoryPrompt?: string
   /** 角色信息 */
   character?: ICharacter
 }

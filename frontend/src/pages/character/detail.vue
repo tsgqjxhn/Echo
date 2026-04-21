@@ -266,7 +266,7 @@ async function deleteCharacter() {
   width: 180px;
   height: 180px;
   border: 1px solid var(--border-light);
-  border-radius: 40px;
+  border-radius: 50%;
   object-fit: cover;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
   box-shadow: var(--shadow-xl);

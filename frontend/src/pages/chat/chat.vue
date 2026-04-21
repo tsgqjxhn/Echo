@@ -1032,18 +1032,12 @@ onUnmounted(() => {
 .detail-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(56, 189, 248, 0.20);
 }
 
 .message-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: calc(100vh - 210px);
-  overflow-y: auto;
-}
 
 .hero-card,
 .empty-state {
@@ -1320,7 +1314,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: 16px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(56, 189, 248, 0.2);
 }
@@ -1565,7 +1559,7 @@ onUnmounted(() => {
 .invite-group-avatar {
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.10);
