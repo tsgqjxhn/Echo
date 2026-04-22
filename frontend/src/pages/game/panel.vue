@@ -100,7 +100,7 @@
             </div>
 
             <template v-if="importMethod === 'rules'">
-              <div class="upload-zone" @click="uploadInput?.click()">
+              <div class="upload-zone" @click="openFilePicker('uploadInput')">
                 <svg viewBox="0 0 24 24" width="28" height="28"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <span class="upload-zone-text">点击上传规则文件 (.txt / .md / .json / .yaml)</span>
               </div>
@@ -109,11 +109,11 @@
 
             <template v-else>
               <div class="upload-btns">
-                <button type="button" class="upload-action-btn" @click="uploadInput?.click()">
+                <button type="button" class="upload-action-btn" @click="openFilePicker('uploadInput')">
                   <svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                   选择文件
                 </button>
-                <button type="button" class="upload-action-btn" @click="folderInput?.click()">
+                <button type="button" class="upload-action-btn" @click="openFilePicker('folderInput')">
                   <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                   选择文件夹
                 </button>
@@ -145,6 +145,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { uni } from '@/utils/uni-polyfill'
+import { requestPermission } from '@/services/permissions'
 
 const router = useRouter()
 
@@ -158,6 +159,13 @@ const folderInput = ref<HTMLInputElement | null>(null)
 const uploadFileData = ref('')
 const uploadFileNames = ref<string[]>([])
 const uploadFileSize = ref('')
+
+async function openFilePicker(refName: 'uploadInput' | 'folderInput') {
+  const perm = await requestPermission('storage')
+  if (!perm.granted) return
+  const input = refName === 'uploadInput' ? uploadInput.value : folderInput.value
+  input?.click()
+}
 
 function goToSettings() {
   router.push('/game/settings')

@@ -299,6 +299,7 @@ import { useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { uni } from '@/utils/uni-polyfill'
+import { requestPermission } from '@/services/permissions'
 import type { ICharacter, EmotionAnimation } from '@/types/character'
 import { imageGenService } from '@/services/image-gen'
 import {
@@ -491,7 +492,9 @@ function switchGameMode(mode: 'rules' | 'full') {
   clearGameImport()
 }
 
-function triggerGameFileInput(mode: 'rules' | 'full' | 'folder') {
+async function triggerGameFileInput(mode: 'rules' | 'full' | 'folder') {
+  const perm = await requestPermission('storage')
+  if (!perm.granted) return
   if (mode === 'rules') gameRulesInput.value?.click()
   else if (mode === 'folder') gameFolderInput.value?.click()
   else gameFullInput.value?.click()

@@ -69,21 +69,38 @@
             </option>
           </select>
         </label>
-        <label class="field">
-          <span>Base URL</span>
-          <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
-        </label>
-        <label class="field">
-          <span>API Key</span>
-          <input
-            v-model="form.apiKey"
-            :type="showKey ? 'text' : 'password'"
-            :placeholder="selectedConfigId ? '留空保留原密钥' : '请输入 API Key'"
-          />
-          <button type="button" class="key-toggle" @click="showKey = !showKey">
-            {{ showKey ? '隐藏' : '显示' }}
-          </button>
-        </label>
+        <template v-if="form.provider !== 'local'">
+          <label class="field">
+            <span>Base URL</span>
+            <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
+          </label>
+          <label class="field">
+            <span>API Key</span>
+            <input
+              v-model="form.apiKey"
+              :type="showKey ? 'text' : 'password'"
+              :placeholder="selectedConfigId ? '留空保留原密钥' : '请输入 API Key'"
+            />
+            <button type="button" class="key-toggle" @click="showKey = !showKey">
+              {{ showKey ? '隐藏' : '显示' }}
+            </button>
+          </label>
+        </template>
+        <div v-else class="local-info">
+          <div class="local-info-item">
+            <span class="local-info-label">引擎</span>
+            <span class="local-info-value">{{ voiceSubType === 'stt' ? '系统语音识别' : '系统语音合成' }}</span>
+          </div>
+          <div class="local-info-item">
+            <span class="local-info-label">费用</span>
+            <span class="local-info-value">免费</span>
+          </div>
+          <div class="local-info-item">
+            <span class="local-info-label">网络</span>
+            <span class="local-info-value">离线可用</span>
+          </div>
+          <p class="hint">使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。</p>
+        </div>
         <p v-if="capabilityWarning" class="hint warning">{{ capabilityWarning }}</p>
       </div>
 
@@ -102,7 +119,7 @@
       </div>
     </section>
 
-    <section ref="modelSectionRef" class="model-section card">
+    <section v-if="form.provider !== 'local'" ref="modelSectionRef" class="model-section card">
       <div class="section-head">
         <span class="section-label">模型</span>
         <button type="button" class="connect-btn" :disabled="connecting || !canConnect" @click="connectModels">
@@ -176,7 +193,18 @@ const modelSectionRef = ref<HTMLElement | null>(null)
 
 const form = ref({ name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' as APIProvider })
 
-const providerOptions = PROVIDER_DISPLAY_NAMES
+const isLocalType = computed(() => {
+  const t = effectiveConfigType.value
+  return t === 'stt' || t === 'tts'
+})
+
+const providerOptions = computed(() => {
+  if (!isLocalType.value) {
+    const { local, ...rest } = PROVIDER_DISPLAY_NAMES
+    return rest as Record<string, string>
+  }
+  return PROVIDER_DISPLAY_NAMES
+})
 
 const DEFAULT_URLS: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
@@ -244,6 +272,9 @@ function switchType(type: APIConfigType) {
   selectedModel.value = ''
   noModelsAfterConnect.value = false
   clearForm()
+  if (type === 'voice') {
+    form.value.provider = 'local'
+  }
 }
 
 function switchVoiceSub(sub: 'stt' | 'tts') {
@@ -253,6 +284,9 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   selectedModel.value = ''
   noModelsAfterConnect.value = false
   clearForm()
+  if (isLocalType.value) {
+    form.value.provider = 'local'
+  }
 }
 
 function clearForm() {
@@ -295,6 +329,11 @@ function onConfigSelect() {
 async function saveConfig() {
   if (!form.value.name.trim()) {
     uni.showToast({ title: '请输入配置名称', icon: 'none' })
+    return
+  }
+
+  if (form.value.provider !== 'local' && !form.value.apiKey.trim() && !selectedConfigId.value) {
+    uni.showToast({ title: '请输入 API Key', icon: 'none' })
     return
   }
 
@@ -808,6 +847,33 @@ $mint-light: #6ee7b7;
   color: var(--text-tertiary);
   font-size: 12px;
   text-align: center;
+}
+
+.local-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(52, 211, 153, 0.10);
+  border-radius: 14px;
+  background: rgba(52, 211, 153, 0.04);
+}
+
+.local-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.local-info-label {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.local-info-value {
+  color: $mint-light;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 @media (max-width: 720px) {

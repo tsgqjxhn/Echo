@@ -34,6 +34,7 @@
             :src="post.characterAvatar || defaultAvatar"
             :alt="post.characterName"
             class="post-avatar"
+            @click="enlargeAvatar(post.characterAvatar || defaultAvatar, post.characterName)"
           />
           <div class="post-meta">
             <span class="post-author">{{ post.characterName }}</span>
@@ -120,6 +121,14 @@
         </div>
       </article>
     </section>
+
+    <ImageViewer
+      :visible="viewerVisible"
+      :src="viewerSrc"
+      :alt="viewerAlt"
+      :caption="viewerAlt"
+      @close="viewerVisible = false"
+    />
   </div>
 </template>
 
@@ -132,6 +141,7 @@ import { useMomentsStore, type MomentPost } from '@/stores/moments'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 import defaultAvatar from '@/static/images/default-avatar.svg'
+import ImageViewer from '@/components/ImageViewer/index.vue'
 
 const router = useRouter()
 const characterStore = useCharacterStore()
@@ -141,6 +151,9 @@ const momentsStore = useMomentsStore()
 const commentDrafts = reactive<Record<string, string>>({})
 const generatingCount = ref(0)
 const isLoading = ref(true)
+const viewerVisible = ref(false)
+const viewerSrc = ref('')
+const viewerAlt = ref('')
 
 const hasFriends = computed(() => characterStore.friendCharacters.length > 0)
 
@@ -236,6 +249,12 @@ function formatTime(ts: number): string {
 
   const d = new Date(ts)
   return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+function enlargeAvatar(src: string, name: string) {
+  viewerSrc.value = src
+  viewerAlt.value = name
+  viewerVisible.value = true
 }
 </script>
 

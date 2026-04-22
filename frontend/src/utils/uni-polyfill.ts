@@ -104,29 +104,56 @@ export function navigateBack(_options?: NavigateBackOptions): void {
 }
 
 /**
- * 选择图片
+ * 选择图片（带权限请求弹窗）
  */
 export function chooseImage(options: ChooseImageOptions): void {
   console.log('[ChooseImage]', options)
-  if (typeof window !== 'undefined') {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.multiple = options.count ? options.count > 1 : false
-    input.onchange = (e: Event) => {
-      const target = e.target as HTMLInputElement
-      const files = target.files
-      if (files && files.length > 0) {
-        const tempFilePaths = Array.from(files).map(f => URL.createObjectURL(f as Blob))
-        const tempFiles = Array.from(files).map(f => ({
-          path: URL.createObjectURL(f as Blob),
-          size: f.size
-        }))
-        options.success?.({ tempFilePaths, tempFiles })
+  if (typeof window === 'undefined') return
+
+  import('../services/permissions').then(({ requestPermission }) => {
+    requestPermission('storage').then(result => {
+      if (!result.granted) {
+        options.fail?.({ errMsg: '存储权限被拒绝' })
+        return
       }
-    }
-    input.click()
-  }
+
+      const needsCamera = options.sourceType?.includes('camera')
+      const openPicker = () => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.multiple = options.count ? options.count > 1 : false
+        if (needsCamera) {
+          input.capture = 'environment'
+        }
+        input.onchange = (e: Event) => {
+          const target = e.target as HTMLInputElement
+          const files = target.files
+          if (files && files.length > 0) {
+            const tempFilePaths = Array.from(files).map(f => URL.createObjectURL(f as Blob))
+            const tempFiles = Array.from(files).map(f => ({
+              path: URL.createObjectURL(f as Blob),
+              size: f.size
+            }))
+            options.success?.({ tempFilePaths, tempFiles })
+          }
+        }
+        input.click()
+      }
+
+      if (needsCamera) {
+        requestPermission('camera').then(camResult => {
+          if (!camResult.granted) {
+            options.fail?.({ errMsg: '相机权限被拒绝' })
+            return
+          }
+          openPicker()
+        })
+      } else {
+        openPicker()
+      }
+    })
+  })
 }
 
 /**

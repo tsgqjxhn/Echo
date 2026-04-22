@@ -1,6 +1,7 @@
+import { requestPermission } from './permissions'
 import { apiConfigService } from './api-config'
 import { APIError, NetworkError } from './errors'
-import { buildProviderURL, requireAPIKey, resolveTranscriptionModel } from './provider-http'
+import { requireAPIKey, resolveTranscriptionModel } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { base64ToBlob } from './runtime-http'
 
@@ -28,6 +29,11 @@ function getRuntimeUni(): any {
 function getMediaRecorderConstructor(): typeof MediaRecorder | null {
   if (typeof window === 'undefined') return null
   return window.MediaRecorder || null
+}
+
+function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
+  if (typeof window === 'undefined') return null
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
 }
 
 function inferAudioFilename(blob: Blob, fallback = 'recording.webm'): string {
@@ -71,6 +77,7 @@ export class STTService {
   private recorder: any = null
   private mediaRecorder: MediaRecorder | null = null
   private mediaStream: MediaStream | null = null
+  private recognition: SpeechRecognition | null = null
   private h5Chunks: Blob[] = []
   private recordedBlob: Blob | null = null
   private tempAudioPath = ''
@@ -78,6 +85,7 @@ export class STTService {
   private config: STTConfig
   private onResultCallback?: ResultCallback
   private onErrorCallback?: ErrorCallback
+  private useLocal = false
 
   constructor(config?: STTConfig) {
     this.config = {
@@ -93,11 +101,28 @@ export class STTService {
   getTempAudioPath(): string { return this.tempAudioPath }
 
   isSupported(): boolean {
+    if (getSpeechRecognitionCtor()) return true
     const runtimeUni = getRuntimeUni()
     return !!getMediaRecorderConstructor() || typeof runtimeUni?.getRecorderManager === 'function'
   }
 
   async startRecording(): Promise<void> {
+    const providerConfig =
+      (await apiConfigService.getDefaultConfig('stt')) ||
+      (await apiConfigService.getDefaultConfig('voice'))
+
+    if (providerConfig?.provider === 'local') {
+      this.useLocal = true
+      return this.startLocalRecognition()
+    }
+
+    this.useLocal = false
+
+    const micPermission = await requestPermission('microphone')
+    if (!micPermission.granted) {
+      throw new Error('麦克风权限被拒绝，请在设置中允许麦克风访问')
+    }
+
     if (getMediaRecorderConstructor() && typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
       return this.startH5Recording()
     }
@@ -105,11 +130,17 @@ export class STTService {
   }
 
   async stopRecording(): Promise<string> {
+    if (this.useLocal && this.recognition) return this.stopLocalRecognition()
     if (this.mediaRecorder) return this.stopH5Recording()
     return this.stopNativeRecording()
   }
 
   async transcribe(audioPath: string): Promise<string> {
+    if (this.useLocal) {
+      this.state = RecordingState.IDLE
+      return ''
+    }
+
     try {
       let text = ''
       if (this.recordedBlob) {
@@ -131,6 +162,13 @@ export class STTService {
   onError(callback: ErrorCallback): void { this.onErrorCallback = callback }
 
   cancel(): void {
+    if (this.recognition) {
+      this.recognition.onresult = null
+      this.recognition.onerror = null
+      this.recognition.onend = null
+      this.recognition.abort()
+      this.recognition = null
+    }
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       this.mediaRecorder.onstop = null
       this.mediaRecorder.onerror = null
@@ -141,12 +179,83 @@ export class STTService {
     this.recordedBlob = null
     this.tempAudioPath = ''
     this.state = RecordingState.IDLE
+    this.useLocal = false
   }
 
   destroy(): void {
     this.cancel()
     this.onResultCallback = undefined
     this.onErrorCallback = undefined
+  }
+
+  private startLocalRecognition(): Promise<void> {
+    const SpeechRecognition = getSpeechRecognitionCtor()
+    if (!SpeechRecognition) {
+      this.useLocal = false
+      throw new Error('当前环境不支持本地语音识别')
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const recognition = new SpeechRecognition()
+      recognition.lang = this.config.language || 'zh-CN'
+      recognition.continuous = false
+      recognition.interimResults = true
+
+      this.recognition = recognition
+
+      recognition.onstart = () => {
+        this.state = RecordingState.RECORDING
+        resolve()
+      }
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = ''
+        let interimTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript
+          } else {
+            interimTranscript += result[0].transcript
+          }
+        }
+        const text = finalTranscript || interimTranscript
+        if (text) {
+          this.onResultCallback?.(text, !!finalTranscript)
+        }
+      }
+
+      recognition.onerror = (event: any) => {
+        if (event.error === 'no-speech') return
+        this.state = RecordingState.ERROR
+        const msg = event.error === 'not-allowed'
+          ? '麦克风权限被拒绝，请在浏览器或系统设置中允许麦克风访问'
+          : `本地识别错误: ${event.error}`
+        this.onErrorCallback?.(new Error(msg))
+        reject(new Error(msg))
+      }
+
+      recognition.onend = () => {
+        if (this.state === RecordingState.RECORDING) {
+          this.state = RecordingState.IDLE
+        }
+      }
+
+      recognition.start()
+    })
+  }
+
+  private stopLocalRecognition(): Promise<string> {
+    if (!this.recognition) return Promise.resolve('')
+    this.recognition.stop()
+    this.state = RecordingState.PROCESSING
+    return new Promise<string>((resolve) => {
+      setTimeout(() => {
+        this.state = RecordingState.IDLE
+        this.useLocal = false
+        resolve('')
+      }, 1000)
+    })
   }
 
   private async startH5Recording(): Promise<void> {
@@ -157,7 +266,16 @@ export class STTService {
       this.cleanupH5Resources()
       this.recordedBlob = null
       this.h5Chunks = []
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+      try {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      } catch (micError: unknown) {
+        const err = micError as DOMException
+        if (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message)) {
+          throw new Error('麦克风权限被拒绝，请在浏览器或系统设置中允许麦克风访问')
+        }
+        throw new Error(`无法访问麦克风: ${err.message || '未知错误'}`)
+      }
 
       const mimeType = MediaRecorderCtor.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'

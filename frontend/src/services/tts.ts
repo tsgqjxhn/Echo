@@ -30,11 +30,16 @@ async function parseBlobError(blob: Blob, status: number): Promise<string> {
   }
 }
 
+function getSpeechSynthesis(): SpeechSynthesis | null {
+  return typeof window !== 'undefined' ? window.speechSynthesis : null
+}
+
 export class TTSService {
   private state: TTSState = TTSState.IDLE
   private config: TTSConfig
   private currentAudio: HTMLAudioElement | null = null
   private currentObjectUrl: string | null = null
+  private currentUtterance: SpeechSynthesisUtterance | null = null
   private activeResolve: (() => void) | null = null
   private onEndCallback?: () => void
   private onErrorCallback?: (error: Error) => void
@@ -50,11 +55,20 @@ export class TTSService {
   }
 
   getState(): TTSState { return this.state }
-  isSupported(): boolean { return typeof Audio !== 'undefined' }
+  isSupported(): boolean { return typeof Audio !== 'undefined' || !!getSpeechSynthesis() }
 
   async speak(text: string): Promise<void> {
     if (!text.trim()) return
     this.stop()
+
+    const providerConfig =
+      (await apiConfigService.getDefaultConfig('tts')) ||
+      (await apiConfigService.getDefaultConfig('voice'))
+
+    if (providerConfig?.provider === 'local') {
+      return this.localSpeak(text)
+    }
+
     try {
       const blob = await this.synthesizeSpeech(text)
       await this.playAudio(blob)
@@ -66,18 +80,37 @@ export class TTSService {
   }
 
   pause(): void {
+    const synth = getSpeechSynthesis()
+    if (this.currentUtterance && synth) {
+      synth.pause()
+      this.state = TTSState.PAUSED
+      return
+    }
     if (!this.currentAudio) return
     this.currentAudio.pause()
     this.state = TTSState.PAUSED
   }
 
   resume(): void {
+    const synth = getSpeechSynthesis()
+    if (this.currentUtterance && synth) {
+      synth.resume()
+      this.state = TTSState.PLAYING
+      return
+    }
     if (!this.currentAudio) return
     void this.currentAudio.play()
     this.state = TTSState.PLAYING
   }
 
   stop(): void {
+    const synth = getSpeechSynthesis()
+    if (this.currentUtterance) {
+      this.currentUtterance.onend = null
+      this.currentUtterance.onerror = null
+      synth?.cancel()
+      this.currentUtterance = null
+    }
     if (this.currentAudio) {
       this.currentAudio.pause()
       this.currentAudio.currentTime = 0
@@ -106,7 +139,11 @@ export class TTSService {
   }
 
   getConfig(): TTSConfig { return { ...this.config } }
-  getVoices(): Array<{ name: string; lang: string }> { return [] }
+  getVoices(): Array<{ name: string; lang: string }> {
+    const synth = getSpeechSynthesis()
+    if (!synth) return []
+    return synth.getVoices().map(v => ({ name: v.name, lang: v.lang }))
+  }
   onEnd(callback: () => void): void { this.onEndCallback = callback }
   onError(callback: (error: Error) => void): void { this.onErrorCallback = callback }
   onBoundary(callback: (charIndex: number, charLength: number) => void): void { void callback }
@@ -115,6 +152,47 @@ export class TTSService {
     this.stop()
     this.onEndCallback = undefined
     this.onErrorCallback = undefined
+  }
+
+  private async localSpeak(text: string): Promise<void> {
+    const synth = getSpeechSynthesis()
+    if (!synth) throw new Error('当前环境不支持本地语音合成')
+
+    await new Promise<void>((resolve, reject) => {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = this.config.language || 'zh-CN'
+      utterance.rate = Math.max(0.1, Math.min(10, this.config.rate ?? 1))
+      utterance.pitch = Math.max(0, Math.min(2, this.config.pitch ?? 1))
+      utterance.volume = Math.max(0, Math.min(1, this.config.volume ?? 1))
+
+      if (this.config.voice) {
+        const voices = synth.getVoices()
+        const match = voices.find(v => v.name === this.config.voice || v.voiceURI === this.config.voice)
+        if (match) utterance.voice = match
+      }
+
+      this.currentUtterance = utterance
+      this.activeResolve = resolve
+
+      utterance.onstart = () => { this.state = TTSState.PLAYING }
+      utterance.onend = () => {
+        this.state = TTSState.IDLE
+        this.currentUtterance = null
+        this.activeResolve = null
+        this.onEndCallback?.()
+        resolve()
+      }
+      utterance.onerror = (event) => {
+        this.state = TTSState.ERROR
+        this.currentUtterance = null
+        this.activeResolve = null
+        const error = new Error(`本地 TTS 错误: ${event.error}`)
+        this.onErrorCallback?.(error)
+        reject(error)
+      }
+
+      synth.speak(utterance)
+    })
   }
 
   private async synthesizeSpeech(text: string): Promise<Blob> {

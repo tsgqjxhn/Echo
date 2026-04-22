@@ -1,9 +1,10 @@
 import { Message } from '@/entity/message'
 import {
   STORY_CHARACTER_NAME,
-  STORY_SEGMENTS,
+  STORY_CONVERSATIONS,
   type DialogueMessage,
   type DialogueSegment,
+  type StoryConversation,
 } from '@/data/story'
 import type { ICharacter } from '@/types/character'
 import {
@@ -14,7 +15,7 @@ import {
 import type { IChatSession, IMessage } from '@/types/chat'
 import { getStorageDriver } from './storage'
 import { generateUUID } from '@/utils/uuid'
-import xingAvatar from '@/static/images/头像.png'
+import xingAvatar from '@/static/images/story/星.webp'
 import echoBgm from '@/static/images/背景音乐.mp3'
 
 export const ECHO_STORY_NAME = '回声'
@@ -166,65 +167,6 @@ function normalizeStorySegments(segments: DialogueSegment[]): DialogueSegment[] 
   })
 }
 
-function parseScene(sceneLabel: string | null, index: number) {
-  const fallbackDay = `第${Math.max(1, index + 1)}天`
-
-  if (!sceneLabel) {
-    return {
-      dayLabel: fallbackDay,
-      shortLabel: `对话 ${index + 1}`,
-      sceneLabel: fallbackDay,
-    }
-  }
-
-  const parts = sceneLabel
-    .split('·')
-    .map(part => part.trim())
-    .filter(Boolean)
-
-  return {
-    dayLabel: parts[0] || fallbackDay,
-    shortLabel: parts[parts.length - 1] || sceneLabel,
-    sceneLabel,
-  }
-}
-
-function buildConversationDefinition(
-  sceneLabel: string | null,
-  segments: DialogueSegment[],
-  index: number,
-): StoryConversationDefinition {
-  const parsedScene = parseScene(sceneLabel, index)
-  let defaultGameTime = '--:--'
-
-  for (const segment of segments) {
-    for (const message of segment.messages) {
-      const inferredTime = extractGameTime(message.text)
-      if (inferredTime) {
-        defaultGameTime = inferredTime
-        break
-      }
-    }
-
-    if (defaultGameTime !== '--:--') {
-      break
-    }
-  }
-
-  return {
-    id: `echo-conversation-${index + 1}`,
-    title: index === 0 ? ECHO_FIRST_CONVERSATION_NAME : parsedScene.shortLabel,
-    dayLabel: parsedScene.dayLabel,
-    sceneLabel: parsedScene.sceneLabel,
-    shortLabel: parsedScene.shortLabel,
-    segments,
-    defaultGameTime,
-    avatar: xingAvatar,
-    musicUrl: echoBgm,
-    musicRate: MUSIC_RATES[index % MUSIC_RATES.length],
-  }
-}
-
 function createDefaultConversationState(
   conversation: StoryConversationDefinition,
   sessionId: string | null = null,
@@ -246,35 +188,37 @@ function getSessionTitle(conversation: StoryConversationDefinition): string {
 }
 
 export function loadStoryLibrary(): StoryLibrary {
-  return buildStoryLibrary(STORY_CHARACTER_NAME, STORY_SEGMENTS)
-}
-
-function buildStoryLibrary(characterName: string, segments: DialogueSegment[]): StoryLibrary {
-  const normalizedSegments = normalizeStorySegments(segments)
-  const conversations: StoryConversationDefinition[] = []
-  let currentScene: string | null = null
-  let currentSegments: DialogueSegment[] = []
-
-  for (const segment of normalizedSegments) {
-    if (segment.scene && currentSegments.length > 0 && segment.scene !== currentScene) {
-      conversations.push(buildConversationDefinition(currentScene, currentSegments, conversations.length))
-      currentSegments = []
-    }
-
-    if (segment.scene) {
-      currentScene = segment.scene
-    }
-
-    currentSegments.push(segment)
-  }
-
-  if (currentSegments.length > 0) {
-    conversations.push(buildConversationDefinition(currentScene, currentSegments, conversations.length))
-  }
-
+  const conversations: StoryConversationDefinition[] = STORY_CONVERSATIONS.map(
+    (conv: StoryConversation, index: number) => {
+      const normalizedSegments = normalizeStorySegments(conv.segments as DialogueSegment[])
+      let defaultGameTime = '--:--'
+      for (const segment of normalizedSegments) {
+        for (const message of segment.messages) {
+          const inferredTime = extractGameTime(message.text)
+          if (inferredTime) {
+            defaultGameTime = inferredTime
+            break
+          }
+        }
+        if (defaultGameTime !== '--:--') break
+      }
+      return {
+        id: conv.id,
+        title: conv.title,
+        dayLabel: conv.dayLabel,
+        sceneLabel: conv.sceneLabel,
+        shortLabel: conv.shortLabel,
+        segments: normalizedSegments,
+        defaultGameTime,
+        avatar: xingAvatar,
+        musicUrl: echoBgm,
+        musicRate: MUSIC_RATES[index % MUSIC_RATES.length],
+      }
+    },
+  )
   return {
     storyName: ECHO_STORY_NAME,
-    characterName,
+    characterName: STORY_CHARACTER_NAME,
     conversations,
   }
 }

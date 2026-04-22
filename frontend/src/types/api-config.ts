@@ -1,4 +1,4 @@
-export type APIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini' | 'zhipu'
+export type APIProvider = 'local' | 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini' | 'zhipu'
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -26,6 +26,7 @@ export interface TestResult {
 }
 
 export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
+  local: '本地 (系统内置)',
   openai: 'OpenAI',
   'openai-compatible': 'OpenAI Compatible',
   anthropic: 'Anthropic',

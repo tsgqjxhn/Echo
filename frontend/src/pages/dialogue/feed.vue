@@ -20,7 +20,7 @@
 
         <div class="header-actions">
           <div class="header-time">{{ currentGameTime }}</div>
-          <button type="button" class="btn-more" aria-label="更多">
+          <button type="button" class="btn-more" aria-label="更多" @click="showDialogueMore = !showDialogueMore">
             <svg viewBox="0 0 1024 1024" width="20" height="20">
               <path d="M512 298.6496a85.3504 85.3504 0 1 0 0-170.6496 85.3504 85.3504 0 0 0 0 170.6496z" fill="currentColor"/>
               <path d="M512 512m-85.3504 0a85.3504 85.3504 0 1 0 170.7008 0 85.3504 85.3504 0 1 0-170.7008 0Z" fill="currentColor"/>
@@ -160,6 +160,62 @@
         </div>
       </section>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showDialogueMore" class="dialogue-more-overlay" @click.self="showDialogueMore = false">
+        <div class="dialogue-more-menu">
+          <button type="button" class="dialogue-more-item" @click="openDialogueGallery">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" fill="currentColor"/>
+            </svg>
+            <span>图鉴</span>
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <StoryGallery :visible="showGallery" @close="showGallery = false" />
+
+    <Teleport to="body">
+      <div v-if="showPuzzleGame" class="game-overlay">
+        <PuzzleGame :standalone="true" @complete="onPuzzleComplete" @exit="onPuzzleExit" />
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showMomentsCard" class="moments-card-overlay" @click.self="closeMomentsCard">
+        <section class="moments-popup">
+          <header class="moments-popup-head">
+            <strong>朋友圈</strong>
+            <button type="button" class="moments-popup-close" @click="closeMomentsCard">&times;</button>
+          </header>
+
+          <article class="moments-post-card">
+            <div class="mp-head">
+              <img :src="xingAvatar" alt="星" class="mp-avatar" />
+              <div class="mp-meta">
+                <span class="mp-name">星</span>
+                <span class="mp-visibility">仅你可见</span>
+              </div>
+            </div>
+
+            <div class="mp-image-block"></div>
+
+            <p class="mp-text">如果连记忆都是假的，那我到底算个什么东西？</p>
+
+            <div class="mp-actions">
+              <span class="mp-time">刚刚</span>
+              <div class="mp-reactions">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="#f87171" stroke="#f87171" stroke-width="2">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+                <span class="mp-liker">你</span>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -169,7 +225,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { DialogueMessage } from '@/data/story'
 import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import defaultAvatar from '@/static/images/default-avatar.svg'
-import xingAvatar from '@/static/images/头像.png'
+import xingAvatar from '@/static/images/story/星.webp'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { useUserStore } from '@/stores/user'
 import {
@@ -193,6 +249,8 @@ import {
   type StoryRuntimeState,
 } from '@/services/story-conversations'
 import { uni } from '@/utils/uni-polyfill'
+import StoryGallery from '@/components/StoryGallery/index.vue'
+import PuzzleGame from '@/pages/game/mini/puzzle.vue'
 
 interface VisibleMessage {
   id: string
@@ -242,6 +300,10 @@ const isTyping = ref(false)
 const isBusy = ref(false)
 const pendingInlineBranchReply = ref<PendingInlineBranchReply | null>(null)
 const switchingCharacter = ref(false)
+const showDialogueMore = ref(false)
+const showGallery = ref(false)
+const showPuzzleGame = ref(false)
+const showMomentsCard = ref(false)
 
 let activeRunToken = 0
 let bgmAudio: HTMLAudioElement | null = null
@@ -547,11 +609,26 @@ async function appendVisibleStoryMessage(message: DialogueMessage, conversationI
 
   const mappedRole = mapMessageRole(message)
   if (!mappedRole) {
-    runtimeState.value = applySystemEffects(runtimeState.value, conversationId, message)
-    persistRuntime()
-    if (runtimeState.value.states[conversationId]?.status === 'dead') {
-      await scrollToBottom('auto')
+    if (!message.hidden) {
+      runtimeState.value = applySystemEffects(runtimeState.value, conversationId, message)
+      persistRuntime()
+      if (runtimeState.value.states[conversationId]?.status === 'dead') {
+        await scrollToBottom('auto')
+      }
     }
+
+    // Detect H5 mini-game trigger
+    if (message.role === 'system' && message.text.includes('H5小游戏插入')) {
+      isBusy.value = false
+      isTyping.value = false
+      showPuzzleGame.value = true
+    }
+
+    // Detect moments post trigger
+    if (message.role === 'system' && message.text.includes('朋友圈动态插入')) {
+      showMomentsCard.value = true
+    }
+
     return
   }
 
@@ -665,6 +742,10 @@ async function runMessageSegment(conversation: StoryConversationDefinition, toke
     await appendVisibleStoryMessage(message, conversation.id)
     state.messageIndex = index + 1
     persistRuntime()
+
+    if (runtimeState.value.states[conversation.id]?.status === 'dead') {
+      return
+    }
   }
 
   state.segmentIndex += 1
@@ -973,6 +1054,31 @@ async function rollbackToDay(dayLabel: string) {
 
 function closeRollbackModal() {
   showRollbackModal.value = false
+}
+
+function openDialogueGallery() {
+  showDialogueMore.value = false
+  showGallery.value = true
+}
+
+function onPuzzleComplete() {
+  showPuzzleGame.value = false
+  const conversationId = activeConversationId.value
+  if (conversationId) {
+    void playUntilInteraction(conversationId)
+  }
+}
+
+function onPuzzleExit() {
+  showPuzzleGame.value = false
+  const conversationId = activeConversationId.value
+  if (conversationId) {
+    void playUntilInteraction(conversationId)
+  }
+}
+
+function closeMomentsCard() {
+  showMomentsCard.value = false
 }
 
 async function findLegacyResetStartIndex() {
@@ -1574,6 +1680,45 @@ onUnmounted(() => {
   }
 }
 
+.dialogue-more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10030;
+  background: transparent;
+}
+
+.dialogue-more-menu {
+  position: fixed;
+  top: 48px;
+  right: 12px;
+  min-width: 140px;
+  padding: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.dialogue-more-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.08);
+  }
+}
+
 @media (max-width: 720px) {
   .dialogue-header {
     grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -1583,5 +1728,139 @@ onUnmounted(() => {
     max-width: 82%;
   }
 
+}
+
+// Game overlay
+.game-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50000;
+  background: #050a0f;
+}
+
+// Moments card popup
+.moments-card-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 16px;
+}
+
+.moments-popup {
+  width: min(400px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(18, 18, 20, 0.98), rgba(10, 10, 12, 0.98));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.moments-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+  strong {
+    color: var(--text-primary);
+    font-size: 15px;
+  }
+}
+
+.moments-popup-close {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.moments-post-card {
+  padding: 14px 16px;
+}
+
+.mp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mp-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mp-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mp-name {
+  color: #7dd3fc;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mp-visibility {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.mp-image-block {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #000;
+  margin-bottom: 10px;
+}
+
+.mp-text {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mp-time {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.mp-reactions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.06);
+}
+
+.mp-liker {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 </style>

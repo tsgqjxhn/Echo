@@ -27,7 +27,7 @@
         </svg>
       </button>
 
-      <button type="button" class="btn-more" aria-label="更多">
+      <button type="button" class="btn-more" aria-label="更多" @click="showChatMore = !showChatMore">
         <svg viewBox="0 0 1024 1024" width="22" height="22">
           <path d="M512 298.6496a85.3504 85.3504 0 1 0 0-170.6496 85.3504 85.3504 0 0 0 0 170.6496z" fill="currentColor"/>
           <path d="M512 512m-85.3504 0a85.3504 85.3504 0 1 0 170.7008 0 85.3504 85.3504 0 1 0-170.7008 0Z" fill="currentColor"/>
@@ -75,6 +75,7 @@
           :user-avatar="playerAvatar"
           @retry="retryGeneration(message.id)"
           @avatar-click="openCharacterSheet"
+          @image-click="onImageClick"
         />
       </div>
     </main>
@@ -201,6 +202,27 @@
     </footer>
 
     <div class="page-floor" aria-hidden="true"></div>
+
+    <Teleport to="body">
+      <div v-if="showChatMore" class="chat-more-overlay" @click.self="showChatMore = false">
+        <div class="chat-more-menu">
+          <button type="button" class="chat-more-item" @click="openGallery">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" fill="currentColor"/>
+            </svg>
+            <span>图鉴</span>
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <StoryGallery :visible="showGallery" @close="showGallery = false" />
+    <ImageViewer
+      :visible="imageViewerVisible"
+      :src="imageViewerSrc"
+      :caption="imageViewerCaption"
+      @close="imageViewerVisible = false"
+    />
 
     <Teleport to="body">
       <div
@@ -332,9 +354,12 @@ import { TTSService } from '@/services/tts'
 import { DEFAULT_STT_CONFIG, loadVoiceSettings } from '@/services/voice-settings'
 import { RecordingState, STTService } from '@/services/stt'
 import { loadCharacterMemory } from '@/services/chat-memory'
+import { requestPermission } from '@/services/permissions'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { getStorageDriver } from '@/services/storage'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
+import StoryGallery from '@/components/StoryGallery/index.vue'
+import ImageViewer from '@/components/ImageViewer/index.vue'
 
 const AUTO_VOICE_KEY = 'chat_auto_tts'
 
@@ -362,6 +387,11 @@ const recordingStartedAt = ref(0)
 const memorySummary = ref('')
 const memoryPreferences = ref<string[]>([])
 const switchingCharacter = ref(false)
+const showChatMore = ref(false)
+const showGallery = ref(false)
+const imageViewerVisible = ref(false)
+const imageViewerSrc = ref('')
+const imageViewerCaption = ref('')
 
 const sttService = ref<STTService | null>(null)
 const ttsService = ref<TTSService | null>(null)
@@ -652,6 +682,12 @@ async function sendMessage() {
 }
 
 async function chooseImage() {
+  const storagePerm = await requestPermission('storage')
+  if (!storagePerm.granted) {
+    uni.showToast({ title: '存储权限被拒绝', icon: 'none' })
+    return
+  }
+
   uni.chooseImage({
     count: 1,
     success: async res => {
@@ -855,6 +891,17 @@ async function retryGeneration(messageId: string) {
 function openCharacterDetail() {
   showDetailSheet.value = false
   router.push(`/character/detail/${characterId.value}`)
+}
+
+function openGallery() {
+  showChatMore.value = false
+  showGallery.value = true
+}
+
+function onImageClick(src: string, description: string) {
+  imageViewerSrc.value = src
+  imageViewerCaption.value = description
+  imageViewerVisible.value = true
 }
 
 function confirmClearHistory() {
@@ -1668,6 +1715,45 @@ onUnmounted(() => {
   small {
     color: var(--text-tertiary);
     font-size: 12px;
+  }
+}
+
+.chat-more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10030;
+  background: transparent;
+}
+
+.chat-more-menu {
+  position: fixed;
+  top: 48px;
+  right: 12px;
+  min-width: 140px;
+  padding: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.chat-more-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.08);
   }
 }
 </style>

@@ -123,6 +123,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   retry: []
   'avatar-click': [rect: DOMRect]
+  'image-click': [src: string, description: string]
 }>()
 
 const isPlayingVoice = ref(false)
@@ -265,8 +266,8 @@ function toggleVoice() {
 }
 
 function openImage() {
-  if (typeof window !== 'undefined' && imagePath.value) {
-    window.open(imagePath.value, '_blank', 'noopener,noreferrer')
+  if (imagePath.value) {
+    emit('image-click', imagePath.value, imageDescription.value)
   }
 }
 
