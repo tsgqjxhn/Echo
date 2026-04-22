@@ -1037,8 +1037,6 @@ onUnmounted(() => {
   border: 1px solid rgba(56, 189, 248, 0.20);
 }
 
-.message-list {
-
 .hero-card,
 .empty-state {
   padding: 18px;

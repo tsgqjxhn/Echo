@@ -1,6 +1,6 @@
 <template>
   <div class="field-item">
-    <label v-if="field.type !== 'multi-character'" class="field-label">{{ field.label }}</label>
+    <label class="field-label">{{ field.label }}</label>
 
     <input
       v-if="field.type === 'text'"
@@ -45,7 +45,6 @@
 
     <MultiCharacterField
       v-else-if="field.type === 'multi-character'"
-      :label="field.label"
       :model-value="localValue"
       :max-length="field.maxLength"
       :simple-placeholder="field.placeholder"

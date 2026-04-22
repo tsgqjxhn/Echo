@@ -1,7 +1,5 @@
 <template>
-  <div class="field-item">
-    <label class="field-label">{{ label }}</label>
-
+  <div class="multi-char-field">
     <!-- Mode selector -->
     <select v-model="mode" class="mode-select">
       <option value="simple">简洁输入模式</option>
@@ -87,7 +85,6 @@ interface CharacterCard {
 }
 
 const props = defineProps<{
-  label: string
   modelValue: unknown
   maxLength?: number
   simplePlaceholder?: string
@@ -174,20 +171,10 @@ function toggleCard(idx: number) {
 </script>
 
 <style lang="scss" scoped>
-.field-item {
+.multi-char-field {
   display: flex;
   flex-direction: column;
   gap: 0;
-}
-
-.field-label {
-  display: block;
-  padding: 0 2px;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  margin-bottom: 4px;
 }
 
 .mode-select {
