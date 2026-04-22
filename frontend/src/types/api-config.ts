@@ -1,4 +1,4 @@
-export type APIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini'
+export type APIProvider = 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini' | 'zhipu'
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -32,6 +32,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
   dashscope: 'DashScope',
   volcengine: '火山方舟 (Volcengine)',
   gemini: 'Gemini',
+  zhipu: '智谱清言 (GLM)',
 }
 
 export const DEFAULT_OPENAI_CONFIG: Partial<APIConfig> = {

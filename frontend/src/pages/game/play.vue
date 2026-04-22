@@ -1,0 +1,94 @@
+<template>
+  <div class="play-page">
+    <div class="play-header">
+      <button class="back-btn" @click="router.back()" aria-label="返回">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+      </button>
+      <h1 class="play-title">{{ gameTitle }}</h1>
+    </div>
+    <div class="play-body">
+      <Game2048 v-if="gameId === '2048'" />
+      <GameSnake v-else-if="gameId === 'snake'" />
+      <div v-else class="placeholder">
+        <p>游戏加载中…</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import Game2048 from './mini/2048.vue'
+import GameSnake from './mini/snake.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const gameId = computed(() => route.params.id as string)
+
+const gameTitles: Record<string, string> = {
+  '2048': '2048',
+  'snake': '贪吃蛇',
+}
+
+const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
+</script>
+
+<style lang="scss" scoped>
+.play-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-backdrop-soft);
+}
+
+.play-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
+  border-bottom: 1px solid var(--top-bar-border);
+  background: var(--top-bar-surface);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  &:active { transform: scale(0.95); }
+}
+
+.play-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.play-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.placeholder {
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+</style>

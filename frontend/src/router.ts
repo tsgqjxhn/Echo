@@ -90,6 +90,11 @@ const routes: RouteRecordRaw[] = [
     path: '/game/escape',
     component: () => import('./pages/game/mini/escape.vue'),
     meta: { title: '新故事' }
+  },
+  {
+    path: '/game/play/:id',
+    component: () => import('./pages/game/play.vue'),
+    meta: { title: '游戏' }
   }
 ]
 

@@ -99,6 +99,26 @@ export interface ICharacter {
   lorebook?: Lorebook
   /** 备选开场白列表 */
   alternateGreetings?: string[]
+  /** 角色聊天背景图 */
+  chatBackground?: string
+  /** 整体聊天背景图 */
+  globalBackground?: string
+  /** 角色切换动图 */
+  switchAnimation?: string
+  /** 角色情感表达动图列表 */
+  emotionAnimations?: EmotionAnimation[]
+  /** 导入的游戏数据（规则、脚本、关卡等） */
+  gameData?: string
+}
+
+export interface EmotionAnimation {
+  emotion: string
+  animationUrl: string
+}
+
+export interface CharacterTTS {
+  voice: string
+  weight: number
 }
 
 export interface CreateCharacterRequest {
@@ -127,6 +147,10 @@ export interface CreateCharacterRequest {
   depthPrompt?: DepthPrompt
   lorebook?: Lorebook
   alternateGreetings?: string[]
+  chatBackground?: string
+  globalBackground?: string
+  switchAnimation?: string
+  emotionAnimations?: EmotionAnimation[]
 }
 
 export interface UpdateCharacterRequest extends CreateCharacterRequest {

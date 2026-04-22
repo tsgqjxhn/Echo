@@ -7,6 +7,11 @@
         </svg>
       </button>
       <h1 class="title">游戏中心</h1>
+      <button class="import-btn" @click="showImportModal = true" aria-label="导入">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </button>
     </div>
 
     <div class="game-list">
@@ -19,14 +24,35 @@
         <div class="play-btn">
           <span>进入</span>
           <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M9 6l6 6-6 6"
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2.2"
-            />
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="game-card" @click="openGame('2048')">
+        <div class="game-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">2K</div>
+        <div class="game-info">
+          <h3 class="game-name">2048</h3>
+          <p class="game-desc">滑动数字方块，合并相同数字冲向2048。简单到停不下来的经典益智游戏。</p>
+        </div>
+        <div class="play-btn">
+          <span>进入</span>
+          <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="game-card" @click="openGame('snake')">
+        <div class="game-icon" style="background: linear-gradient(135deg, #10b981, #059669);">蛇</div>
+        <div class="game-info">
+          <h3 class="game-name">贪吃蛇</h3>
+          <p class="game-desc">经典街机重生，控制蛇身吃掉食物不断变长，撞墙或咬到自己就结束。</p>
+        </div>
+        <div class="play-btn">
+          <span>进入</span>
+          <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
           </svg>
         </div>
       </div>
@@ -42,20 +68,244 @@
         </div>
       </div>
     </div>
+
+    <!-- Import modal: choose method -->
+    <Teleport to="body">
+      <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title">导入游戏</h3>
+            <button type="button" class="modal-close" @click="showImportModal = false">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+
+          <div class="modal-options">
+            <button type="button" class="modal-option-btn" @click="selectImportMethod('rules')">
+              <div class="option-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </div>
+              <div class="option-text">
+                <span class="option-title">通过发送规则、玩法让AI创建</span>
+                <span class="option-desc">上传规则文件或直接书写玩法，AI自动生成游戏</span>
+              </div>
+            </button>
+
+            <button type="button" class="modal-option-btn" @click="selectImportMethod('full')">
+              <div class="option-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </div>
+              <div class="option-text">
+                <span class="option-title">发送全量游戏文件</span>
+                <span class="option-desc">上传H5游戏(.html)、游戏包(.zip)或游戏文件夹，最大100MB</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Import modal: upload + text input -->
+    <Teleport to="body">
+      <div v-if="showUploadModal" class="modal-overlay" @click.self="closeUploadModal">
+        <div class="modal-card upload-modal">
+          <div class="modal-header">
+            <h3 class="modal-title">{{ importMethod === 'rules' ? '发送规则 / 书写玩法' : '上传游戏文件' }}</h3>
+            <button type="button" class="modal-close" @click="closeUploadModal">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+
+          <div class="upload-body">
+            <!-- Text input for rules -->
+            <div class="upload-textarea-wrap">
+              <textarea
+                v-model="rulesText"
+                class="upload-textarea"
+                :placeholder="importMethod === 'rules' ? '在此书写游戏规则、玩法描述…' : '可选：添加游戏说明或备注…'"
+                rows="4"
+              />
+            </div>
+
+            <!-- Rules: file upload -->
+            <template v-if="importMethod === 'rules'">
+              <div class="upload-zone" @click="uploadInput?.click()">
+                <svg viewBox="0 0 24 24" width="28" height="28"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <span class="upload-zone-text">点击上传规则文件 (.txt / .md / .json / .yaml)</span>
+              </div>
+              <input ref="uploadInput" type="file" class="hidden-file-input" accept=".txt,.md,.json,.yaml,.yml" multiple @change="onFileSelected" />
+            </template>
+
+            <!-- Full game: file + folder upload -->
+            <template v-else>
+              <div class="upload-btns">
+                <button type="button" class="upload-action-btn" @click="uploadInput?.click()">
+                  <svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  选择文件
+                </button>
+                <button type="button" class="upload-action-btn" @click="folderInput?.click()">
+                  <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                  选择文件夹
+                </button>
+              </div>
+              <p class="upload-hint">支持：H5游戏 (.html/.htm)、游戏包 (.zip)、游戏文件夹。不支持 .exe / .apk</p>
+              <input ref="uploadInput" type="file" class="hidden-file-input" accept=".html,.htm,.zip" @change="onFileSelected" />
+              <input ref="folderInput" type="file" class="hidden-file-input" webkitdirectory @change="onFileSelected" />
+            </template>
+
+            <!-- File tags -->
+            <div v-if="uploadFileNames.length" class="upload-file-list">
+              <span v-for="n in uploadFileNames" :key="n" class="upload-file-tag">{{ n }}</span>
+              <span v-if="uploadFileNames.length > 3" class="upload-count">共 {{ uploadFileNames.length }} 个文件</span>
+              <button type="button" class="clear-files-btn" @click="clearUploadFiles">清除</button>
+            </div>
+
+            <div v-if="uploadFileSize" class="upload-size">总大小：{{ uploadFileSize }}</div>
+
+            <!-- Submit -->
+            <button type="button" class="submit-btn" :disabled="!canSubmit" @click="submitImport">
+              {{ submitLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { uni } from '@/utils/uni-polyfill'
 
 const router = useRouter()
+
+const showImportModal = ref(false)
+const showUploadModal = ref(false)
+const importMethod = ref<'rules' | 'full'>('rules')
+
+const rulesText = ref('')
+const uploadInput = ref<HTMLInputElement | null>(null)
+const folderInput = ref<HTMLInputElement | null>(null)
+const uploadFileData = ref('')
+const uploadFileNames = ref<string[]>([])
+const uploadFileSize = ref('')
 
 function openEscapeGame() {
   router.push('/game/escape')
 }
 
+function openGame(id: string) {
+  router.push(`/game/play/${id}`)
+}
+
 function goToSettings() {
   router.push('/game/settings')
+}
+
+function selectImportMethod(method: 'rules' | 'full') {
+  importMethod.value = method
+  showImportModal.value = false
+  showUploadModal.value = true
+}
+
+function closeUploadModal() {
+  showUploadModal.value = false
+  rulesText.value = ''
+  uploadFileData.value = ''
+  uploadFileNames.value = []
+  uploadFileSize.value = ''
+}
+
+function onFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) return
+
+  const isFolder = !!(input as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory || files.length > 1
+
+  if (importMethod.value === 'full') {
+    const MAX_SIZE = 100 * 1024 * 1024
+    let totalSize = 0
+    for (let i = 0; i < files.length; i++) totalSize += files[i].size
+    if (totalSize > MAX_SIZE) {
+      uni.showToast({ title: '总大小超过100MB限制', icon: 'none' })
+      input.value = ''
+      return
+    }
+
+    if (isFolder) {
+      const names: string[] = []
+      for (let i = 0; i < files.length; i++) names.push(files[i].webkitRelativePath || files[i].name)
+      uploadFileNames.value = names
+      uploadFileSize.value = formatFileSize(totalSize)
+
+      Promise.all(
+        Array.from(files).map(async (f) => {
+          const path = f.webkitRelativePath || f.name
+          const ext = path.split('.').pop()?.toLowerCase() || ''
+          if (['txt', 'md', 'json', 'yaml', 'yml', 'html', 'htm', 'css', 'js'].includes(ext)) {
+            return { path, text: await f.text() }
+          }
+          return { path, text: `[binary: ${formatFileSize(f.size)}]` }
+        }),
+      ).then(results => {
+        uploadFileData.value = results.map(r => `=== ${r.path} ===\n${r.text}`).join('\n\n')
+      })
+    } else {
+      const file = files[0]
+      uploadFileNames.value = [file.name]
+      uploadFileSize.value = formatFileSize(file.size)
+
+      if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+        file.text().then(text => { uploadFileData.value = text })
+      } else {
+        const reader = new FileReader()
+        reader.onload = () => { uploadFileData.value = reader.result as string }
+        reader.readAsDataURL(file)
+      }
+    }
+  } else {
+    const names: string[] = []
+    const readers: Promise<string>[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      names.push(file.name)
+      readers.push(file.text())
+    }
+    uploadFileNames.value = names
+    uploadFileSize.value = ''
+    Promise.all(readers).then(contents => {
+      uploadFileData.value = contents.map((text, i) => `=== ${names[i]} ===\n${text}`).join('\n\n')
+    })
+  }
+
+  input.value = ''
+}
+
+function clearUploadFiles() {
+  uploadFileData.value = ''
+  uploadFileNames.value = []
+  uploadFileSize.value = ''
+}
+
+const canSubmit = computed(() => rulesText.value.trim().length > 0 || uploadFileData.value.length > 0)
+
+const submitLabel = computed(() => {
+  if (importMethod.value === 'rules') return '创建游戏'
+  return '导入游戏'
+})
+
+function submitImport() {
+  // TODO: wire to game store/service for actual import
+  uni.showToast({ title: submitLabel.value + '成功', icon: 'success' })
+  closeUploadModal()
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 </script>
 
@@ -110,14 +360,8 @@ function goToSettings() {
   cursor: pointer;
   box-shadow: none;
   transition: opacity var(--transition-base), transform var(--transition-base);
-
-  &:hover {
-    opacity: 0.78;
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
+  &:hover { opacity: 0.78; }
+  &:active { transform: scale(0.95); }
 }
 
 .title {
@@ -128,17 +372,27 @@ function goToSettings() {
   color: var(--text-primary);
 }
 
+.import-btn {
+  position: absolute;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: opacity var(--transition-base), transform var(--transition-base);
+  &:hover { opacity: 0.78; }
+  &:active { transform: scale(0.95); }
+}
+
 .game-list {
   width: min(1080px, calc(100% - 32px));
   margin: 18px auto 0;
-}
-
-.game-card {
-  border: 1px solid var(--border-color);
-  background: var(--surface-gradient);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
 }
 
 .game-card {
@@ -149,6 +403,11 @@ function goToSettings() {
   border-radius: 24px;
   margin-bottom: 14px;
   cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--surface-gradient);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
   transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
@@ -189,9 +448,7 @@ function goToSettings() {
   box-shadow: var(--shadow-sm);
 }
 
-.game-info {
-  flex: 1;
-}
+.game-info { flex: 1; }
 
 .game-name {
   margin-bottom: 6px;
@@ -231,32 +488,255 @@ function goToSettings() {
   overflow: visible;
 }
 
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  width: min(400px, calc(100% - 32px));
+  background: #0c1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  &:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.06); }
+}
+
+.modal-options {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+  &:hover { border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.06); }
+}
+
+.option-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  color: rgba(56, 189, 248, 0.7);
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.option-title { font-size: 14px; font-weight: 500; }
+.option-desc { font-size: 12px; color: var(--text-tertiary); line-height: 1.4; }
+
+/* --- Upload modal --- */
+.upload-modal { width: min(440px, calc(100% - 32px)); }
+
+.upload-body {
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upload-textarea-wrap {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  &:focus-within { border-color: rgba(56, 189, 248, 0.4); }
+}
+
+.upload-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  outline: none;
+  resize: none;
+  &::placeholder { color: rgba(255, 255, 255, 0.18); }
+}
+
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  border: 1px dashed rgba(56, 189, 248, 0.25);
+  border-radius: 12px;
+  color: rgba(56, 189, 248, 0.5);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: rgba(56, 189, 248, 0.7);
+    background: rgba(56, 189, 248, 0.04);
+  }
+}
+
+.upload-zone-text {
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.upload-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.upload-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px dashed rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(56, 189, 248, 0.6);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: rgba(56, 189, 248, 0.8);
+    background: rgba(56, 189, 248, 0.04);
+  }
+}
+
+.upload-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.hidden-file-input { display: none; }
+
+.upload-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.upload-file-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid rgba(52, 211, 153, 0.15);
+  border-radius: 4px;
+  color: rgba(52, 211, 153, 0.7);
+  font-size: 11px;
+}
+
+.upload-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.clear-files-btn {
+  padding: 2px 8px;
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(248, 113, 113, 0.6);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  &:hover { border-color: rgba(248, 113, 113, 0.3); color: rgba(248, 113, 113, 0.8); }
+}
+
+.upload-size { font-size: 12px; color: var(--text-tertiary); }
+
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--interactive-gradient);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:not(:disabled):hover { opacity: 0.9; }
+}
+
 @media (max-width: 720px) {
-  .game-panel-page {
-    padding: 0 0 118px;
-  }
-
-  .header {
-    padding-left: 16px;
-    padding-right: 16px;
-    border-radius: 0;
-  }
-
-  .menu-btn {
-    left: 16px;
-  }
-
-  .game-list {
-    width: calc(100% - 20px);
-  }
-
-  .game-card {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .play-btn {
-    align-self: flex-start;
-  }
+  .game-panel-page { padding: 0 0 118px; }
+  .header { padding-left: 16px; padding-right: 16px; border-radius: 0; }
+  .menu-btn { left: 16px; }
+  .import-btn { right: 16px; }
+  .game-list { width: calc(100% - 20px); }
+  .game-card { align-items: flex-start; flex-direction: column; }
+  .play-btn { align-self: flex-start; }
 }
 </style>

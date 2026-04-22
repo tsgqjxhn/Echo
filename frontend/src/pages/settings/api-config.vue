@@ -185,6 +185,7 @@ const DEFAULT_URLS: Record<string, string> = {
   dashscope: 'https://dashscope.aliyuncs.com',
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4',
 }
 
 const baseURLPlaceholder = computed(() => {

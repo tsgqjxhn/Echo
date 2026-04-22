@@ -5,6 +5,7 @@ import { anthropicAdapter } from './anthropic'
 import { dashscopeAdapter } from './dashscope'
 import { volcengineAdapter } from './volcengine'
 import { geminiAdapter } from './gemini'
+import { zhipuAdapter } from './zhipu'
 
 const adapters = new Map<APIProvider, ProviderAdapter>()
 
@@ -18,6 +19,7 @@ register(anthropicAdapter)
 register(dashscopeAdapter)
 register(volcengineAdapter)
 register(geminiAdapter)
+register(zhipuAdapter)
 
 export function getAdapter(provider: APIProvider): ProviderAdapter {
   const adapter = adapters.get(provider)

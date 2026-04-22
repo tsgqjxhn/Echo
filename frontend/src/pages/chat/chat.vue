@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-page">
+  <div class="chat-page" :style="chatPageStyle">
     <header class="chat-header">
       <button v-if="showBackButton" type="button" class="btn-back" @click="router.back()">
         <svg viewBox="0 0 1024 1024" width="20" height="20">
@@ -230,7 +230,10 @@
             <button type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetToggleLike">
               {{ character?.isLiked ? '取消点赞' : '点赞' }}
             </button>
-            <button v-if="character?.isFriend" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetInviteToGroup">
+            <button v-if="isGroupCharacter" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetEnterGroup">
+              进入该群
+            </button>
+            <button v-else-if="character?.isFriend" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetInviteToGroup">
               邀请进入群聊
             </button>
           </div>
@@ -381,6 +384,17 @@ const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
 const characterMeta = computed(() =>
   [character.value?.category, character.value?.subCategory].filter(Boolean).join(' / ') || '角色设定'
 )
+
+const chatPageStyle = computed(() => {
+  const bg = character.value?.chatBackground || character.value?.globalBackground
+  if (!bg) return undefined
+  return {
+    backgroundImage: `url(${bg})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+  }
+})
 const showQuickPrompts = computed(() => messages.value.length <= 1 && !chatStore.isGenerating)
 const quickPrompts = computed(() => {
   const name = character.value?.name || 'TA'
@@ -405,6 +419,10 @@ const recordingCopy = computed(() => {
 
 const groupCharacters = computed(() =>
   characterStore.characters.filter(c => c.mode === 'group-chat' || c.mode === 'group-challenge')
+)
+
+const isGroupCharacter = computed(() =>
+  character.value?.mode === 'group-chat' || character.value?.mode === 'group-challenge'
 )
 
 const charPopoverPlacement = computed<'top' | 'bottom'>(() => {
@@ -879,6 +897,13 @@ async function sheetToggleLike() {
     uni.showToast({ title: character.value?.isLiked ? '已标记喜欢' : '已取消喜欢', icon: 'none' })
   } finally {
     charPopoverBusy.value = false
+  }
+}
+
+async function sheetEnterGroup() {
+  charPopoverVisible.value = false
+  if (characterId.value) {
+    router.push('/chat/' + characterId.value)
   }
 }
 
