@@ -730,6 +730,14 @@ async function submit() {
     if (narratorTtsInfo) {
       extraBlocks.push(`【旁白TTS设定】\n${narratorTtsInfo}`)
     }
+    // Inject game records visible to all AI characters
+    try {
+      const records: Record<string, string> = JSON.parse(localStorage.getItem('echo_game_records') || '{}')
+      const entries = Object.values(records)
+      if (entries.length) {
+        extraBlocks.push(`【用户游戏最佳记录】\n${entries.join('\n')}`)
+      }
+    } catch { /* no records */ }
     if (extraBlocks.length) {
       character.settings = settings + '\n\n' + extraBlocks.join('\n\n')
     }

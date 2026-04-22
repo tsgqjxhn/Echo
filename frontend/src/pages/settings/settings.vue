@@ -54,7 +54,7 @@
           :aria-expanded="moreSettingsExpanded"
           @click="toggleMoreSettings"
         >
-          <span class="more-settings-title">更多设置</span>
+          <span class="more-settings-title">通用设置</span>
           <svg class="expand-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M7 10l5 5 5-5"
@@ -68,58 +68,39 @@
         </button>
 
         <div v-if="moreSettingsExpanded" class="more-settings-list">
-          <button
-            type="button"
-            class="setting-item"
-            @click="router.push('/settings/global-prompt')"
-          >
+          <button type="button" class="setting-item" @click="router.push('/settings/notification')">
+            <span class="setting-item-title">通知/消息</span>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+          </button>
+
+          <button type="button" class="setting-item" @click="router.push('/settings/chat-defaults')">
+            <span class="setting-item-title">聊天默认设置</span>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+          </button>
+
+          <button type="button" class="setting-item" @click="router.push('/settings/global-prompt')">
             <span class="setting-item-title">提示词</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M9 6l6 6-6 6"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-              />
-            </svg>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
-          <button
-            type="button"
-            class="setting-item"
-            @click="router.push('/settings/api-config')"
-          >
+          <button type="button" class="setting-item" @click="router.push('/settings/api-config')">
             <span class="setting-item-title">LLM API</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M9 6l6 6-6 6"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-              />
-            </svg>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
-          <button
-            type="button"
-            class="setting-item"
-            @click="goToDataManagement"
-          >
+          <button type="button" class="setting-item" @click="goToDataManagement">
             <span class="setting-item-title">数据导入导出</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M9 6l6 6-6 6"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-              />
-            </svg>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+          </button>
+
+          <button type="button" class="setting-item" @click="router.push('/settings/storage')">
+            <span class="setting-item-title">存储管理</span>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+          </button>
+
+          <button type="button" class="setting-item" @click="router.push('/settings/about')">
+            <span class="setting-item-title">关于/版本</span>
+            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
         </div>
       </section>

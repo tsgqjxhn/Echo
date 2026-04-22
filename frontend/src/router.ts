@@ -72,6 +72,26 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '语音设置' }
   },
   {
+    path: '/settings/notification',
+    component: () => import('./pages/settings/notification.vue'),
+    meta: { title: '通知/消息' }
+  },
+  {
+    path: '/settings/chat-defaults',
+    component: () => import('./pages/settings/chat-defaults.vue'),
+    meta: { title: '聊天默认设置' }
+  },
+  {
+    path: '/settings/storage',
+    component: () => import('./pages/settings/storage.vue'),
+    meta: { title: '存储管理' }
+  },
+  {
+    path: '/settings/about',
+    component: () => import('./pages/settings/about.vue'),
+    meta: { title: '关于' }
+  },
+  {
     path: '/moments',
     component: () => import('./pages/moments/moments.vue'),
     meta: { title: '朋友圈' }

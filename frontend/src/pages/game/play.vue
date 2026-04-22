@@ -7,8 +7,8 @@
       <h1 class="play-title">{{ gameTitle }}</h1>
     </div>
     <div class="play-body">
-      <Game2048 v-if="gameId === '2048'" />
-      <GameSnake v-else-if="gameId === 'snake'" />
+      <ChessGame v-if="gameId === 'chess'" />
+      <GomokuGame v-else-if="gameId === 'gomoku'" />
       <div v-else class="placeholder">
         <p>游戏加载中…</p>
       </div>
@@ -19,8 +19,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import Game2048 from './mini/2048.vue'
-import GameSnake from './mini/snake.vue'
+import ChessGame from './mini/chess.vue'
+import GomokuGame from './mini/gomoku.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -28,8 +28,8 @@ const router = useRouter()
 const gameId = computed(() => route.params.id as string)
 
 const gameTitles: Record<string, string> = {
-  '2048': '2048',
-  'snake': '贪吃蛇',
+  chess: '国际象棋',
+  gomoku: '五子棋',
 }
 
 const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
@@ -62,10 +62,8 @@ const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 12px;
+  width: 40px; height: 40px;
+  border: none; border-radius: 12px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
@@ -82,13 +80,10 @@ const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
 .play-body {
   flex: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 16px;
 }
 
-.placeholder {
-  color: var(--text-tertiary);
-  font-size: 14px;
-}
+.placeholder { color: var(--text-tertiary); font-size: 14px; }
 </style>

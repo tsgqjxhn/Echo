@@ -216,7 +216,10 @@
           <div class="char-popover-head">
             <img v-if="characterAvatar" :src="characterAvatar" :alt="character?.name" class="char-popover-avatar" />
             <div class="char-popover-copy">
-              <strong>{{ character?.name || '角色' }}</strong>
+              <div class="char-popover-name-row">
+                <strong>{{ character?.name || '角色' }}</strong>
+                <span class="affinity-badge">好感 {{ currentAffinity }}</span>
+              </div>
               <span>{{ character?.description?.slice(0, 48) || '角色简介' }}</span>
             </div>
           </div>
@@ -371,6 +374,7 @@ const defaultAvatar = '/src/static/images/default-avatar.svg'
 const characterId = computed(() => route.params.characterId as string)
 const sessionId = computed(() => (route.query.sessionId as string) || '')
 const isHistoryEntry = computed(() => route.query.from === 'history')
+const currentAffinity = computed(() => getAffinity(characterId.value))
 const messages = computed(() => chatStore.messages)
 const hasComposerContent = computed(() => inputText.value.length > 0)
 const hasSendableContent = computed(() => inputText.value.trim().length > 0)
@@ -864,6 +868,27 @@ function confirmClearHistory() {
       showDetailSheet.value = false
     }
   })
+}
+
+// Affinity helpers
+function getAffinityMap(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem('echo_affinity') || '{}') } catch { return {} }
+}
+function getAffinity(charId: string): number {
+  const map = getAffinityMap()
+  if (map[charId] !== undefined) return map[charId]
+  // Initialize: base 20 for friends, +1 per message in sessions
+  const sessions = chatStore.sessions.filter(s => s.characterId === charId)
+  let msgs = 0
+  for (const s of sessions) msgs += s.messageCount
+  const val = Math.min(100, 20 + msgs)
+  setAffinity(charId, val)
+  return val
+}
+function setAffinity(charId: string, val: number) {
+  const map = getAffinityMap()
+  map[charId] = Math.max(0, Math.min(100, val))
+  localStorage.setItem('echo_affinity', JSON.stringify(map))
 }
 
 function openCharacterSheet(rect: DOMRect) {
@@ -1361,6 +1386,21 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+.char-popover-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.affinity-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.12);
+  color: rgba(250, 204, 21, 0.7);
+  flex-shrink: 0;
 }
 
 .char-popover-list {
