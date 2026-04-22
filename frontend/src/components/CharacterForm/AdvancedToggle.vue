@@ -1,12 +1,20 @@
 <template>
   <button type="button" class="advanced-toggle" @click="emit('update:modelValue', !modelValue)">
-    <span class="toggle-label">{{ modelValue ? '收起高级设定' : '展开高级设定' }}</span>
+    <span class="toggle-label">{{ modelValue ? labelOn : labelOff }}</span>
     <span class="toggle-arrow" :class="{ open: modelValue }">&#9662;</span>
   </button>
 </template>
 
 <script setup lang="ts">
-defineProps<{ modelValue: boolean }>()
+withDefaults(defineProps<{
+  modelValue: boolean
+  labelOn?: string
+  labelOff?: string
+}>(), {
+  labelOn: '收起高级设定',
+  labelOff: '展开高级设定',
+})
+
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 </script>
 

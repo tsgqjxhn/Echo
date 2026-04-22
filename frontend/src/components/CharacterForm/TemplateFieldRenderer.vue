@@ -1,6 +1,6 @@
 <template>
   <div class="field-item">
-    <label class="field-label">{{ field.label }}</label>
+    <label v-if="field.type !== 'multi-character'" class="field-label">{{ field.label }}</label>
 
     <input
       v-if="field.type === 'text'"
@@ -11,15 +11,19 @@
       :placeholder="field.placeholder"
     />
 
-    <textarea
-      v-else-if="field.type === 'textarea'"
-      v-model="localValue"
-      class="field-textarea"
-      :maxlength="field.maxLength"
-      :placeholder="field.placeholder"
-      @focus="onTextareaFocus"
-      @blur="onTextareaBlur"
-    />
+    <div v-else-if="field.type === 'textarea'" class="textarea-wrapper">
+      <textarea
+        ref="textareaEl"
+        v-model="localValue"
+        class="field-textarea"
+        :maxlength="field.maxLength"
+        @focus="onTextareaFocus"
+        @blur="onTextareaBlur"
+      />
+      <div v-if="!localValue && field.placeholder" class="placeholder-overlay" :class="{ hidden: textareaFocused }">
+        <span class="placeholder-text">{{ field.placeholder }}</span>
+      </div>
+    </div>
 
     <select v-else-if="field.type === 'select'" v-model="localValue" class="field-select">
       <option value="" disabled>-- 请选择 --</option>
@@ -38,12 +42,22 @@
         {{ opt }}
       </button>
     </div>
+
+    <MultiCharacterField
+      v-else-if="field.type === 'multi-character'"
+      :label="field.label"
+      :model-value="localValue"
+      :max-length="field.maxLength"
+      :simple-placeholder="field.placeholder"
+      @update:model-value="v => localValue = v"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { TemplateFieldDef } from '@/data/character-templates'
+import MultiCharacterField from './MultiCharacterField.vue'
 
 const props = defineProps<{
   field: TemplateFieldDef
@@ -55,6 +69,7 @@ const emit = defineEmits<{
 }>()
 
 const textareaFocused = ref(false)
+const textareaEl = ref<HTMLTextAreaElement | null>(null)
 
 const localValue = computed({
   get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
@@ -129,11 +144,20 @@ function onTextareaBlur() { textareaFocused.value = false }
   padding-right: 16px;
 }
 
+.textarea-wrapper {
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s;
+
+  &:focus-within {
+    border-bottom-color: rgba(56, 189, 248, 0.4);
+  }
+}
+
 .field-textarea {
   width: 100%;
   padding: 7px 0;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 0;
   background: transparent;
   color: var(--text-primary);
@@ -143,18 +167,53 @@ function onTextareaBlur() { textareaFocused.value = false }
   box-sizing: border-box;
   outline: none;
   resize: none;
-  overflow: hidden;
-  min-height: 1.4em;
-  max-height: 6em;
-  transition: border-color 0.2s;
+  min-height: 4.2em;
+  max-height: 8em;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
 
   &::placeholder {
-    color: rgba(255, 255, 255, 0.18);
+    color: transparent;
+  }
+}
+
+.placeholder-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 1px;
+  max-height: 4.2em;
+  overflow-y: auto;
+  padding: 7px 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+
+  &.hidden {
+    opacity: 0;
   }
 
-  &:focus {
-    border-bottom-color: rgba(56, 189, 248, 0.4);
+  &::-webkit-scrollbar {
+    width: 3px;
   }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+  }
+}
+
+.placeholder-text {
+  color: rgba(255, 255, 255, 0.18);
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .chip-row {

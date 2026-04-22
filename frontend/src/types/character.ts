@@ -1,3 +1,9 @@
+export interface GroupMember {
+  name: string
+  personality: string
+  speakingStyle: string
+}
+
 /**
  * 结构化人设 — Anchor-Traits-Voice 框架
  */
