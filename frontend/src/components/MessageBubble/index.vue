@@ -4,7 +4,8 @@
       :src="avatarUrl"
       :alt="isUser ? 'User' : 'Assistant'"
       class="avatar"
-      @click="!isUser && handleAvatarClick($event)"
+      :class="{ 'avatar--clickable': !isUser }"
+      @click.stop="handleAvatarClick"
     />
 
     <div class="bubble-main">
@@ -48,6 +49,24 @@
           <span class="image-copy">{{ imageDescription || '查看图片' }}</span>
         </button>
       </div>
+
+      <button
+        v-if="canSpeakMessage"
+        type="button"
+        class="bubble-tts-btn"
+        :class="{ speaking: isTTSSpeaking }"
+        :aria-label="isTTSSpeaking ? '停止朗读' : '朗读消息'"
+        :title="isTTSSpeaking ? '停止朗读' : '朗读消息'"
+        @click.stop="toggleTTS"
+      >
+        <svg v-if="isTTSSpeaking" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M6 9v6h4l5 5V4l-5 5H6zm12.5 3a6.5 6.5 0 0 0-2-4.69v9.38a6.5 6.5 0 0 0 2-4.69z" fill="currentColor"/>
+          <path d="M4 4l16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
+        </svg>
+      </button>
     </div>
 
     <Teleport to="body">
@@ -136,6 +155,11 @@ let longPressTimer: ReturnType<typeof setTimeout> | null = null
 const isTextMessage = computed(() => props.message.contentType === MessageType.TEXT)
 const isImageMessage = computed(() => props.message.contentType === MessageType.IMAGE)
 const isAudioMessage = computed(() => props.message.contentType === MessageType.AUDIO)
+const canSpeakMessage = computed(() =>
+  !props.isUser &&
+  isTextMessage.value &&
+  props.message.content.trim().length > 0
+)
 
 const avatarUrl = computed(() =>
   props.isUser
@@ -157,7 +181,10 @@ const renderedContent = computed(() => {
   }
 
   const normalized = raw.replace(/\*([^*\n]+)\*/g, '（$1）')
-  const escaped = escapeHTML(normalized)
+  const compacted = normalized
+    .replace(/\s*\n+\s*(（)/g, '$1')
+    .replace(/(）)\s*\n+\s*/g, '$1')
+  const escaped = escapeHTML(compacted)
   const highlighted = escaped.replace(/（[^（）\n]+）/g, match => `<span class="action-text">${match}</span>`)
 
   return highlighted.replace(/\n/g, '<br>')
@@ -200,6 +227,8 @@ function onPointerUp() {
 }
 
 function handleAvatarClick(event: MouseEvent) {
+  if (props.isUser) return
+
   const target = event.currentTarget as HTMLElement
   emit('avatar-click', target.getBoundingClientRect())
 }
@@ -319,7 +348,7 @@ onUnmounted(() => {
 .message-bubble {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   animation: rise-in 0.35s ease both;
 
   &.user {
@@ -334,15 +363,24 @@ onUnmounted(() => {
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  cursor: pointer;
+  cursor: default;
   align-self: flex-start;
+}
+
+.avatar--clickable {
+  cursor: pointer;
 }
 
 .bubble-main {
   max-width: min(680px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 5px;
+}
+
+.message-bubble.user .bubble-main {
+  align-items: flex-end;
 }
 
 .bubble-card {
@@ -476,6 +514,32 @@ onUnmounted(() => {
 
 .message-bubble.user .time {
   text-align: right;
+}
+
+.bubble-tts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.16s;
+}
+
+.bubble-tts-btn:hover,
+.bubble-tts-btn.speaking {
+  border-color: rgba(52, 211, 153, 0.32);
+  background: rgba(52, 211, 153, 0.12);
+  color: #8ee8c8;
+}
+
+.bubble-tts-btn:active {
+  transform: scale(0.94);
 }
 
 .bubble-menu-overlay {

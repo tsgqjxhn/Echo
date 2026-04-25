@@ -13,6 +13,29 @@ export interface EmbeddingProvider {
   embedBatch(texts: string[]): Promise<number[][]>
 }
 
+function resolveEmbeddingEndpoint(baseURL: string): string {
+  const candidate = baseURL.trim().replace(/\/+$/, '')
+
+  try {
+    const url = new URL(candidate)
+    const pathname = url.pathname.replace(/\/+$/, '')
+
+    if (pathname.endsWith('/v1')) {
+      url.pathname = `${pathname}/embeddings`
+    } else if (pathname) {
+      url.pathname = `${pathname}/v1/embeddings`
+    } else {
+      url.pathname = '/v1/embeddings'
+    }
+
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return candidate.endsWith('/v1')
+      ? `${candidate}/embeddings`
+      : `${candidate}/v1/embeddings`
+  }
+}
+
 // ── Local hash-based embedding (fallback) ──
 
 function hashString(str: string, seed: number): number {
@@ -89,7 +112,7 @@ export class APIEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {
-    const url = `${this.baseURL}/v1/embeddings`
+    const url = resolveEmbeddingEndpoint(this.baseURL)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -110,9 +133,11 @@ export class APIEmbeddingProvider implements EmbeddingProvider {
       data: Array<{ embedding: number[] }>
     }
 
-    return data.data
-      .sort((a, b) => 0) // preserve order
-      .map(d => d.embedding)
+    if (!Array.isArray(data.data) || data.data.length !== texts.length) {
+      throw new Error('Embedding API returned an unexpected payload.')
+    }
+
+    return data.data.map(item => item.embedding)
   }
 }
 

@@ -15,15 +15,27 @@ import {
 import type { IChatSession, IMessage } from '@/types/chat'
 import { getStorageDriver } from './storage'
 import { generateUUID } from '@/utils/uuid'
+import questionAvatar from '@/static/images/story/问号头像.webp'
+import blurAvatar from '@/static/images/story/模糊轮廓头像.webp'
+import shortHairAvatar from '@/static/images/story/短发头像.webp'
 import xingAvatar from '@/static/images/story/星.webp'
 import echoBgm from '@/static/images/背景音乐.mp3'
 
 export const ECHO_STORY_NAME = '回声'
 export const ECHO_FIRST_CONVERSATION_NAME = '回响'
 export const ECHO_STORY_CHARACTER_ID = 'builtin-echo-xing'
-export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-v3'
+export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-v4'
 
 const MUSIC_RATES = [1, 0.94, 1.08, 0.98, 1.12, 0.9]
+
+export type StoryAvatarKey = 'question' | 'blur' | 'short' | 'xing'
+
+const STORY_AVATAR_MAP: Record<StoryAvatarKey, string> = {
+  question: questionAvatar,
+  blur: blurAvatar,
+  short: shortHairAvatar,
+  xing: xingAvatar,
+}
 
 export type StoryConversationStatus =
   | 'idle'
@@ -39,6 +51,8 @@ export interface StoryConversationDefinition {
   dayLabel: string
   sceneLabel: string
   shortLabel: string
+  contactName: string
+  avatarKey: StoryAvatarKey
   segments: DialogueSegment[]
   defaultGameTime: string
   avatar: string
@@ -62,6 +76,8 @@ export interface StoryRuntimeState {
   order: string[]
   notes: string
   clues: string[]
+  currentContactName: string
+  currentAvatarKey: StoryAvatarKey
   states: Record<string, StoryConversationState>
 }
 
@@ -99,6 +115,75 @@ export function saveStoryRuntimeState(state: StoryRuntimeState): void {
 function extractGameTime(text: string): string | null {
   const match = text.match(/(?:当前时间|时间)\s*(\d{1,2}:\d{2})/)
   return match?.[1] || null
+}
+
+function isStoryAvatarKey(value: unknown): value is StoryAvatarKey {
+  return value === 'question' || value === 'blur' || value === 'short' || value === 'xing'
+}
+
+export function resolveStoryAvatar(key: StoryAvatarKey | null | undefined): string {
+  return STORY_AVATAR_MAP[key || 'question'] || questionAvatar
+}
+
+function resolveAvatarKeyFromText(text: string): StoryAvatarKey | null {
+  const patterns = [
+    /头像解锁[:：]?【(.+?)】/,
+    /头像更新[:：]?【(.+?)】/,
+    /头像已从【.+?】(?:永久)?变更为【(.+?)】/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    const label = match?.[1]?.trim() || ''
+    if (!label) {
+      continue
+    }
+    if (label.includes('短发')) {
+      return 'short'
+    }
+    if (label.includes('模糊')) {
+      return 'blur'
+    }
+    if (label.includes('正面清晰') || label.includes('清晰形象') || label === '星') {
+      return 'xing'
+    }
+    if (label.includes('?') || label.includes('未知')) {
+      return 'question'
+    }
+  }
+
+  if (text.includes('头像：[?]') || text.includes('头像:[?]')) {
+    return 'question'
+  }
+
+  return null
+}
+
+function resolveContactNameFromText(text: string): string | null {
+  const patterns = [
+    /联系人名称更新为【(.+?)】/,
+    /联系人名称由【.+?】(?:永久)?更新为【(.+?)】/,
+    /联系人暂记为[:：]\s*([^。]+)/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    const name = match?.[1]?.trim()
+    if (name) {
+      return name
+    }
+  }
+
+  return null
+}
+
+export function applyConversationPresentation(
+  runtimeState: StoryRuntimeState,
+  conversation: Pick<StoryConversationDefinition, 'contactName' | 'avatarKey'>,
+): StoryRuntimeState {
+  runtimeState.currentContactName = conversation.contactName || runtimeState.currentContactName || '未知用户'
+  runtimeState.currentAvatarKey = conversation.avatarKey || runtimeState.currentAvatarKey || 'question'
+  return runtimeState
 }
 
 function normalizeStorySegments(segments: DialogueSegment[]): DialogueSegment[] {
@@ -191,6 +276,14 @@ export function loadStoryLibrary(): StoryLibrary {
   const conversations: StoryConversationDefinition[] = STORY_CONVERSATIONS.map(
     (conv: StoryConversation, index: number) => {
       const normalizedSegments = normalizeStorySegments(conv.segments as DialogueSegment[])
+      const avatarKey = isStoryAvatarKey((conv as StoryConversation & { avatarKey?: StoryAvatarKey }).avatarKey)
+        ? (conv as StoryConversation & { avatarKey?: StoryAvatarKey }).avatarKey!
+        : 'question'
+      const contactName =
+        typeof (conv as StoryConversation & { contactName?: string }).contactName === 'string' &&
+        (conv as StoryConversation & { contactName?: string }).contactName!.trim().length > 0
+          ? (conv as StoryConversation & { contactName?: string }).contactName!.trim()
+          : STORY_CHARACTER_NAME
       let defaultGameTime = '--:--'
       for (const segment of normalizedSegments) {
         for (const message of segment.messages) {
@@ -208,9 +301,11 @@ export function loadStoryLibrary(): StoryLibrary {
         dayLabel: conv.dayLabel,
         sceneLabel: conv.sceneLabel,
         shortLabel: conv.shortLabel,
+        contactName,
+        avatarKey,
         segments: normalizedSegments,
         defaultGameTime,
-        avatar: xingAvatar,
+        avatar: resolveStoryAvatar(avatarKey),
         musicUrl: echoBgm,
         musicRate: MUSIC_RATES[index % MUSIC_RATES.length],
       }
@@ -227,6 +322,7 @@ export function loadStoryRuntimeState(conversations: StoryConversationDefinition
   const conversationIds = conversations.map(conversation => conversation.id)
   const stored = readLocalJSON<Partial<StoryRuntimeState>>(ECHO_STORY_RUNTIME_KEY, {})
   const states: Record<string, StoryConversationState> = {}
+  const firstConversation = conversations[0]
 
   for (const conversation of conversations) {
     const storedState = stored.states?.[conversation.id]
@@ -251,6 +347,13 @@ export function loadStoryRuntimeState(conversations: StoryConversationDefinition
     clues: Array.isArray(stored.clues)
       ? stored.clues.filter(clue => typeof clue === 'string' && clue.trim().length > 0)
       : [],
+    currentContactName:
+      typeof stored.currentContactName === 'string' && stored.currentContactName.trim().length > 0
+        ? stored.currentContactName.trim()
+        : firstConversation?.contactName || '未知用户',
+    currentAvatarKey: isStoryAvatarKey(stored.currentAvatarKey)
+      ? stored.currentAvatarKey
+      : firstConversation?.avatarKey || 'question',
     states,
   }
 }
@@ -344,7 +447,7 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
     const normalizedExisting = normalizeCharacterTaxonomy(existing)
     const tags = Array.from(new Set([...(normalizedExisting.tags || []), ...STORY_CHARACTER_TAGS]))
     if (
-      normalizedExisting.avatar !== xingAvatar ||
+      normalizedExisting.avatar !== questionAvatar ||
       normalizedExisting.name !== characterName ||
       normalizedExisting.sourceType !== 'builtin-story' ||
       normalizedExisting.category !== STORY_CHARACTER_TAXONOMY.category ||
@@ -353,7 +456,7 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
     ) {
       const updated: ICharacter = {
         ...normalizedExisting,
-        avatar: xingAvatar,
+        avatar: questionAvatar,
         name: characterName,
         background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
         category: STORY_CHARACTER_TAXONOMY.category,
@@ -381,7 +484,7 @@ export async function ensureStoryCharacter(characterName: string): Promise<IChar
   const builtInCharacter: ICharacter = {
     id: ECHO_STORY_CHARACTER_ID,
     name: characterName,
-    avatar: xingAvatar,
+    avatar: questionAvatar,
     background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
     description: '内置故事角色，会话由导入剧本驱动。',
     greeting: '',
@@ -465,6 +568,20 @@ function nextMessageTimestamp(): number {
   return lastMessageTimestamp
 }
 
+async function syncConversationSessionMeta(sessionId: string, timestamp: number): Promise<void> {
+  const storage = getStorageDriver()
+  const session = await storage.getSession(sessionId)
+
+  if (!session) {
+    return
+  }
+
+  const messages = await storage.getMessages(sessionId)
+  session.messageCount = messages.length
+  session.updatedAt = Math.max(session.updatedAt || 0, timestamp || 0)
+  await storage.saveSession(session)
+}
+
 export async function appendConversationMessage(
   sessionId: string,
   role: 'user' | 'assistant',
@@ -474,6 +591,7 @@ export async function appendConversationMessage(
   const message = Message.createText(sessionId, role, content)
   message.timestamp = nextMessageTimestamp()
   await storage.saveMessage(message)
+  await syncConversationSessionMeta(sessionId, message.timestamp)
   return message
 }
 
@@ -484,6 +602,7 @@ export async function clearConversationMessages(sessionId: string | null): Promi
 
   const storage = getStorageDriver()
   await storage.deleteMessages(sessionId)
+  await syncConversationSessionMeta(sessionId, Date.now())
 }
 
 export function applySystemEffects(
@@ -498,6 +617,16 @@ export function applySystemEffects(
   const inferredTime = extractGameTime(message.text)
   if (inferredTime) {
     runtimeState.states[conversationId].currentGameTime = inferredTime
+  }
+
+  const nextName = resolveContactNameFromText(message.text)
+  if (nextName) {
+    runtimeState.currentContactName = nextName
+  }
+
+  const nextAvatarKey = resolveAvatarKeyFromText(message.text)
+  if (nextAvatarKey) {
+    runtimeState.currentAvatarKey = nextAvatarKey
   }
 
   if (

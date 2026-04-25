@@ -143,6 +143,36 @@
         placeholder="手动输入模型名称，如 qwen-turbo"
       />
 
+      <p v-if="noModelsAfterConnect" class="hint">未获取到模型列表，可手动输入模型名称。</p>
+
+      <button
+        type="button"
+        class="add-model-btn"
+        :disabled="!selectedModel.trim()"
+        @click="addModel"
+      >
+        点击添加模型
+      </button>
+
+      <div v-if="modelList.length > 0" class="model-card-list">
+        <article
+          v-for="model in modelList"
+          :key="model"
+          class="model-card"
+          :class="{ active: selectedModel === model }"
+          @click="selectModel(model)"
+        >
+          <div class="model-card-copy">
+            <span>模型</span>
+            <strong>{{ model }}</strong>
+          </div>
+          <div class="model-card-actions">
+            <button type="button" @click.stop="selectModel(model)">设为当前</button>
+            <button type="button" class="danger" @click.stop="removeModel(model)">删除</button>
+          </div>
+        </article>
+      </div>
+
       <button
         type="button"
         class="default-btn"
@@ -185,6 +215,7 @@ const voiceSubType = ref<'stt' | 'tts'>('stt')
 const selectedConfigId = ref('')
 const availableModels = ref<string[]>([])
 const selectedModel = ref('')
+const modelList = ref<string[]>([])
 const connecting = ref(false)
 const noModelsAfterConnect = ref(false)
 const saving = ref(false)
@@ -245,10 +276,6 @@ const configsForType = computed(() =>
   allConfigs.value.filter(c => (c.configType || 'text') === effectiveConfigType.value)
 )
 
-const currentDefault = computed(() =>
-  configsForType.value.find(c => c.isDefault) ?? null
-)
-
 const canConnect = computed(() => !!form.value.apiKey.trim() || !!selectedConfigId.value)
 
 const sectionLabel = computed(() => {
@@ -264,12 +291,21 @@ async function loadAll() {
   allConfigs.value = await apiConfigService.getAll()
 }
 
+function normalizeModelList(models: Array<string | undefined | null>): string[] {
+  return Array.from(new Set(
+    models
+      .map(model => String(model || '').trim())
+      .filter(Boolean)
+  ))
+}
+
 function switchType(type: APIConfigType) {
   activeType.value = type
   voiceSubType.value = 'stt'
   selectedConfigId.value = ''
   availableModels.value = []
   selectedModel.value = ''
+  modelList.value = []
   noModelsAfterConnect.value = false
   clearForm()
   if (type === 'voice') {
@@ -282,6 +318,7 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   selectedConfigId.value = ''
   availableModels.value = []
   selectedModel.value = ''
+  modelList.value = []
   noModelsAfterConnect.value = false
   clearForm()
   if (isLocalType.value) {
@@ -299,6 +336,7 @@ function onProviderChange() {
   form.value.baseURL = def || ''
   availableModels.value = []
   selectedModel.value = ''
+  modelList.value = []
   noModelsAfterConnect.value = false
 }
 
@@ -306,6 +344,7 @@ function startNew() {
   selectedConfigId.value = ''
   availableModels.value = []
   selectedModel.value = ''
+  modelList.value = []
   noModelsAfterConnect.value = false
   clearForm()
 }
@@ -313,6 +352,7 @@ function startNew() {
 function onConfigSelect() {
   availableModels.value = []
   selectedModel.value = ''
+  modelList.value = []
 
   const config = allConfigs.value.find(c => c.id === selectedConfigId.value)
   if (config) {
@@ -320,9 +360,39 @@ function onConfigSelect() {
     form.value.baseURL = config.baseURL ?? ''
     form.value.apiKey = ''
     form.value.provider = config.provider || 'openai-compatible'
-    selectedModel.value = config.model ?? ''
+    modelList.value = normalizeModelList([...(config.models || []), config.model])
+    selectedModel.value = config.model || modelList.value[0] || ''
   } else {
     clearForm()
+  }
+}
+
+function addModel() {
+  const model = selectedModel.value.trim()
+  if (!model) {
+    uni.showToast({ title: '请先输入模型名称', icon: 'none' })
+    return
+  }
+
+  const nextModels = normalizeModelList([...modelList.value, model])
+  if (nextModels.length === modelList.value.length) {
+    uni.showToast({ title: '模型已存在', icon: 'none' })
+    return
+  }
+
+  modelList.value = nextModels
+  selectedModel.value = model
+  uni.showToast({ title: '模型已添加', icon: 'success' })
+}
+
+function selectModel(model: string) {
+  selectedModel.value = model
+}
+
+function removeModel(model: string) {
+  modelList.value = modelList.value.filter(item => item !== model)
+  if (selectedModel.value === model) {
+    selectedModel.value = modelList.value[0] || ''
   }
 }
 
@@ -342,6 +412,7 @@ async function saveConfig() {
     const existing = selectedConfigId.value
       ? allConfigs.value.find(c => c.id === selectedConfigId.value)
       : null
+    const models = normalizeModelList([...modelList.value, selectedModel.value])
 
     const payload: APIConfig = {
       id: existing?.id ?? generateUUID(),
@@ -349,7 +420,8 @@ async function saveConfig() {
       provider: form.value.provider || 'openai-compatible',
       apiKey: form.value.apiKey.trim() || existing?.apiKey || '',
       baseURL: form.value.baseURL.trim() || undefined,
-      model: selectedModel.value || existing?.model || '',
+      model: selectedModel.value.trim() || models[0] || existing?.model || '',
+      models,
       isDefault: existing?.isDefault ?? false,
       source: 'storage',
       configType: effectiveConfigType.value
@@ -376,6 +448,7 @@ async function deleteConfig() {
     selectedConfigId.value = ''
     availableModels.value = []
     selectedModel.value = ''
+    modelList.value = []
     clearForm()
     await loadAll()
     uni.showToast({ title: '已删除', icon: 'success' })
@@ -454,7 +527,10 @@ async function setAsDefault() {
         await apiConfigService.save({
           ...c,
           isDefault: c.id === selectedConfigId.value,
-          model: c.id === selectedConfigId.value ? selectedModel.value : c.model
+          model: c.id === selectedConfigId.value ? selectedModel.value : c.model,
+          models: c.id === selectedConfigId.value
+            ? normalizeModelList([...modelList.value, selectedModel.value])
+            : c.models
         })
       }
     }
@@ -839,6 +915,96 @@ $mint-light: #6ee7b7;
   &:disabled {
     opacity: 0.40;
     cursor: not-allowed;
+  }
+}
+
+.add-model-btn {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 12px;
+  border: 1px dashed rgba(125, 211, 252, 0.38);
+  border-radius: 14px;
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), opacity var(--transition-base);
+
+  &:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(125, 211, 252, 0.58);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.model-card-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.model-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+
+  &.active {
+    border-color: rgba(125, 211, 252, 0.45);
+    background: rgba(56, 189, 248, 0.10);
+  }
+}
+
+.model-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.model-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+
+  button {
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(125, 211, 252, 0.20);
+    border-radius: 10px;
+    background: rgba(125, 211, 252, 0.08);
+    color: #7dd3fc;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .danger {
+    border-color: rgba(251, 113, 133, 0.22);
+    background: rgba(251, 113, 133, 0.08);
+    color: #fda4af;
   }
 }
 

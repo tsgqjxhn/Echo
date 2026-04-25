@@ -67,11 +67,14 @@ export const openaiAdapter: ProviderAdapter = {
   },
 
   buildChatBody(request: AdapterChatRequest): Record<string, unknown> {
-    const messages: ChatMessage[] = []
-    if (request.systemPrompt.trim()) {
-      messages.push({ role: 'system', content: request.systemPrompt.trim() })
+    const messages: ChatMessage[] = [...request.messages]
+    const firstMessage = messages[0]
+    if (
+      request.systemPrompt.trim() &&
+      !(firstMessage?.role === 'system' && firstMessage.content === request.systemPrompt.trim())
+    ) {
+      messages.unshift({ role: 'system', content: request.systemPrompt.trim() })
     }
-    messages.push(...request.messages)
     return { model: request.model, messages, stream: request.stream }
   },
 

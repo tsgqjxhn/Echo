@@ -9,6 +9,7 @@ import com.getcapacitor.BridgeActivity;
 import com.echo.app.plugins.NativeChatStreamPlugin;
 import com.echo.app.plugins.NativeHttpPlugin;
 import com.echo.app.plugins.NativePermissionPlugin;
+import com.echo.app.plugins.NativeSpeechPlugin;
 
 public class MainActivity extends BridgeActivity {
 
@@ -17,7 +18,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeHttpPlugin.class);
         registerPlugin(NativeChatStreamPlugin.class);
         registerPlugin(NativePermissionPlugin.class);
+        registerPlugin(NativeSpeechPlugin.class);
         super.onCreate(savedInstanceState);
+        grantWebViewPermissions();
     }
 
     @Override

@@ -9,7 +9,7 @@
       <ConversationSwitchButton
         v-else-if="showRandomSwitchButton"
         class="header-switch"
-        :disabled="switchingCharacter || chatStore.isGenerating"
+        :disabled="switchingCharacter || isCurrentChatGenerating"
         @click="switchToRandomCharacter"
       />
 
@@ -102,7 +102,7 @@
               ref="inputRef"
               v-model="inputText"
               class="message-input"
-              :disabled="chatStore.isGenerating || recordingState === RecordingState.PROCESSING"
+              :disabled="isCurrentChatGenerating || recordingState === RecordingState.PROCESSING"
               placeholder="输入消息…"
               rows="1"
               @keydown.enter.exact.prevent="sendMessage"
@@ -159,7 +159,7 @@
             v-if="showSendButton"
             type="button"
             class="send-circle-btn send-mode"
-            :disabled="chatStore.isGenerating || !hasSendableContent"
+            :disabled="isCurrentChatGenerating || !hasSendableContent"
             @click="sendMessage"
             title="发送"
           >
@@ -212,11 +212,22 @@
             </svg>
             <span>图鉴</span>
           </button>
+          <button type="button" class="chat-more-item" @click="toggleAutoVoicePlayback">
+            <svg v-if="autoVoicePlayback" viewBox="0 0 24 24" width="20" height="20">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="20" height="20">
+              <path d="M6 9v6h4l5 5V4l-5 5H6zm12.5 3a6.5 6.5 0 0 0-2-4.69v9.38a6.5 6.5 0 0 0 2-4.69z" fill="currentColor"/>
+              <path d="M4 4l16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+            </svg>
+            <span>{{ autoVoicePlayback ? '关闭自动朗读' : '开启自动朗读' }}</span>
+          </button>
         </div>
       </div>
     </Teleport>
 
     <StoryGallery :visible="showGallery" @close="showGallery = false" />
+
     <ImageViewer
       :visible="imageViewerVisible"
       :src="imageViewerSrc"
@@ -413,6 +424,7 @@ const showVoiceToggle = computed(() => !hasComposerContent.value)
 const showSendButton = computed(() => hasComposerContent.value)
 const showBackButton = computed(() => isHistoryEntry.value)
 const showRandomSwitchButton = computed(() => !isHistoryEntry.value)
+const isCurrentChatGenerating = computed(() => chatStore.isCurrentSessionGenerating)
 const characterAvatar = computed(() => character.value?.avatar || defaultAvatar)
 const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
 const characterMeta = computed(() =>
@@ -429,7 +441,7 @@ const chatPageStyle = computed(() => {
     backgroundAttachment: 'fixed',
   }
 })
-const showQuickPrompts = computed(() => messages.value.length <= 1 && !chatStore.isGenerating)
+const showQuickPrompts = computed(() => messages.value.length <= 1 && !isCurrentChatGenerating.value)
 const quickPrompts = computed(() => {
   const name = character.value?.name || 'TA'
   return [
@@ -515,12 +527,12 @@ onMounted(async () => {
 watch(
   () => {
     const lastMessage = messages.value[messages.value.length - 1]
-    return `${messages.value.length}:${lastMessage?.id || ''}:${lastMessage?.content.length || 0}:${chatStore.isGenerating}`
+    return `${messages.value.length}:${lastMessage?.id || ''}:${lastMessage?.content.length || 0}:${isCurrentChatGenerating.value}`
   },
   async () => {
     scrollToBottom()
     await maybeAutoSpeak()
-    if (!chatStore.isGenerating) {
+    if (!isCurrentChatGenerating.value) {
       await refreshMemory()
     }
   }
@@ -564,7 +576,7 @@ async function loadCharacter() {
 }
 
 async function switchToRandomCharacter() {
-  if (switchingCharacter.value || chatStore.isGenerating || !showRandomSwitchButton.value) {
+  if (switchingCharacter.value || isCurrentChatGenerating.value || !showRandomSwitchButton.value) {
     return
   }
 
@@ -606,7 +618,7 @@ async function loadAutoVoicePlayback() {
 }
 
 async function maybeAutoSpeak() {
-  if (!autoVoicePlayback.value || chatStore.isGenerating) {
+  if (!autoVoicePlayback.value || isCurrentChatGenerating.value) {
     return
   }
 
@@ -664,7 +676,7 @@ async function sendQuickPrompt(prompt: string) {
 
 async function sendMessage() {
   const content = inputText.value.trim()
-  if (!content || chatStore.isGenerating) {
+  if (!content || isCurrentChatGenerating.value) {
     return
   }
 
@@ -731,7 +743,7 @@ function onInputBlur() {
 }
 
 function insertParenthesesAtCursor() {
-  if (chatStore.isGenerating || recordingState.value === RecordingState.PROCESSING) {
+  if (isCurrentChatGenerating.value || recordingState.value === RecordingState.PROCESSING) {
     return
   }
 
@@ -895,7 +907,22 @@ function openCharacterDetail() {
 
 function openGallery() {
   showChatMore.value = false
+  charPopoverVisible.value = false
   showGallery.value = true
+}
+
+async function toggleAutoVoicePlayback() {
+  autoVoicePlayback.value = !autoVoicePlayback.value
+  await storage.saveUserSetting(AUTO_VOICE_KEY, autoVoicePlayback.value ? '1' : '0')
+  showChatMore.value = false
+  uni.showToast({
+    title: autoVoicePlayback.value ? '已开启自动朗读' : '已关闭自动朗读',
+    icon: 'none'
+  })
+
+  if (autoVoicePlayback.value) {
+    await maybeAutoSpeak()
+  }
 }
 
 function onImageClick(src: string, description: string) {
@@ -939,6 +966,9 @@ function setAffinity(charId: string, val: number) {
 }
 
 function openCharacterSheet(rect: DOMRect) {
+  showChatMore.value = false
+  showTools.value = false
+  showGallery.value = false
   charPopoverAnchor.value = { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
   charPopoverVisible.value = true
 }
@@ -1205,6 +1235,18 @@ onUnmounted(() => {
   display: none;
 }
 
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: calc(100vh - 218px);
+  padding-top: 12px;
+}
+
+.message-row {
+  display: block;
+}
+
 .composer-shell {
   position: fixed;
   right: 16px;
@@ -1354,7 +1396,7 @@ onUnmounted(() => {
 }
 
 .send-circle-btn.send-mode {
-  background: linear-gradient(135deg, rgba(125, 211, 252, 0.96), rgba(56, 189, 248, 0.96), rgba(2, 132, 199, 0.96));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(220, 230, 240, 0.96));
   color: #09121f;
 }
 

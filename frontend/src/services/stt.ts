@@ -3,7 +3,14 @@ import { apiConfigService } from './api-config'
 import { APIError, NetworkError } from './errors'
 import { requireAPIKey, resolveTranscriptionModel } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
-import { base64ToBlob } from './runtime-http'
+import { base64ToBlob, isNativeRuntime } from './runtime-http'
+import { NativeSpeech } from './native-speech'
+import type {
+  NativeSpeechErrorEvent,
+  NativeSpeechSTTResultEvent,
+  NativeSpeechStateEvent,
+} from './native-speech'
+import type { PluginListenerHandle } from '@capacitor/core'
 
 export enum RecordingState {
   IDLE = 'idle',
@@ -22,6 +29,33 @@ export interface STTConfig {
 type ResultCallback = (text: string, isFinal: boolean) => void
 type ErrorCallback = (error: Error) => void
 
+interface BrowserSpeechRecognitionResultItem {
+  transcript: string
+}
+
+interface BrowserSpeechRecognitionResult {
+  isFinal: boolean
+  0: BrowserSpeechRecognitionResultItem
+}
+
+interface BrowserSpeechRecognitionEvent {
+  resultIndex: number
+  results: ArrayLike<BrowserSpeechRecognitionResult>
+}
+
+interface BrowserSpeechRecognition {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onstart: (() => void) | null
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null
+  onerror: ((event: { error?: string }) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+  abort(): void
+}
+
 function getRuntimeUni(): any {
   return (globalThis as any).uni
 }
@@ -31,7 +65,7 @@ function getMediaRecorderConstructor(): typeof MediaRecorder | null {
   return window.MediaRecorder || null
 }
 
-function getSpeechRecognitionCtor(): (new () => SpeechRecognition) | null {
+function getSpeechRecognitionCtor(): (new () => BrowserSpeechRecognition) | null {
   if (typeof window === 'undefined') return null
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
 }
@@ -77,7 +111,7 @@ export class STTService {
   private recorder: any = null
   private mediaRecorder: MediaRecorder | null = null
   private mediaStream: MediaStream | null = null
-  private recognition: SpeechRecognition | null = null
+  private recognition: BrowserSpeechRecognition | null = null
   private h5Chunks: Blob[] = []
   private recordedBlob: Blob | null = null
   private tempAudioPath = ''
@@ -86,6 +120,9 @@ export class STTService {
   private onResultCallback?: ResultCallback
   private onErrorCallback?: ErrorCallback
   private useLocal = false
+  private useNativeLocal = false
+  private localTranscript = ''
+  private nativeSpeechListeners: PluginListenerHandle[] = []
 
   constructor(config?: STTConfig) {
     this.config = {
@@ -101,6 +138,7 @@ export class STTService {
   getTempAudioPath(): string { return this.tempAudioPath }
 
   isSupported(): boolean {
+    if (isNativeRuntime()) return true
     if (getSpeechRecognitionCtor()) return true
     const runtimeUni = getRuntimeUni()
     return !!getMediaRecorderConstructor() || typeof runtimeUni?.getRecorderManager === 'function'
@@ -111,25 +149,72 @@ export class STTService {
       (await apiConfigService.getDefaultConfig('stt')) ||
       (await apiConfigService.getDefaultConfig('voice'))
 
-    if (providerConfig?.provider === 'local') {
-      this.useLocal = true
-      return this.startLocalRecognition()
-    }
-
-    this.useLocal = false
-
     const micPermission = await requestPermission('microphone')
     if (!micPermission.granted) {
       throw new Error('麦克风权限被拒绝，请在设置中允许麦克风访问')
     }
 
-    if (getMediaRecorderConstructor() && typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
-      return this.startH5Recording()
+    const nativeAvailability = isNativeRuntime()
+      ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
+      : null
+
+    if (nativeAvailability?.sttAvailable) {
+      this.useLocal = true
+      this.useNativeLocal = true
+      return this.startNativeLocalRecognition()
     }
-    return this.startNativeRecording()
+
+    if (providerConfig?.provider === 'local') {
+      this.useLocal = true
+      this.useNativeLocal = false
+      return this.startLocalRecognition()
+    }
+
+    this.useLocal = false
+    this.useNativeLocal = false
+    this.localTranscript = ''
+
+    let h5RecordingError: Error | null = null
+
+    // Try browser MediaRecorder + getUserMedia first (works in Capacitor WebView with permissions)
+    if (typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
+      try {
+        return await this.startH5Recording()
+      } catch (h5Error) {
+        h5RecordingError = h5Error as Error
+        // Native WebView can report a false permission-like MediaRecorder failure.
+        if (!isNativeRuntime()) {
+          throw h5Error
+        }
+      }
+    }
+
+    // Try uni-app native recorder
+    if (getRuntimeUni()?.getRecorderManager) {
+      try {
+        return await this.startNativeRecording()
+      } catch (nativeError) {
+        if (h5RecordingError) {
+          throw new Error(`${(nativeError as Error).message || '录音初始化失败'}；H5 fallback: ${h5RecordingError.message}`)
+        }
+        throw nativeError
+      }
+    }
+
+    // Last resort on native: try getUserMedia again without MediaRecorder
+    if (isNativeRuntime() && typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
+      throw new Error(
+        h5RecordingError
+          ? `当前设备录音初始化失败：${h5RecordingError.message}`
+          : '当前设备录音初始化失败，请检查麦克风权限是否已开启'
+      )
+    }
+
+    throw new Error('当前环境不支持语音录音')
   }
 
   async stopRecording(): Promise<string> {
+    if (this.useLocal && this.useNativeLocal) return this.stopNativeLocalRecognition()
     if (this.useLocal && this.recognition) return this.stopLocalRecognition()
     if (this.mediaRecorder) return this.stopH5Recording()
     return this.stopNativeRecording()
@@ -137,8 +222,11 @@ export class STTService {
 
   async transcribe(audioPath: string): Promise<string> {
     if (this.useLocal) {
+      const text = this.localTranscript.trim()
       this.state = RecordingState.IDLE
-      return ''
+      this.useLocal = false
+      this.useNativeLocal = false
+      return text
     }
 
     try {
@@ -153,6 +241,7 @@ export class STTService {
       return text
     } catch (error) {
       this.state = RecordingState.ERROR
+      this.cleanupH5Resources()
       this.onErrorCallback?.(error as Error)
       throw error
     }
@@ -162,6 +251,10 @@ export class STTService {
   onError(callback: ErrorCallback): void { this.onErrorCallback = callback }
 
   cancel(): void {
+    if (this.useLocal && this.useNativeLocal) {
+      void NativeSpeech.cancelRecognition().catch(() => undefined)
+      void this.detachNativeSpeechListeners()
+    }
     if (this.recognition) {
       this.recognition.onresult = null
       this.recognition.onerror = null
@@ -180,6 +273,8 @@ export class STTService {
     this.tempAudioPath = ''
     this.state = RecordingState.IDLE
     this.useLocal = false
+    this.useNativeLocal = false
+    this.localTranscript = ''
   }
 
   destroy(): void {
@@ -202,13 +297,14 @@ export class STTService {
       recognition.interimResults = true
 
       this.recognition = recognition
+      this.localTranscript = ''
 
       recognition.onstart = () => {
         this.state = RecordingState.RECORDING
         resolve()
       }
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
         let finalTranscript = ''
         let interimTranscript = ''
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -221,6 +317,9 @@ export class STTService {
         }
         const text = finalTranscript || interimTranscript
         if (text) {
+          if (finalTranscript) {
+            this.localTranscript = finalTranscript.trim()
+          }
           this.onResultCallback?.(text, !!finalTranscript)
         }
       }
@@ -252,23 +351,95 @@ export class STTService {
     return new Promise<string>((resolve) => {
       setTimeout(() => {
         this.state = RecordingState.IDLE
-        this.useLocal = false
         resolve('')
       }, 1000)
     })
   }
 
+  private async startNativeLocalRecognition(): Promise<void> {
+    await this.detachNativeSpeechListeners()
+    this.localTranscript = ''
+    this.tempAudioPath = ''
+    this.recordedBlob = null
+
+    const handles = await Promise.all([
+      NativeSpeech.addListener('sttResult', (event: NativeSpeechSTTResultEvent) => {
+        const text = event.text?.trim() || ''
+        if (!text) return
+        if (event.final) {
+          this.localTranscript = text
+        }
+        this.onResultCallback?.(text, !!event.final)
+      }),
+      NativeSpeech.addListener('sttState', (event: NativeSpeechStateEvent) => {
+        if (event.state === 'recording' || event.state === 'ready' || event.state === 'listening') {
+          this.state = RecordingState.RECORDING
+        } else if (event.state === 'processing') {
+          this.state = RecordingState.PROCESSING
+        } else if (event.state === 'idle') {
+          this.state = RecordingState.IDLE
+        }
+      }),
+      NativeSpeech.addListener('sttError', (event: NativeSpeechErrorEvent) => {
+        this.state = RecordingState.ERROR
+        this.onErrorCallback?.(new Error(event.message || '系统语音识别失败'))
+      }),
+    ])
+
+    this.nativeSpeechListeners = handles
+
+    try {
+      await NativeSpeech.startRecognition({
+        language: this.config.language,
+        preferOffline: false,
+      })
+      this.state = RecordingState.RECORDING
+    } catch (error) {
+      await this.detachNativeSpeechListeners()
+      this.useLocal = false
+      this.useNativeLocal = false
+      throw error
+    }
+  }
+
+  private async stopNativeLocalRecognition(): Promise<string> {
+    this.state = RecordingState.PROCESSING
+
+    try {
+      const result = await NativeSpeech.stopRecognition()
+      const text = result?.text?.trim() || this.localTranscript.trim()
+      if (text) {
+        this.localTranscript = text
+        this.onResultCallback?.(text, true)
+      }
+      await this.detachNativeSpeechListeners()
+      this.state = RecordingState.IDLE
+      return ''
+    } catch (error) {
+      this.state = RecordingState.ERROR
+      await this.detachNativeSpeechListeners()
+      this.useLocal = false
+      this.useNativeLocal = false
+      throw error
+    }
+  }
+
   private async startH5Recording(): Promise<void> {
     try {
-      const MediaRecorderCtor = getMediaRecorderConstructor()
-      if (!MediaRecorderCtor || !navigator.mediaDevices?.getUserMedia) throw new Error('当前环境不支持录音')
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前环境不支持录音')
 
       this.cleanupH5Resources()
       this.recordedBlob = null
       this.h5Chunks = []
 
       try {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        })
       } catch (micError: unknown) {
         const err = micError as DOMException
         if (err.name === 'NotAllowedError' || /permission|denied/i.test(err.message)) {
@@ -277,11 +448,17 @@ export class STTService {
         throw new Error(`无法访问麦克风: ${err.message || '未知错误'}`)
       }
 
-      const mimeType = MediaRecorderCtor.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorderCtor.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : ''
+      const MediaRecorderCtor = getMediaRecorderConstructor()
+      if (!MediaRecorderCtor) {
+        throw new Error('当前环境不支持 MediaRecorder 录音')
+      }
+
+      const mimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ].find(type => MediaRecorderCtor.isTypeSupported(type)) || ''
 
       this.mediaRecorder = mimeType
         ? new MediaRecorderCtor(this.mediaStream, { mimeType })
@@ -302,6 +479,7 @@ export class STTService {
       })
     } catch (error) {
       this.state = RecordingState.ERROR
+      this.cleanupH5Resources()
       this.onErrorCallback?.(error as Error)
       throw error
     }
@@ -439,6 +617,12 @@ export class STTService {
     if (this.mediaStream) { this.mediaStream.getTracks().forEach(track => track.stop()); this.mediaStream = null }
     this.mediaRecorder = null
     this.h5Chunks = []
+  }
+
+  private async detachNativeSpeechListeners(): Promise<void> {
+    const listeners = [...this.nativeSpeechListeners]
+    this.nativeSpeechListeners = []
+    await Promise.all(listeners.map(listener => listener.remove().catch(() => undefined)))
   }
 }
 

@@ -5,9 +5,25 @@ import { requireAPIKey } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { runtimeRequest } from './runtime-http'
 
+function normalizeModels(config: APIConfig): APIConfig {
+  const modelItems = [
+    ...(Array.isArray(config.models) ? config.models : []),
+    config.model,
+  ]
+    .map(model => String(model || '').trim())
+    .filter(Boolean)
+  const models = Array.from(new Set(modelItems))
+
+  return {
+    ...config,
+    model: config.model?.trim() || models[0] || '',
+    models,
+  }
+}
+
 class APIConfigService {
   async save(config: APIConfig): Promise<void> {
-    await storageDriver.saveAPIConfig(config)
+    await storageDriver.saveAPIConfig(normalizeModels(config))
   }
 
   async create(config: Omit<APIConfig, 'id'>): Promise<string> {
@@ -17,11 +33,12 @@ class APIConfigService {
   }
 
   async getConfig(id: string): Promise<APIConfig | null> {
-    return storageDriver.getAPIConfig(id)
+    const config = await storageDriver.getAPIConfig(id)
+    return config ? normalizeModels(config) : null
   }
 
   async getAll(): Promise<APIConfig[]> {
-    return storageDriver.getAllAPIConfigs()
+    return (await storageDriver.getAllAPIConfigs()).map(normalizeModels)
   }
 
   async getDefaultConfig(configType: APIConfigType = 'text'): Promise<APIConfig | null> {

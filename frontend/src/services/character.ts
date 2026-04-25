@@ -2,6 +2,7 @@ import { Character } from '@/entity/character'
 import type { CharacterFilter, CharacterValidationResult, ICharacter } from '@/types/character'
 import { NotFoundError, ValidationError } from './errors'
 import { getStorageDriver, type StorageDriver } from './storage'
+import { deleteCharacterProfileJSON, saveCharacterProfileJSON } from './character-profile-json'
 
 export interface EventBus {
   emit(event: string, data?: any): void
@@ -55,6 +56,7 @@ export class CharacterService {
     nextCharacter.updatedAt = Date.now()
 
     await this.storage.saveCharacter(nextCharacter)
+    saveCharacterProfileJSON(nextCharacter)
     this.eventBus.emit('character:created', { id: nextCharacter.id })
     return nextCharacter.id
   }
@@ -72,6 +74,7 @@ export class CharacterService {
 
     character.updatedAt = Date.now()
     await this.storage.saveCharacter(character)
+    saveCharacterProfileJSON(character)
     this.eventBus.emit('character:updated', { id: character.id })
     return true
   }
@@ -83,6 +86,7 @@ export class CharacterService {
     }
 
     await this.storage.deleteCharacter(id)
+    deleteCharacterProfileJSON(id)
     this.eventBus.emit('character:deleted', { id })
     return true
   }
@@ -164,6 +168,7 @@ export class CharacterService {
     }
 
     await this.storage.saveCharacter(character)
+    saveCharacterProfileJSON(character)
     return character
   }
 

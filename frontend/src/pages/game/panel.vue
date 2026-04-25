@@ -29,7 +29,22 @@
 
       <div class="game-card" @click="router.push('/game/play/gomoku')">
         <div class="game-icon gomoku-icon">
-          <svg viewBox="0 0 24 24" width="32" height="32"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5" /><circle cx="12" cy="12" r="3.5" /></svg>
+          <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
+            <path
+              d="M8.5 11.5H31.5M8.5 20H31.5M8.5 28.5H31.5M11.5 8.5V31.5M20 8.5V31.5M28.5 8.5V31.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              opacity="0.48"
+            />
+            <circle cx="13" cy="13" r="4.4" fill="#ffffff" />
+            <circle cx="20" cy="20" r="4.4" fill="#ffffff" />
+            <circle cx="27" cy="27" r="4.4" fill="#ffffff" />
+            <circle cx="11.6" cy="11.5" r="1.25" fill="#ffffff" opacity="0.95" />
+            <circle cx="18.6" cy="18.5" r="1.25" fill="#ffffff" opacity="0.95" />
+            <circle cx="25.6" cy="25.5" r="1.25" fill="#ffffff" opacity="0.95" />
+          </svg>
         </div>
         <div class="game-info">
           <h3 class="game-name">五子棋</h3>
@@ -385,7 +400,16 @@ function formatFileSize(bytes: number): string {
 }
 
 .chess-icon { font-size: 36px; color: #f0d060; }
-.gomoku-icon { color: #e0e0e0; }
+.gomoku-icon {
+  color: #ffffff;
+
+  svg {
+    overflow: visible;
+    filter:
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.28))
+      drop-shadow(0 6px 12px rgba(0, 0, 0, 0.28));
+  }
+}
 
 .game-info { flex: 1; }
 

@@ -676,6 +676,10 @@ $cyan: #67e8f9;
   border-right: 1px solid rgba(255, 255, 255, 0.88);
 }
 
+.character-card:nth-child(n + 3) {
+  border-top: 1px solid rgba(255, 255, 255, 0.88);
+}
+
 .card-topbar {
   display: flex;
   flex-wrap: wrap;

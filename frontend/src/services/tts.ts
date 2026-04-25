@@ -2,6 +2,10 @@ import { APIError, NetworkError } from './errors'
 import { apiConfigService } from './api-config'
 import { requireAPIKey } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
+import { NativeSpeech } from './native-speech'
+import type { NativeSpeechErrorEvent, NativeSpeechStateEvent } from './native-speech'
+import type { PluginListenerHandle } from '@capacitor/core'
+import { isNativeRuntime } from './runtime-http'
 
 export enum TTSState {
   IDLE = 'idle',
@@ -40,6 +44,9 @@ export class TTSService {
   private currentAudio: HTMLAudioElement | null = null
   private currentObjectUrl: string | null = null
   private currentUtterance: SpeechSynthesisUtterance | null = null
+  private currentNativeUtteranceId: string | null = null
+  private nativeListeners: PluginListenerHandle[] = []
+  private usingNativeLocal = false
   private activeResolve: (() => void) | null = null
   private onEndCallback?: () => void
   private onErrorCallback?: (error: Error) => void
@@ -55,7 +62,7 @@ export class TTSService {
   }
 
   getState(): TTSState { return this.state }
-  isSupported(): boolean { return typeof Audio !== 'undefined' || !!getSpeechSynthesis() }
+  isSupported(): boolean { return isNativeRuntime() || typeof Audio !== 'undefined' || !!getSpeechSynthesis() }
 
   async speak(text: string): Promise<void> {
     if (!text.trim()) return
@@ -64,6 +71,14 @@ export class TTSService {
     const providerConfig =
       (await apiConfigService.getDefaultConfig('tts')) ||
       (await apiConfigService.getDefaultConfig('voice'))
+
+    const nativeAvailability = isNativeRuntime()
+      ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
+      : null
+
+    if (nativeAvailability?.ttsAvailable) {
+      return this.nativeSpeak(text)
+    }
 
     if (providerConfig?.provider === 'local') {
       return this.localSpeak(text)
@@ -104,6 +119,12 @@ export class TTSService {
   }
 
   stop(): void {
+    if (this.usingNativeLocal) {
+      void NativeSpeech.stopSpeaking().catch(() => undefined)
+      void this.detachNativeListeners()
+      this.currentNativeUtteranceId = null
+      this.usingNativeLocal = false
+    }
     const synth = getSpeechSynthesis()
     if (this.currentUtterance) {
       this.currentUtterance.onend = null
@@ -140,6 +161,9 @@ export class TTSService {
 
   getConfig(): TTSConfig { return { ...this.config } }
   getVoices(): Array<{ name: string; lang: string }> {
+    if (this.usingNativeLocal) {
+      return []
+    }
     const synth = getSpeechSynthesis()
     if (!synth) return []
     return synth.getVoices().map(v => ({ name: v.name, lang: v.lang }))
@@ -152,6 +176,79 @@ export class TTSService {
     this.stop()
     this.onEndCallback = undefined
     this.onErrorCallback = undefined
+  }
+
+  private async nativeSpeak(text: string): Promise<void> {
+    await this.detachNativeListeners()
+    this.usingNativeLocal = true
+
+    await new Promise<void>(async (resolve, reject) => {
+      this.activeResolve = resolve
+
+      const listeners = await Promise.all([
+        NativeSpeech.addListener('ttsState', (event: NativeSpeechStateEvent) => {
+          if (this.currentNativeUtteranceId && event.utteranceId && event.utteranceId !== this.currentNativeUtteranceId) {
+            return
+          }
+
+          if (event.state === 'playing') {
+            this.state = TTSState.PLAYING
+            return
+          }
+
+          if (event.state === 'done') {
+            this.state = TTSState.IDLE
+            this.currentNativeUtteranceId = null
+            this.usingNativeLocal = false
+            this.activeResolve = null
+            void this.detachNativeListeners()
+            this.onEndCallback?.()
+            resolve()
+            return
+          }
+
+          if (event.state === 'stopped') {
+            this.state = TTSState.STOPPED
+          }
+        }),
+        NativeSpeech.addListener('ttsError', (event: NativeSpeechErrorEvent) => {
+          if (this.currentNativeUtteranceId && event.utteranceId && event.utteranceId !== this.currentNativeUtteranceId) {
+            return
+          }
+
+          const error = new Error(event.message || '系统语音朗读失败')
+          this.state = TTSState.ERROR
+          this.currentNativeUtteranceId = null
+          this.usingNativeLocal = false
+          this.activeResolve = null
+          void this.detachNativeListeners()
+          this.onErrorCallback?.(error)
+          reject(error)
+        }),
+      ])
+
+      this.nativeListeners = listeners
+
+      try {
+        const result = await NativeSpeech.speak({
+          text,
+          rate: this.config.rate ?? 1,
+          pitch: this.config.pitch ?? 1,
+          volume: this.config.volume ?? 1,
+          language: this.config.language ?? 'zh-CN',
+          voice: this.config.voice,
+        })
+        this.currentNativeUtteranceId = result.utteranceId
+      } catch (error) {
+        this.state = TTSState.ERROR
+        this.currentNativeUtteranceId = null
+        this.usingNativeLocal = false
+        this.activeResolve = null
+        await this.detachNativeListeners()
+        this.onErrorCallback?.(error as Error)
+        reject(error)
+      }
+    })
   }
 
   private async localSpeak(text: string): Promise<void> {
@@ -264,6 +361,12 @@ export class TTSService {
       this.currentAudio = audio
       void audio.play().catch(reject)
     })
+  }
+
+  private async detachNativeListeners(): Promise<void> {
+    const listeners = [...this.nativeListeners]
+    this.nativeListeners = []
+    await Promise.all(listeners.map(listener => listener.remove().catch(() => undefined)))
   }
 }
 

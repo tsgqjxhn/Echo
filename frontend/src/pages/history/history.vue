@@ -7,6 +7,7 @@
         @click="goToMoments"
       >
         <img :src="historySocialIcon" alt="邀请角色进入" class="top-icon" />
+        <span v-if="momentsBadge" class="entry-badge" aria-hidden="true"></span>
       </button>
 
       <div v-if="showSearch" class="header-search">
@@ -27,9 +28,10 @@
           type="button"
           class="switch-btn"
           :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
+          @click="selectTab(tab.key)"
         >
           {{ tab.label }}
+          <span v-if="getTabBadge(tab.key)" class="tab-badge" aria-hidden="true"></span>
         </button>
       </div>
 
@@ -48,14 +50,20 @@
         type="button"
         class="sub-tab"
         :class="{ active: contactsSubTab === 'friends' }"
-        @click="contactsSubTab = 'friends'"
-      >好友</button>
+        @click="selectContactsSubTab('friends')"
+      >
+        好友
+        <span v-if="friendsBadge" class="tab-badge" aria-hidden="true"></span>
+      </button>
       <button
         type="button"
         class="sub-tab"
         :class="{ active: contactsSubTab === 'groups' }"
-        @click="contactsSubTab = 'groups'"
-      >群聊</button>
+        @click="selectContactsSubTab('groups')"
+      >
+        群聊
+        <span v-if="groupsBadge" class="tab-badge" aria-hidden="true"></span>
+      </button>
       <button type="button" class="sub-tab-add" @click="openContactSearch" title="搜索联系人">+</button>
     </div>
 
@@ -229,8 +237,7 @@
         <div class="card-copy">
           <div class="card-header">
             <h2>{{ session.title }}</h2>
-            <span v-if="session.unreadCount > 0" class="pill unread">{{ session.unreadCount }}</span>
-            <span v-else-if="activeTab === 'chatted'" class="pill subtle">{{ formatRelativeTime(session.updatedAt) }}</span>
+            <span v-if="session.hasUnread" class="session-unread-dot" aria-hidden="true"></span>
           </div>
 
           <p class="card-text">{{ session.preview }}</p>
@@ -269,7 +276,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import historySocialIcon from '@/static/images/history-social.svg'
 import searchIcon from '@/static/images/search-action.svg'
@@ -279,7 +286,26 @@ import { exportService } from '@/services/export'
 import { dataManagementService } from '@/services/data-management'
 import { useCharacterStore } from '@/stores/character'
 import { useChatStore } from '@/stores/chat'
-import { ECHO_STORY_CHARACTER_ID, getStoredStoryRuntimeState } from '@/services/story-conversations'
+import { useMomentsStore } from '@/stores/moments'
+import {
+  ECHO_STORY_CHARACTER_ID,
+  getStoredStoryRuntimeState,
+  loadStoryLibrary,
+  loadStoryRuntimeState,
+  saveStoryRuntimeState,
+} from '@/services/story-conversations'
+import {
+  HISTORY_READ_EVENT,
+  hasUnreadContacts,
+  hasUnreadLiked,
+  hasUnreadMoments,
+  hasUnreadSession,
+  loadHistoryReadState,
+  markContactsRead,
+  markLikedRead,
+  markMomentsRead,
+  markSessionsRead,
+} from '@/services/history-unread'
 import type { ICharacter } from '@/types/character'
 import { MessageType, type IMessage, type IChatSession } from '@/types/chat'
 import { uni } from '@/utils/uni-polyfill'
@@ -295,7 +321,7 @@ interface SessionCard {
   avatar: string
   preview: string
   updatedAt: number
-  unreadCount: number
+  hasUnread: boolean
   characterId: string
   sessionIds: string[]
   representativeSessionId: string
@@ -305,6 +331,7 @@ interface SessionCard {
 const router = useRouter()
 const chatStore = useChatStore()
 const characterStore = useCharacterStore()
+const momentsStore = useMomentsStore()
 const storage = getStorageDriver()
 
 const activeTab = ref<HistoryTab>('chatted')
@@ -327,6 +354,7 @@ const importFileInput = ref<HTMLInputElement | null>(null)
 const longPressTimer = ref<number | null>(null)
 const storyRuntimeSnapshot = ref(getStoredStoryRuntimeState())
 const suppressSessionClick = ref(false)
+const readState = ref(loadHistoryReadState())
 
 const tabs = [
   { key: 'contacts', label: '联系人' },
@@ -413,7 +441,7 @@ const likedSessions = computed(() => {
 })
 
 const chattedSessions = computed(() =>
-  [...chatStore.sessions].sort((left, right) => right.updatedAt - left.updatedAt)
+  [...chatStore.sessions].sort((left, right) => getSessionDisplayTime(right) - getSessionDisplayTime(left))
 )
 
 function isStorySession(session: IChatSession): boolean {
@@ -452,18 +480,16 @@ function getPreviewText(message: IMessage | null | undefined): string {
   return message.content.trim() || '暂时还没有消息内容'
 }
 
-function getUnreadCountForSessionIds(sessionIds: string[]): number {
-  const states = storyRuntimeSnapshot.value.states || {}
-  const targetIds = new Set(sessionIds)
-  let total = 0
+function getMessageTime(message: IMessage | null | undefined): number {
+  return typeof message?.timestamp === 'number' ? message.timestamp : 0
+}
 
-  for (const state of Object.values(states)) {
-    if (state?.sessionId && targetIds.has(state.sessionId)) {
-      total += state.unreadCount || 0
-    }
-  }
+function getSessionDisplayTime(session: IChatSession): number {
+  return getMessageTime(previewMap.value[session.id]) || session.updatedAt
+}
 
-  return total
+function getSessionCardUnread(sessionIds: string[], latestTimestamp: number): boolean {
+  return hasUnreadSession(sessionIds, latestTimestamp, readState.value)
 }
 
 function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
@@ -472,7 +498,9 @@ function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
   const normalSessions = sourceSessions.filter(session => !isStorySession(session))
 
   if (storySessions.length > 0) {
-    const sortedStorySessions = [...storySessions].sort((left, right) => right.updatedAt - left.updatedAt)
+    const sortedStorySessions = [...storySessions].sort(
+      (left, right) => getSessionDisplayTime(right) - getSessionDisplayTime(left)
+    )
     const representative = sortedStorySessions[0]
     const character = getCharacterById(representative.characterId)
     const latestPreviewMessage =
@@ -481,15 +509,18 @@ function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
         .filter((message): message is IMessage => Boolean(message))
         .sort((left, right) => right.timestamp - left.timestamp)[0] || null
 
+    const sessionIds = sortedStorySessions.map(session => session.id)
+    const latestMessageTimestamp = getMessageTime(latestPreviewMessage)
+
     cards.push({
       id: `aggregate-story-${representative.characterId}`,
       title: getStoryThreadTitle(character, representative),
       avatar: character?.avatar || defaultAvatar,
       preview: getPreviewText(latestPreviewMessage),
-      updatedAt: representative.updatedAt,
-      unreadCount: getUnreadCountForSessionIds(sortedStorySessions.map(session => session.id)),
+      updatedAt: latestMessageTimestamp || getSessionDisplayTime(representative),
+      hasUnread: getSessionCardUnread(sessionIds, latestMessageTimestamp),
       characterId: representative.characterId,
-      sessionIds: sortedStorySessions.map(session => session.id),
+      sessionIds,
       representativeSessionId: representative.id,
       isStoryAggregate: true,
     })
@@ -503,8 +534,8 @@ function buildSessionCards(sourceSessions: IChatSession[]): SessionCard[] {
       title: session.title?.trim() || getCharacterName(session.characterId),
       avatar: getCharacterAvatar(session.characterId),
       preview: getPreviewText(previewSource),
-      updatedAt: session.updatedAt,
-      unreadCount: 0,
+      updatedAt: getMessageTime(previewSource) || session.updatedAt,
+      hasUnread: getSessionCardUnread([session.id], getMessageTime(previewSource)),
       characterId: session.characterId,
       sessionIds: [session.id],
       representativeSessionId: session.id,
@@ -560,14 +591,55 @@ const currentCount = computed(() => {
   return filteredSessionCardsForTab.value.length
 })
 const isEmpty = computed(() => currentCount.value === 0)
+const momentsBadge = computed(() => hasUnreadMoments(momentsStore.posts, readState.value))
+const friendsBadge = computed(() => hasUnreadContacts(characterStore.characters, 'friends', readState.value))
+const groupsBadge = computed(() => hasUnreadContacts(characterStore.characters, 'groups', readState.value))
+const likedBadge = computed(() => hasUnreadLiked(characterStore.characters, readState.value))
+const chattedBadge = computed(() => filteredSessionCardsForTab.value.some(session => session.hasUnread))
 
 const searchPlaceholder = computed(() =>
   activeTab.value === 'contacts' ? '搜索联系人' : '搜索角色名或聊天内容'
 )
 
+function getTabBadge(tab: HistoryTab): boolean {
+  if (tab === 'contacts') {
+    return friendsBadge.value || groupsBadge.value
+  }
+
+  if (tab === 'liked') {
+    return likedBadge.value
+  }
+
+  return chattedBadge.value
+}
+
+function refreshReadState() {
+  readState.value = loadHistoryReadState()
+}
+
+function selectContactsSubTab(tab: ContactsSubTab) {
+  contactsSubTab.value = tab
+  readState.value = markContactsRead(tab)
+}
+
+function selectTab(tab: HistoryTab) {
+  activeTab.value = tab
+
+  if (tab === 'contacts') {
+    selectContactsSubTab(contactsSubTab.value)
+  } else if (tab === 'liked') {
+    readState.value = markLikedRead()
+  }
+}
+
 onMounted(async () => {
   await Promise.all([characterStore.loadCharacters(), loadSessions()])
+  window.addEventListener(HISTORY_READ_EVENT, refreshReadState)
   void generateFriendBios()
+})
+
+onUnmounted(() => {
+  window.removeEventListener(HISTORY_READ_EVENT, refreshReadState)
 })
 
 async function generateFriendBios() {
@@ -603,6 +675,8 @@ async function generateFriendBios() {
 onActivated(() => {
   showSearch.value = false
   searchKeyword.value = ''
+  refreshReadState()
+  void loadSessions()
 })
 
 async function loadSessions() {
@@ -689,7 +763,33 @@ function goToDetail(characterId: string) {
   router.push(`/character/detail/${characterId}`)
 }
 
+function markStorySessionsRead(sessionIds: string[]) {
+  const targetIds = new Set(sessionIds)
+  const library = loadStoryLibrary()
+  const runtime = loadStoryRuntimeState(library.conversations)
+  let changed = false
+
+  for (const state of Object.values(runtime.states || {})) {
+    if (state.sessionId && targetIds.has(state.sessionId)) {
+      state.unreadCount = 0
+      state.lastUpdatedAt = Date.now()
+      changed = true
+    }
+  }
+
+  if (changed) {
+    saveStoryRuntimeState(runtime)
+    storyRuntimeSnapshot.value = runtime
+  }
+}
+
 function goToChat(characterId: string) {
+  if (activeTab.value === 'contacts') {
+    readState.value = markContactsRead(contactsSubTab.value)
+  } else if (activeTab.value === 'liked') {
+    readState.value = markLikedRead()
+  }
+
   const character = getCharacterById(characterId)
   if (character?.sourceType === 'builtin-story' || characterId === ECHO_STORY_CHARACTER_ID) {
     router.push({
@@ -716,6 +816,8 @@ function goToSession(session: SessionCard) {
   }
 
   if (session.isStoryAggregate) {
+    readState.value = markSessionsRead(session.sessionIds)
+    markStorySessionsRead(session.sessionIds)
     router.push({
       path: '/dialogue',
       query: {
@@ -725,6 +827,7 @@ function goToSession(session: SessionCard) {
     return
   }
 
+  readState.value = markSessionsRead(session.sessionIds)
   router.push({
     path: `/chat/${session.characterId}`,
     query: {
@@ -739,6 +842,7 @@ function goToCharacters() {
 }
 
 function goToMoments() {
+  readState.value = markMomentsRead()
   router.push('/moments')
 }
 
@@ -950,6 +1054,7 @@ async function handleImportFile(event: Event) {
 }
 
 .icon-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -961,6 +1066,29 @@ async function handleImportFile(event: Event) {
   cursor: pointer;
   box-shadow: none;
   transition: transform var(--transition-base), opacity var(--transition-base);
+}
+
+.entry-badge,
+.tab-badge {
+  position: absolute;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(5, 13, 20, 0.92), 0 0 10px rgba(239, 68, 68, 0.62);
+  pointer-events: none;
+}
+
+.entry-badge {
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+}
+
+.tab-badge {
+  top: 9px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
 }
 
 .icon-btn.active,
@@ -983,6 +1111,7 @@ async function handleImportFile(event: Event) {
 }
 
 .switch-btn {
+  position: relative;
   min-height: 42px;
   border: none;
   border-radius: 0;
@@ -1086,6 +1215,7 @@ async function handleImportFile(event: Event) {
 }
 
 .sub-tab {
+  position: relative;
   flex: none;
   min-height: 44px;
   padding: 0 18px;
@@ -1257,6 +1387,15 @@ async function handleImportFile(event: Event) {
 
 .pill.subtle {
   color: var(--text-secondary);
+}
+
+.session-unread-dot {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(5, 13, 20, 0.92), 0 0 10px rgba(239, 68, 68, 0.62);
 }
 
 .card-text {

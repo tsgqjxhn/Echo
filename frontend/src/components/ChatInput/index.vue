@@ -96,6 +96,12 @@
               stroke-linecap="round"
             />
           </svg>
+
+          <span
+            v-if="tab.key === 'history' && props.historyBadge"
+            class="nav-badge"
+            aria-hidden="true"
+          />
         </span>
 
         <span
@@ -121,8 +127,10 @@ interface TabItem {
 
 const props = withDefaults(defineProps<{
   modelValue?: string
+  historyBadge?: boolean
 }>(), {
   modelValue: 'chat',
+  historyBadge: false,
 })
 
 const emit = defineEmits<{
@@ -196,6 +204,7 @@ function handlePress(tab: TabItem) {
 }
 
 .icon-wrap {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,6 +215,17 @@ function handlePress(tab: TabItem) {
     background 0.2s ease,
     box-shadow 0.2s ease,
     color 0.2s ease;
+}
+
+.nav-badge {
+  position: absolute;
+  top: 3px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #000, 0 0 10px rgba(239, 68, 68, 0.72);
 }
 
 .icon-wrap--active {

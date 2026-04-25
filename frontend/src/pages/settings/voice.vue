@@ -23,6 +23,22 @@
       </div>
     </header>
 
+    <section class="native-status">
+      <div>
+        <p class="section-title">系统语音引擎</p>
+        <p class="native-copy">{{ nativeStatusCopy }}</p>
+      </div>
+
+      <div class="native-pills">
+        <span class="native-pill" :class="{ active: nativeAvailability?.sttAvailable }">
+          STT {{ nativeAvailability?.sttAvailable ? '可用' : '不可用' }}
+        </span>
+        <span class="native-pill" :class="{ active: nativeAvailability?.ttsAvailable }">
+          TTS {{ nativeAvailability?.ttsAvailable ? '可用' : '不可用' }}
+        </span>
+      </div>
+    </section>
+
     <section class="settings-grid">
       <article class="settings-card">
         <p class="section-title">TTS 朗读</p>
@@ -88,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { TTSService, type TTSConfig } from '@/services/tts'
 import {
@@ -98,6 +114,8 @@ import {
   saveSTTConfig,
   saveTTSConfig
 } from '@/services/voice-settings'
+import { NativeSpeech, type NativeSpeechAvailability } from '@/services/native-speech'
+import { isNativeRuntime } from '@/services/runtime-http'
 import { uni } from '@/utils/uni-polyfill'
 
 const router = useRouter()
@@ -120,9 +138,29 @@ const ttsConfig = ref<TTSConfig>({ ...DEFAULT_TTS_CONFIG })
 const sttConfig = ref({ ...DEFAULT_STT_CONFIG })
 const isTesting = ref(false)
 const ttsService = ref<TTSService | null>(null)
+const nativeAvailability = ref<NativeSpeechAvailability | null>(null)
+
+const nativeStatusCopy = computed(() => {
+  if (!isNativeRuntime()) {
+    return '当前是浏览器预览环境，打包到 Android 后会优先使用手机系统语音。'
+  }
+
+  if (!nativeAvailability.value) {
+    return '正在检测 Android 系统语音能力。'
+  }
+
+  if (nativeAvailability.value.sttAvailable && nativeAvailability.value.ttsAvailable) {
+    return '已接入 Android 系统默认语音识别与朗读。'
+  }
+
+  return '当前手机缺少部分系统语音能力，缺失项会回退到浏览器或远程 provider。'
+})
 
 onMounted(async () => {
-  await loadSettings()
+  await Promise.all([
+    loadSettings(),
+    refreshNativeAvailability()
+  ])
 })
 
 onUnmounted(() => {
@@ -140,6 +178,21 @@ async function loadSettings() {
     ...DEFAULT_STT_CONFIG,
     ...settings.stt
   }
+}
+
+async function refreshNativeAvailability() {
+  if (!isNativeRuntime()) {
+    nativeAvailability.value = {
+      sttAvailable: false,
+      ttsAvailable: typeof window !== 'undefined' && 'speechSynthesis' in window
+    }
+    return
+  }
+
+  nativeAvailability.value = await NativeSpeech.checkAvailability().catch(() => ({
+    sttAvailable: false,
+    ttsAvailable: false
+  }))
 }
 
 async function saveSettings() {
@@ -195,6 +248,7 @@ function resetSettings() {
 }
 
 .page-header,
+.native-status,
 .settings-card {
   border: 1px solid rgba(52, 211, 153, 0.12);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
@@ -331,6 +385,48 @@ function resetSettings() {
   font-weight: 600;
 }
 
+.native-status {
+  width: min(1080px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px auto 0;
+  padding: 20px 24px;
+  border-radius: 24px;
+}
+
+.native-copy {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.native-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.native-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.native-pill.active {
+  border-color: rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.12);
+  color: #9ff3d3;
+}
+
 .range-row,
 .field,
 .toggle-row {
@@ -379,6 +475,13 @@ function resetSettings() {
   .page-header {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .native-status {
+    width: calc(100% - 20px);
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 18px;
   }
 
   .settings-grid {

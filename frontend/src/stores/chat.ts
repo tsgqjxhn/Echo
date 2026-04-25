@@ -20,19 +20,75 @@ export interface ChatState {
   sessions: IChatSession[]
 }
 
+function stripTagBlock(source: string, tagName: string): string {
+  let result = source
+  const openNeedle = `<${tagName}`
+  const closeNeedle = `</${tagName}>`
+
+  while (true) {
+    const lower = result.toLowerCase()
+    const openIndex = lower.indexOf(openNeedle)
+    if (openIndex < 0) {
+      return result
+    }
+
+    const openEnd = result.indexOf('>', openIndex)
+    if (openEnd < 0) {
+      return result.slice(0, openIndex)
+    }
+
+    const closeIndex = lower.indexOf(closeNeedle, openEnd + 1)
+    if (closeIndex < 0) {
+      return result.slice(0, openIndex)
+    }
+
+    result = `${result.slice(0, openIndex)}${result.slice(closeIndex + closeNeedle.length)}`
+  }
+}
+
+function sanitizeAssistantOutput(content: string): string {
+  const withoutThinking = ['think', 'thinking'].reduce(
+    (text, tagName) => stripTagBlock(text, tagName),
+    content
+  )
+
+  return withoutThinking
+    .replace(/<\/?(?:think|thinking)\b[^>]*>/gi, '')
+    .replace(/^\s+/, '')
+}
+
 export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref<string | null>(null)
   const currentCharacterId = ref<string | null>(null)
   const messages = ref<IMessage[]>([])
-  const isGenerating = ref(false)
   const sessions = ref<IChatSession[]>([])
   const proactiveTimers = new Map<string, number>()
+  const draftMessagesBySession = new Map<string, IMessage>()
+  const generatingSessionIds = ref<string[]>([])
 
   const currentSession = computed(() => {
     return sessions.value.find(session => session.id === currentSessionId.value) || null
   })
 
   const hasMessages = computed(() => messages.value.length > 0)
+  const isGenerating = computed(() => generatingSessionIds.value.length > 0)
+  const isCurrentSessionGenerating = computed(() =>
+    currentSessionId.value ? generatingSessionIds.value.includes(currentSessionId.value) : false
+  )
+
+  function isSessionGenerating(sessionId: string): boolean {
+    return generatingSessionIds.value.includes(sessionId)
+  }
+
+  function setSessionGenerating(sessionId: string, generating: boolean) {
+    const ids = new Set(generatingSessionIds.value)
+    if (generating) {
+      ids.add(sessionId)
+    } else {
+      ids.delete(sessionId)
+    }
+    generatingSessionIds.value = Array.from(ids)
+  }
 
   function getLocalChatService(): ChatService {
     return createChatService(getStorageDriver())
@@ -79,59 +135,101 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const chatService = getLocalChatService()
-    messages.value = await chatService.getHistory(currentSessionId.value)
+    const history = await chatService.getHistory(currentSessionId.value)
+    const draft = draftMessagesBySession.get(currentSessionId.value)
+    messages.value = draft ? [...history, draft] : history
   }
 
-  async function streamAssistantReply(streamFactory: () => Promise<AsyncGenerator<string, void, unknown>>) {
-    if (!currentSessionId.value) {
+  async function streamAssistantReply(
+    sessionId: string,
+    streamFactory: () => Promise<AsyncGenerator<string, void, unknown>>
+  ) {
+    if (!sessionId) {
       return
     }
 
-    const activeSessionId = currentSessionId.value
     const chatService = getLocalChatService()
-    const draftMessage = Message.createEmpty(activeSessionId)
-    messages.value.push(draftMessage)
-    isGenerating.value = true
+    const draftMessage = Message.createEmpty(sessionId)
+    draftMessagesBySession.set(sessionId, draftMessage)
+    if (currentSessionId.value === sessionId) {
+      messages.value.push(draftMessage)
+    }
+    setSessionGenerating(sessionId, true)
 
-    try {
-      const stream = await streamFactory()
-      let fullText = ''
+    const updateVisibleDraft = async (content: string) => {
+      const nextDraft = { ...(draftMessagesBySession.get(sessionId) || draftMessage), content }
+      draftMessagesBySession.set(sessionId, nextDraft)
 
-      for await (const chunk of stream) {
-        fullText += chunk
-        // Access via the reactive array so Vue's proxy set-trap fires and
-        // MessageBubble's computed re-evaluates on every chunk.
-        const last = messages.value[messages.value.length - 1]
-        if (last?.id === draftMessage.id) {
-          last.content = fullText
+      if (currentSessionId.value !== sessionId) {
+        return
+      }
+
+      const idx = messages.value.findIndex(m => m.id === draftMessage.id)
+      if (idx >= 0) {
+        messages.value.splice(idx, 1, nextDraft)
+      } else {
+        messages.value = [...messages.value, nextDraft]
+      }
+      await nextTick()
+    }
+
+    const removeVisibleDraft = () => {
+      draftMessagesBySession.delete(sessionId)
+      if (currentSessionId.value === sessionId) {
+        messages.value = messages.value.filter(message => message.id !== draftMessage.id)
+      }
+    }
+
+    const replaceVisibleDraft = async (savedReply: IMessage) => {
+      draftMessagesBySession.delete(sessionId)
+      if (currentSessionId.value === sessionId) {
+        const savedIdx = messages.value.findIndex(m => m.id === draftMessage.id)
+        if (savedIdx >= 0) {
+          messages.value.splice(savedIdx, 1, savedReply)
+        } else {
+          messages.value = [...messages.value, savedReply]
         }
         await nextTick()
       }
+    }
 
-      if (fullText.trim()) {
-        const savedReply = await chatService.saveAssistantReply(activeSessionId, fullText)
-        messages.value = messages.value.map(message =>
-          message.id === draftMessage.id ? savedReply : message
-        )
-        queueProactiveFollowUp(activeSessionId)
+    try {
+      const stream = await streamFactory()
+      let rawText = ''
+      let visibleText = ''
+
+      for await (const chunk of stream) {
+        rawText += chunk
+        visibleText = sanitizeAssistantOutput(rawText)
+        await updateVisibleDraft(visibleText)
+      }
+
+      visibleText = sanitizeAssistantOutput(rawText)
+      await updateVisibleDraft(visibleText)
+
+      if (visibleText.trim()) {
+        const savedReply = await chatService.saveAssistantReply(sessionId, visibleText)
+        await replaceVisibleDraft(savedReply)
+        queueProactiveFollowUp(sessionId)
       } else {
-        messages.value = messages.value.filter(message => message.id !== draftMessage.id)
+        removeVisibleDraft()
       }
     } catch (error) {
-      messages.value = messages.value.filter(message => message.id !== draftMessage.id)
+      removeVisibleDraft()
       throw error
     } finally {
-      isGenerating.value = false
+      setSessionGenerating(sessionId, false)
       await loadSessions()
     }
   }
 
   async function sendMessage(content: string) {
-    if (!currentSessionId.value || isGenerating.value) {
+    if (!currentSessionId.value || isSessionGenerating(currentSessionId.value)) {
       return
     }
 
-    clearProactiveFollowUp(currentSessionId.value)
+    const sessionId = currentSessionId.value
+    clearProactiveFollowUp(sessionId)
     const trimmedContent = content.trim()
     if (!trimmedContent) {
       return
@@ -139,51 +237,59 @@ export const useChatStore = defineStore('chat', () => {
 
     const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
-    const userMessage = Message.createText(currentSessionId.value, 'user', trimmedContent)
-    messages.value.push(userMessage)
+    const userMessage = Message.createText(sessionId, 'user', trimmedContent)
+    if (currentSessionId.value === sessionId) {
+      messages.value.push(userMessage)
+    }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(() => remoteChatService.sendMessage(currentSessionId.value as string))
+    await streamAssistantReply(sessionId, () => remoteChatService.sendMessage(sessionId))
   }
 
   async function sendImage(imagePath: string) {
-    if (!currentSessionId.value || isGenerating.value) {
+    if (!currentSessionId.value || isSessionGenerating(currentSessionId.value)) {
       return
     }
 
-    clearProactiveFollowUp(currentSessionId.value)
+    const sessionId = currentSessionId.value
+    clearProactiveFollowUp(sessionId)
     const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
-    const userMessage = Message.createImage(currentSessionId.value, 'user', imagePath)
-    messages.value.push(userMessage)
+    const userMessage = Message.createImage(sessionId, 'user', imagePath)
+    if (currentSessionId.value === sessionId) {
+      messages.value.push(userMessage)
+    }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(() => remoteChatService.sendImage(currentSessionId.value as string))
+    await streamAssistantReply(sessionId, () => remoteChatService.sendImage(sessionId))
   }
 
   async function sendVoice(audioPath: string, text: string, duration?: number) {
-    if (!currentSessionId.value || isGenerating.value) {
+    if (!currentSessionId.value || isSessionGenerating(currentSessionId.value)) {
       return
     }
 
-    clearProactiveFollowUp(currentSessionId.value)
+    const sessionId = currentSessionId.value
+    clearProactiveFollowUp(sessionId)
     const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
     const userMessage = Message.createVoice(
-      currentSessionId.value,
+      sessionId,
       'user',
       audioPath,
       text,
       duration
     )
-    messages.value.push(userMessage)
+    if (currentSessionId.value === sessionId) {
+      messages.value.push(userMessage)
+    }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(() => remoteChatService.sendVoice(currentSessionId.value as string))
+    await streamAssistantReply(sessionId, () => remoteChatService.sendVoice(sessionId))
   }
 
   async function retryLastResponse(messageId?: string) {
-    if (!currentSessionId.value || isGenerating.value) {
+    if (!currentSessionId.value || isSessionGenerating(currentSessionId.value)) {
       return
     }
 
@@ -201,16 +307,19 @@ export const useChatStore = defineStore('chat', () => {
       }
     }
 
-    if (userBoundaryIndex < 0 || !currentSessionId.value) {
+    const sessionId = currentSessionId.value
+    if (userBoundaryIndex < 0 || !sessionId) {
       throw new Error('No user message was found to retry from.')
     }
 
     const lastUserMessage = messages.value[userBoundaryIndex]
     const remoteChatService = await getRemoteChatService()
-    messages.value = messages.value.slice(0, userBoundaryIndex + 1)
+    if (currentSessionId.value === sessionId) {
+      messages.value = messages.value.slice(0, userBoundaryIndex + 1)
+    }
 
-    await streamAssistantReply(() =>
-      remoteChatService.retryGeneration(currentSessionId.value as string, lastUserMessage)
+    await streamAssistantReply(sessionId, () =>
+      remoteChatService.retryGeneration(sessionId, lastUserMessage)
     )
   }
 
@@ -274,7 +383,8 @@ export const useChatStore = defineStore('chat', () => {
     currentSessionId.value = null
     currentCharacterId.value = null
     messages.value = []
-    isGenerating.value = false
+    generatingSessionIds.value = []
+    draftMessagesBySession.clear()
   }
 
   function clearProactiveFollowUp(sessionId: string) {
@@ -354,6 +464,8 @@ export const useChatStore = defineStore('chat', () => {
     currentCharacterId,
     messages,
     isGenerating,
+    isCurrentSessionGenerating,
+    generatingSessionIds,
     sessions,
     currentSession,
     hasMessages,

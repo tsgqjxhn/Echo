@@ -5,7 +5,7 @@
     </header>
 
     <!-- no friends -->
-    <section v-if="!isLoading && !hasFriends" class="empty-state">
+    <section v-if="!isLoading && !hasFriends && !hasVisiblePosts" class="empty-state">
       <p class="empty-title">还没有好友</p>
       <p class="empty-hint">在角色详情页添加好友后，好友会在这里发布动态</p>
       <button type="button" class="go-btn" @click="router.push('/character')">去认识角色</button>
@@ -19,7 +19,7 @@
       </div>
 
       <!-- friends exist but no posts yet -->
-      <div v-else-if="hasFriends && sortedPosts.length === 0" class="empty-state empty-state--inline">
+      <div v-else-if="sortedPosts.length === 0" class="empty-state empty-state--inline">
         <p class="empty-title">当前好友暂未发布朋友圈</p>
       </div>
 
@@ -142,6 +142,8 @@ import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 import defaultAvatar from '@/static/images/default-avatar.svg'
 import ImageViewer from '@/components/ImageViewer/index.vue'
+import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
+import { markMomentsRead } from '@/services/history-unread'
 
 const router = useRouter()
 const characterStore = useCharacterStore()
@@ -160,14 +162,17 @@ const hasFriends = computed(() => characterStore.friendCharacters.length > 0)
 const sortedPosts = computed(() => {
   const friendIds = new Set(characterStore.friendCharacters.map(f => f.id))
   return [...momentsStore.posts]
-    .filter(p => friendIds.has(p.characterId))
+    .filter(p => friendIds.has(p.characterId) || p.characterId === ECHO_STORY_CHARACTER_ID)
     .sort((a, b) => b.postedAt - a.postedAt)
 })
+const hasVisiblePosts = computed(() => sortedPosts.value.length > 0)
 
 onMounted(async () => {
+  markMomentsRead()
   await characterStore.loadCharacters()
   isLoading.value = false
   await triggerAutoPost()
+  markMomentsRead()
 })
 
 async function triggerAutoPost() {

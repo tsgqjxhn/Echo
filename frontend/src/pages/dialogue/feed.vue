@@ -43,13 +43,38 @@
             :class="`message-row--${message.role}`"
           >
             <template v-if="message.role === 'assistant'">
-              <img :src="activeConversation?.avatar || xingAvatar" alt="星" class="bubble-avatar" />
+              <img :src="xingDisplayAvatar" alt="星" class="bubble-avatar bubble-avatar--assistant" />
             </template>
 
             <div class="bubble-stack">
-              <div class="message-bubble" :class="`message-bubble--${message.role}`">
+              <button
+                v-if="isImageUrl(message.text)"
+                type="button"
+                class="message-bubble message-bubble--image"
+                :class="`message-bubble--${message.role}`"
+                @click.stop="openStoryImage(extractImageUrl(message.text))"
+              >
+                <img :src="extractImageUrl(message.text)" alt="场景图" class="story-insert-image" />
+              </button>
+              <div v-else class="message-bubble" :class="`message-bubble--${message.role}`">
                 {{ message.text }}
               </div>
+              <button
+                v-if="message.role === 'assistant' && !isImageUrl(message.text)"
+                type="button"
+                class="dialogue-tts-btn"
+                :class="{ speaking: speakingDialogueMessageId === message.id }"
+                :aria-label="speakingDialogueMessageId === message.id ? '停止朗读' : '朗读消息'"
+                @click.stop="toggleDialogueTTS(message)"
+              >
+                <svg v-if="speakingDialogueMessageId === message.id" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                  <path d="M6 9v6h4l5 5V4l-5 5H6zm12.5 3a6.5 6.5 0 0 0-2-4.69v9.38a6.5 6.5 0 0 0 2-4.69z" fill="currentColor"/>
+                  <path d="M4 4l16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
+                </svg>
+              </button>
             </div>
 
             <template v-if="message.role === 'user'">
@@ -58,7 +83,7 @@
           </article>
 
           <article v-if="isTyping" class="message-row message-row--assistant">
-            <img :src="activeConversation?.avatar || xingAvatar" alt="星" class="bubble-avatar" />
+            <img :src="xingDisplayAvatar" alt="星" class="bubble-avatar bubble-avatar--assistant" />
             <div class="bubble-stack">
               <div class="typing-bubble">
                 <span></span>
@@ -175,6 +200,12 @@
     </Teleport>
 
     <StoryGallery :visible="showGallery" @close="showGallery = false" />
+    <ImageViewer
+      :visible="imageViewerVisible"
+      :src="imageViewerSrc"
+      alt="场景图"
+      @close="imageViewerVisible = false"
+    />
 
     <Teleport to="body">
       <div v-if="showPuzzleGame" class="game-overlay">
@@ -201,7 +232,7 @@
 
             <div class="mp-image-block"></div>
 
-            <p class="mp-text">如果连记忆都是假的，那我到底算个什么东西？</p>
+            <p class="mp-text">{{ currentMomentText }}</p>
 
             <div class="mp-actions">
               <span class="mp-time">刚刚</span>
@@ -226,10 +257,12 @@ import type { DialogueMessage } from '@/data/story'
 import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import defaultAvatar from '@/static/images/default-avatar.svg'
 import xingAvatar from '@/static/images/story/星.webp'
+import questionAvatarImg from '@/static/images/story/问号头像.webp'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { useUserStore } from '@/stores/user'
 import {
   appendConversationMessage,
+  applyConversationPresentation,
   applySystemEffects,
   clearConversationMessages,
   ensureConversationSession,
@@ -242,6 +275,7 @@ import {
   loadStoryRuntimeState,
   markConversationRead,
   resetConversationState,
+  resolveStoryAvatar,
   saveStoryRuntimeState,
   type StoryConversationDefinition,
   type StoryConversationState,
@@ -250,7 +284,12 @@ import {
 } from '@/services/story-conversations'
 import { uni } from '@/utils/uni-polyfill'
 import StoryGallery from '@/components/StoryGallery/index.vue'
+import ImageViewer from '@/components/ImageViewer/index.vue'
+import { GALLERY_ITEMS, unlockGalleryItem } from '@/services/story-gallery'
 import PuzzleGame from '@/pages/game/mini/puzzle.vue'
+import { useMomentsStore, type MomentPost } from '@/stores/moments'
+import { TTSService } from '@/services/tts'
+import { loadTTSConfig } from '@/services/voice-settings'
 
 interface VisibleMessage {
   id: string
@@ -273,6 +312,9 @@ interface PendingInlineBranchReply {
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const momentsStore = useMomentsStore()
+
+const DEFAULT_STORY_MOMENT_TEXT = '如果连记忆都是假的，那我到底算个什么东西？'
 
 // 判断是否从底边栏进入（隐藏返回按钮）
 const isFromTabBar = computed(() => {
@@ -290,6 +332,8 @@ const runtimeState = ref<StoryRuntimeState>({
   order: [],
   notes: '',
   clues: [],
+  currentContactName: '未知用户',
+  currentAvatarKey: 'question',
   states: {},
 })
 const displayedMessages = ref<VisibleMessage[]>([])
@@ -302,12 +346,107 @@ const pendingInlineBranchReply = ref<PendingInlineBranchReply | null>(null)
 const switchingCharacter = ref(false)
 const showDialogueMore = ref(false)
 const showGallery = ref(false)
+const imageViewerVisible = ref(false)
+const imageViewerSrc = ref('')
 const showPuzzleGame = ref(false)
 const showMomentsCard = ref(false)
+const currentMomentText = ref(DEFAULT_STORY_MOMENT_TEXT)
+const dialogueTTSService = ref<TTSService | null>(null)
+const speakingDialogueMessageId = ref('')
 
 let activeRunToken = 0
 let bgmAudio: HTMLAudioElement | null = null
 let audioUnlocked = false
+
+function isImageUrl(text: string): boolean {
+  return text.startsWith('[IMAGE:') && text.endsWith(']')
+}
+
+function extractImageUrl(text: string): string {
+  return text.slice(7, -1)
+}
+
+function openStoryImage(src: string) {
+  imageViewerSrc.value = src
+  imageViewerVisible.value = true
+}
+
+async function toggleDialogueTTS(message: VisibleMessage) {
+  if (speakingDialogueMessageId.value === message.id) {
+    dialogueTTSService.value?.stop()
+    speakingDialogueMessageId.value = ''
+    return
+  }
+
+  const text = message.text.trim()
+  if (!text) {
+    return
+  }
+
+  const config = await loadTTSConfig()
+  dialogueTTSService.value?.destroy()
+  dialogueTTSService.value = new TTSService({
+    ...config,
+    language: config.language || 'zh-CN',
+  })
+  dialogueTTSService.value.onEnd(() => {
+    speakingDialogueMessageId.value = ''
+  })
+  dialogueTTSService.value.onError(() => {
+    speakingDialogueMessageId.value = ''
+  })
+
+  speakingDialogueMessageId.value = message.id
+  try {
+    await dialogueTTSService.value.speak(text)
+  } catch {
+    speakingDialogueMessageId.value = ''
+  }
+}
+
+function ensureStoryMomentPost() {
+  const content = currentMomentText.value.trim() || DEFAULT_STORY_MOMENT_TEXT
+  const storyMomentId = `echo-story-${Array.from(content).reduce((seed, ch) => seed + ch.charCodeAt(0), 0)}`
+
+  if (momentsStore.posts.some(post => post.id === storyMomentId)) {
+    return
+  }
+
+  const post: MomentPost = {
+    id: storyMomentId,
+    characterId: ECHO_STORY_CHARACTER_ID,
+    characterName: '星',
+    characterAvatar: xingAvatar,
+    content,
+    postedAt: Date.now(),
+    likes: 1,
+    isLikedByMe: true,
+    isFavoritedByMe: false,
+    forwards: 0,
+    comments: [],
+  }
+  momentsStore.addPost(post)
+}
+
+function extractMomentContent(text: string): string | null {
+  const match = text.match(/朋友圈动态插入[:：]\s*(.+)$/)
+  return match?.[1]?.trim() || null
+}
+
+function unlockAvatarFromSystemText(text: string) {
+  if (text.includes('[?]') || text.includes('未知用户')) {
+    unlockGalleryItem('avatar-question')
+  }
+  if (text.includes('模糊的雨夜侧影') || text.includes('模糊轮廓')) {
+    unlockGalleryItem('avatar-blur')
+  }
+  if (text.includes('短发')) {
+    unlockGalleryItem('avatar-short-hair')
+  }
+  if (text.includes('正面清晰') || text.includes('星｜正面清晰形象') || text.includes('头像更新：【星')) {
+    unlockGalleryItem('avatar-xing')
+  }
+}
 
 const activeConversationId = computed(() => runtimeState.value.activeConversationId)
 const showRandomSwitchButton = computed(() => route.query.from !== 'history')
@@ -387,8 +526,11 @@ const activePrompt = computed(() => {
 
   return activeSegment.value?.prompt || ''
 })
-const playerAvatar = defaultAvatar
-const headerTitle = computed(() => (isTyping.value ? '对方正在输入……' : '星'))
+const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
+const xingDisplayAvatar = computed(() =>
+  resolveStoryAvatar(runtimeState.value.currentAvatarKey) || activeConversation.value?.avatar || questionAvatarImg
+)
+const headerTitle = computed(() => (isTyping.value ? '对方正在输入……' : runtimeState.value.currentContactName || '星'))
 const presenceStatusText = computed(() => (isDead.value ? '角色已死亡' : '角色已上线'))
 const presenceStatusTone = computed(() => (isDead.value ? 'dead' : 'online'))
 const showDeathStatusInline = computed(() => isDead.value && displayedMessages.value.length > 0)
@@ -609,12 +751,10 @@ async function appendVisibleStoryMessage(message: DialogueMessage, conversationI
 
   const mappedRole = mapMessageRole(message)
   if (!mappedRole) {
-    if (!message.hidden) {
-      runtimeState.value = applySystemEffects(runtimeState.value, conversationId, message)
-      persistRuntime()
-      if (runtimeState.value.states[conversationId]?.status === 'dead') {
-        await scrollToBottom('auto')
-      }
+    runtimeState.value = applySystemEffects(runtimeState.value, conversationId, message)
+    persistRuntime()
+    if (runtimeState.value.states[conversationId]?.status === 'dead') {
+      await scrollToBottom('auto')
     }
 
     // Detect H5 mini-game trigger
@@ -626,7 +766,39 @@ async function appendVisibleStoryMessage(message: DialogueMessage, conversationI
 
     // Detect moments post trigger
     if (message.role === 'system' && message.text.includes('朋友圈动态插入')) {
+      currentMomentText.value = extractMomentContent(message.text) || DEFAULT_STORY_MOMENT_TEXT
+      ensureStoryMomentPost()
       showMomentsCard.value = true
+    }
+
+    if (message.role === 'system') {
+      unlockAvatarFromSystemText(message.text)
+    }
+
+    // Detect image insertion trigger
+    if (message.role === 'system' && message.text.includes('[图片插入')) {
+      const imageMatch = message.text.match(/\[图片插入[：:]\s*(.+?)[——\-–—]/)
+      if (imageMatch) {
+        const imageTitle = imageMatch[1].trim()
+        const galleryItem = GALLERY_ITEMS.find(item =>
+          imageTitle === item.title ||
+          imageTitle.includes(item.title) ||
+          item.title.includes(imageTitle)
+        )
+        if (galleryItem) {
+          unlockGalleryItem(galleryItem.id)
+          const imageContent = `[IMAGE:${galleryItem.src}]`
+          const savedMessage = await appendConversationMessage(conversationState.sessionId, 'assistant', imageContent)
+          displayedMessages.value.push({
+            id: savedMessage.id,
+            role: 'assistant' as const,
+            text: imageContent,
+          })
+          conversationState.lastUpdatedAt = savedMessage.timestamp
+          persistRuntime()
+          await scrollToBottom('auto')
+        }
+      }
     }
 
     return
@@ -653,12 +825,65 @@ function buildInlineReplyOptions(messages: DialogueMessage[], seed: string): Rep
   }))
 }
 
+function normalizeStoryReplyText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\s，。！？、；：,.!?;:"'“”‘’（）()【】[\]{}《》<>…—\-]/g, '')
+}
+
+function getTextDistance(left: string, right: string): number {
+  const a = normalizeStoryReplyText(left)
+  const b = normalizeStoryReplyText(right)
+  if (a === b) {
+    return 0
+  }
+
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+  const current = Array.from({ length: b.length + 1 }, () => 0)
+
+  for (let i = 1; i <= a.length; i += 1) {
+    current[0] = i
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + cost,
+      )
+    }
+    previous.splice(0, previous.length, ...current)
+  }
+
+  return previous[b.length] || 0
+}
+
+function isSimilarStoryReply(left: string, right: string): boolean {
+  const a = normalizeStoryReplyText(left)
+  const b = normalizeStoryReplyText(right)
+  if (!a || !b) {
+    return false
+  }
+
+  if (a === b || a.includes(b) || b.includes(a)) {
+    return true
+  }
+
+  const maxLength = Math.max(a.length, b.length)
+  return maxLength >= 8 && getTextDistance(a, b) / maxLength <= 0.28
+}
+
+function isLastDisplayedUserReply(text: string): boolean {
+  const lastDisplayed = displayedMessages.value[displayedMessages.value.length - 1]
+  return lastDisplayed?.role === 'user' && isSimilarStoryReply(lastDisplayed.text, text)
+}
+
 async function playBranchMessages(
   branchMessages: DialogueMessage[],
   conversation: StoryConversationDefinition,
   state: StoryConversationState,
   token: number,
   seed: string,
+  options: { skipLeadingUserMessage?: boolean } = {},
 ) {
   for (let index = 0; index < branchMessages.length; index += 1) {
     const branchMessage = branchMessages[index]
@@ -676,6 +901,27 @@ async function playBranchMessages(
       while (nextIndex < branchMessages.length && branchMessages[nextIndex].role === 'me') {
         inlineMessages.push(branchMessages[nextIndex])
         nextIndex += 1
+      }
+
+      // If only one inline message, auto-select it (not a real choice)
+      if (inlineMessages.length === 1) {
+        // Branches often repeat the clicked option as their first "me" message.
+        if ((index === 0 && options.skipLeadingUserMessage) || isLastDisplayedUserReply(inlineMessages[0].text)) {
+          index = nextIndex - 1
+          continue
+        }
+
+        const savedMsg = await appendConversationMessage(state.sessionId!, 'user', inlineMessages[0].text)
+        displayedMessages.value.push({
+          id: savedMsg.id,
+          role: 'user',
+          text: inlineMessages[0].text,
+        })
+        state.lastUpdatedAt = savedMsg.timestamp
+        persistRuntime()
+        await scrollToBottom('auto')
+        index = nextIndex - 1
+        continue
       }
 
       pendingInlineBranchReply.value = {
@@ -808,6 +1054,7 @@ async function openConversation(conversationId: string) {
   activeRunToken += 1
   pendingInlineBranchReply.value = null
   runtimeState.value.activeConversationId = conversationId
+  runtimeState.value = applyConversationPresentation(runtimeState.value, conversation)
   runtimeState.value = markConversationRead(runtimeState.value, conversationId)
   persistRuntime()
   applyConversationMusic(conversation)
@@ -842,7 +1089,7 @@ async function chooseOption(optionId: string) {
   const segment = activeChoiceSegment.value
   const token = activeRunToken
 
-  if (!conversation || !state || !segment || !state.sessionId) {
+  if (!conversation || !state || !segment || !state.sessionId || isBusy.value) {
     return
   }
 
@@ -872,6 +1119,7 @@ async function chooseOption(optionId: string) {
     state,
     token,
     selectedOption.id,
+    { skipLeadingUserMessage: true },
   )
 
   if (branchResult === 'cancelled' || branchResult === 'awaiting-inline') {
@@ -982,6 +1230,10 @@ async function submitInlineBranchReply(optionId: string) {
 }
 
 function handleReplyOption(optionId: string) {
+  if (isBusy.value) {
+    return
+  }
+
   const option = replyOptions.value.find(item => item.id === optionId)
   if (!option) {
     return
@@ -1012,6 +1264,7 @@ async function restartCurrentConversation() {
   pendingInlineBranchReply.value = null
   await clearConversationMessages(state.sessionId)
   runtimeState.value = resetConversationState(runtimeState.value, conversation, state.sessionId)
+  runtimeState.value = applyConversationPresentation(runtimeState.value, conversation)
   persistRuntime()
   await refreshDisplayedMessagesThrough(conversation.id)
   isTyping.value = false
@@ -1172,6 +1425,8 @@ onDeactivated(() => {
   if (bgmAudio) {
     bgmAudio.pause()
   }
+  dialogueTTSService.value?.stop()
+  speakingDialogueMessageId.value = ''
 })
 
 onUnmounted(() => {
@@ -1182,6 +1437,9 @@ onUnmounted(() => {
   if (bgmAudio) {
     bgmAudio.pause()
   }
+  dialogueTTSService.value?.destroy()
+  dialogueTTSService.value = null
+  speakingDialogueMessageId.value = ''
 })
 </script>
 
@@ -1398,7 +1656,7 @@ onUnmounted(() => {
 .bubble-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 11px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.05);
@@ -1409,8 +1667,20 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.bubble-avatar--assistant {
+  cursor: pointer;
+}
+
 .bubble-stack {
   max-width: min(76%, 680px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.message-row--user .bubble-stack {
+  align-items: flex-end;
 }
 
 .message-bubble,
@@ -1431,6 +1701,48 @@ onUnmounted(() => {
 .message-bubble--user {
   background: linear-gradient(135deg, rgba(242, 245, 249, 0.94), rgba(197, 207, 217, 0.9));
   color: rgb(9, 10, 12);
+}
+
+.message-bubble--image {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.story-insert-image {
+  display: block;
+  width: min(280px, 100%);
+  max-height: 320px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dialogue-tts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.16s;
+}
+
+.dialogue-tts-btn:hover,
+.dialogue-tts-btn.speaking {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.12);
+  color: #9ff3d3;
+}
+
+.dialogue-tts-btn:active {
+  transform: scale(0.94);
 }
 
 .typing-bubble {

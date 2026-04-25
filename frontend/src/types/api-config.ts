@@ -11,6 +11,7 @@ export interface APIConfig {
   apiKey: string
   baseURL?: string
   model: string
+  models?: string[]
   speechModel?: string
   speechVoice?: string
   transcriptionModel?: string

@@ -152,8 +152,15 @@ export class LLMAPIService {
     done: boolean
     isFirstChunk: boolean
   } {
-    const lines = rawBuffer.split('\n')
-    const buffer = lines.pop() || ''
+    const normalizedBuffer = rawBuffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const hasCompleteSSEEvent = /\n\n/.test(normalizedBuffer)
+    const units = hasCompleteSSEEvent
+      ? normalizedBuffer.split(/\n\n+/)
+      : normalizedBuffer.split('\n')
+    const buffer = units.pop() || ''
+    const lines = hasCompleteSSEEvent
+      ? units.flatMap(unit => unit.split('\n'))
+      : units
     const chunks: ChatChunk[] = []
     let done = false
     let isFirst = isFirstChunk
@@ -281,6 +288,14 @@ export class LLMAPIService {
             if (parsed.done) return
           }
 
+          if (buffer.trim()) {
+            const parsed = service['parseStreamBuffer'](`${buffer}\n`, isFirstChunk)
+            buffer = parsed.buffer
+            isFirstChunk = parsed.isFirstChunk
+            for (const chunk of parsed.chunks) { yieldedChunk = true; yield chunk }
+            if (parsed.done) return
+          }
+
           if (controller.signal.aborted && abortReason === 'manual') return
 
           if (!yieldedChunk) {
@@ -317,13 +332,21 @@ export class LLMAPIService {
             controller.abort()
             void reader.cancel().catch(() => undefined)
           })
-          if (readDone) break
+          if (readDone) {
+            buffer += decoder.decode()
+            break
+          }
           buffer += decoder.decode(value, { stream: true })
           const parsed = service['parseStreamBuffer'](buffer, isFirstChunk)
           buffer = parsed.buffer
           isFirstChunk = parsed.isFirstChunk
           for (const chunk of parsed.chunks) yield chunk
           if (parsed.done) return
+        }
+
+        if (buffer.trim()) {
+          const parsed = service['parseStreamBuffer'](`${buffer}\n`, isFirstChunk)
+          for (const chunk of parsed.chunks) yield chunk
         }
       } catch (error) {
         if (controller.signal.aborted && abortReason === 'manual') return

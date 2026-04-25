@@ -5,6 +5,8 @@ import type { ICharacter } from '@/types/character'
 import { useSettingsStore } from '@/stores/settings'
 import { useUserStore } from '@/stores/user'
 import { useGameStore } from '@/stores/game'
+import { useChatStore } from '@/stores/chat'
+import { useMomentsStore } from '@/stores/moments'
 import AppTabBar from '@/components/ChatInput/index.vue'
 import { createChatService } from '@/services/chat'
 import { getCharacterService } from '@/services/character'
@@ -19,6 +21,7 @@ import {
   saveStoryRuntimeState,
 } from '@/services/story-conversations'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
+import { HISTORY_READ_EVENT, hasAnyHistoryUnread } from '@/services/history-unread'
 import { uni } from '@/utils/uni-polyfill'
 import '@/styles/theme.scss'
 
@@ -41,6 +44,8 @@ const activeTab = ref('chat')
 const settingsStore = useSettingsStore()
 const userStore = useUserStore()
 const gameStore = useGameStore()
+const chatStore = useChatStore()
+const momentsStore = useMomentsStore()
 const storage = getStorageDriver()
 const chatService = createChatService(storage)
 const characterService = getCharacterService()
@@ -52,6 +57,7 @@ const dialogueAnchorRect = ref<AnchorRect | null>(null)
 const dialogueViewVersion = ref(0)
 const swipeStart = ref<SwipeStart | null>(null)
 const switchingConversation = ref(false)
+const hasHistoryBadge = ref(false)
 
 function shouldHideTabBar() {
   return (
@@ -359,6 +365,16 @@ function handleGlobalClick(event: MouseEvent) {
   void openDialogueSheet(rect)
 }
 
+async function refreshHistoryBadge() {
+  hasHistoryBadge.value = await hasAnyHistoryUnread(storage, momentsStore.posts)
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void refreshHistoryBadge()
+  }
+}
+
 const showTabBar = computed(() => !shouldHideTabBar())
 const isHistoryChat = computed(() => route.path.includes('/chat') && route.query.from === 'history')
 const isHistoryDialogue = computed(() => route.path.includes('/dialogue') && route.query.from === 'history')
@@ -435,8 +451,12 @@ onMounted(async () => {
   document.addEventListener('pointerup', handleGlobalPointerUp, true)
   document.addEventListener('pointercancel', handleGlobalPointerCancel, true)
   document.addEventListener('click', handleGlobalClick, true)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('resize', handleViewportMutation)
   window.addEventListener('scroll', handleViewportMutation, true)
+  window.addEventListener('focus', refreshHistoryBadge)
+  window.addEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
+  await refreshHistoryBadge()
 })
 
 onUnmounted(() => {
@@ -444,8 +464,11 @@ onUnmounted(() => {
   document.removeEventListener('pointerup', handleGlobalPointerUp, true)
   document.removeEventListener('pointercancel', handleGlobalPointerCancel, true)
   document.removeEventListener('click', handleGlobalClick, true)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('resize', handleViewportMutation)
   window.removeEventListener('scroll', handleViewportMutation, true)
+  window.removeEventListener('focus', refreshHistoryBadge)
+  window.removeEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
 })
 
 watch(
@@ -455,8 +478,16 @@ watch(
     if (!route.path.includes('/dialogue')) {
       closeDialogueSheet()
     }
+    void refreshHistoryBadge()
   },
   { immediate: true }
+)
+
+watch(
+  () => [chatStore.messages.length, chatStore.sessions.length, momentsStore.posts.length],
+  () => {
+    void refreshHistoryBadge()
+  }
 )
 </script>
 
@@ -478,7 +509,7 @@ watch(
       </router-view>
     </div>
 
-    <AppTabBar v-if="showTabBar" v-model="activeTab" data-debug="app-tabbar" />
+    <AppTabBar v-if="showTabBar" v-model="activeTab" :history-badge="hasHistoryBadge" data-debug="app-tabbar" />
 
     <Teleport to="body">
       <div

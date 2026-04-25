@@ -144,13 +144,32 @@ export async function requestPermission(alias: PermissionAlias): Promise<NativeP
     return current
   }
 
-  const userConfirmed = await showPermissionDialog(alias)
-  if (!userConfirmed) {
+  // If permanently denied, tell user to go to settings
+  if (current.state === 'denied') {
+    const config = DIALOG_MESSAGES[alias]
+    if (typeof window !== 'undefined') {
+      alert(`${config.title}\n\n${config.message}\n\n请在系统设置中手动开启权限。`)
+    }
     return { granted: false, state: 'denied' }
   }
 
   if (isNativeRuntime()) {
-    return NativePermission.request({ alias })
+    // On native, request directly (system dialog handles the prompt)
+    try {
+      const result = await NativePermission.request({ alias })
+      if (!result.granted) {
+        const config = DIALOG_MESSAGES[alias]
+        alert(`${config.title}\n\n${config.message}\n\n请在系统设置中手动开启权限。`)
+      }
+      return result
+    } catch {
+      return { granted: false, state: 'denied' }
+    }
+  }
+
+  const userConfirmed = await showPermissionDialog(alias)
+  if (!userConfirmed) {
+    return { granted: false, state: 'denied' }
   }
 
   if (alias === 'microphone') {
@@ -159,6 +178,8 @@ export async function requestPermission(alias: PermissionAlias): Promise<NativeP
       stream.getTracks().forEach((track) => track.stop())
       return { granted: true, state: 'granted' }
     } catch {
+      const config = DIALOG_MESSAGES[alias]
+      alert(`${config.title}\n\n${config.message}\n\n请在浏览器设置中允许麦克风访问。`)
       return { granted: false, state: 'denied' }
     }
   }

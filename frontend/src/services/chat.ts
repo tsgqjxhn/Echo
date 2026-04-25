@@ -25,6 +25,7 @@ import { searchMemories, addMemory, type MemorySearchResult } from './semantic-m
 import { touchMemory } from './memory-lifecycle'
 import { buildContextWindow, trimMessagesToTokenLimit } from './context-manager'
 import { loadSessionSummary, shouldSummarize, summarizeSession } from './summarizer'
+import { getCharacterAISummary } from './character-profile-json'
 
 const MAX_SYSTEM_PROMPT_LENGTH = 6000
 const FORMAT_INSTRUCTION = '【格式规范】动作、神态、心理活动等非对话内容必须用中文圆括号（）包裹，严禁使用*星号*标记。示例：（微笑着点头）而非 *微笑着点头*。'
@@ -73,6 +74,7 @@ export class ChatService {
 
   async appendMessage(message: IMessage): Promise<void> {
     await this.storage.saveMessage(message)
+    await this.syncSessionAfterMessage(message.sessionId, message.timestamp)
     await updateCharacterMemoryFromMessage(this.storage, message.sessionId, message)
     await this.indexMessageToSemanticMemory(message)
   }
@@ -80,6 +82,7 @@ export class ChatService {
   async saveAssistantReply(sessionId: string, content: string): Promise<IMessage> {
     const reply = Message.createText(sessionId, 'assistant', content)
     await this.storage.saveMessage(reply)
+    await this.syncSessionAfterMessage(sessionId, reply.timestamp)
     await updateCharacterMemoryFromMessage(this.storage, sessionId, reply)
     return reply
   }
@@ -133,6 +136,18 @@ export class ChatService {
         this.activeStream = null
       }
     }
+  }
+
+  private async syncSessionAfterMessage(sessionId: string, timestamp: number): Promise<void> {
+    const session = await this.storage.getSession(sessionId)
+    if (!session) {
+      return
+    }
+
+    const messages = await this.storage.getMessages(sessionId)
+    session.messageCount = messages.length
+    session.updatedAt = Math.max(session.updatedAt || 0, timestamp || 0)
+    await this.storage.saveSession(session)
   }
 
   private async buildContext(sessionId: string, extraSystemPrompt = ''): Promise<ChatContext> {
@@ -201,7 +216,8 @@ export class ChatService {
     }
 
     // ── Layered system prompt assembly ──
-    const systemPrompt = this.buildSystemPrompt(character, userInfo, memoryPrompt, extraSystemPrompt, messageHistory, semanticResults, summaryText)
+    const characterAISummary = getCharacterAISummary(character)
+    const systemPrompt = this.buildSystemPrompt(character, userInfo, memoryPrompt, extraSystemPrompt, messageHistory, semanticResults, summaryText, characterAISummary)
 
     // ── Depth prompt injection into message history ──
     if (character.depthPrompt) {
@@ -241,7 +257,8 @@ export class ChatService {
     extraSystemPrompt: string,
     messageHistory: ChatMessage[],
     semanticResults: MemorySearchResult[] = [],
-    sessionSummary: string | null = null
+    sessionSummary: string | null = null,
+    characterAISummary = ''
   ): string {
     const sections: string[] = []
 
@@ -260,6 +277,10 @@ export class ChatService {
     // Layer 2: Scenario
     if (character.scenario?.trim()) {
       sections.push(`【场景设定】\n${character.scenario}`)
+    }
+
+    if (characterAISummary.trim()) {
+      sections.push(`【角色资料摘要】\n${characterAISummary.trim()}`)
     }
 
     // Layer 3: Description (full character info)
@@ -494,6 +515,7 @@ export class ChatService {
     if (greetingText) {
       const greetingMessage = Message.createText(session.id, 'assistant', greetingText)
       await this.storage.saveMessage(greetingMessage)
+      await this.syncSessionAfterMessage(session.id, greetingMessage.timestamp)
       await updateCharacterMemoryFromMessage(this.storage, session.id, greetingMessage)
     }
 

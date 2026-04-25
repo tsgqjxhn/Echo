@@ -1,11 +1,11 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="gallery-overlay" @click.self="$emit('close')">
+    <div v-if="visible" class="gallery-overlay" @click.self="closeGallery">
       <section class="gallery-sheet">
         <header class="gallery-head">
           <strong>图鉴</strong>
           <span>{{ unlockedCount }} / {{ GALLERY_ITEMS.length }}</span>
-          <button type="button" class="gallery-close" @click="$emit('close')">&times;</button>
+          <button type="button" class="gallery-close" @click="closeGallery">&times;</button>
         </header>
 
         <div class="gallery-tabs">
@@ -30,7 +30,10 @@
             :class="{ locked: !isUnlocked(item.id) }"
             @click="onItemClick(item)"
           >
-            <img :src="isUnlocked(item.id) ? item.src : ''" :alt="item.title" class="cell-image" />
+            <span class="cell-image-shell">
+              <img v-if="isUnlocked(item.id)" :src="item.src" :alt="item.title" class="cell-image" />
+              <span v-else class="cell-locked-mark">?</span>
+            </span>
             <span class="cell-title">{{ isUnlocked(item.id) ? item.title : '?' }}</span>
           </button>
         </div>
@@ -48,15 +51,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import ImageViewer from '@/components/ImageViewer/index.vue'
 import { GALLERY_ITEMS, getUnlockedIds, type GalleryItem } from '@/services/story-gallery'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   close: []
 }>()
 
@@ -74,7 +77,7 @@ const tabs = [
   { key: 'item' as const, label: '物品' },
 ]
 
-const unlockedCount = computed(() => unlockedIds.value.size)
+const unlockedCount = computed(() => GALLERY_ITEMS.filter(item => isUnlocked(item.id)).length)
 
 const filteredItems = computed(() => {
   if (activeTab.value === 'all') return GALLERY_ITEMS
@@ -91,6 +94,20 @@ function onItemClick(item: GalleryItem) {
   viewerTitle.value = item.title
   viewerVisible.value = true
 }
+
+function closeGallery() {
+  viewerVisible.value = false
+  emit('close')
+}
+
+watch(
+  () => props.visible,
+  visible => {
+    if (visible) {
+      unlockedIds.value = getUnlockedIds()
+    }
+  },
+)
 </script>
 
 <style lang="scss" scoped>
@@ -209,11 +226,27 @@ function onItemClick(item: GalleryItem) {
   }
 }
 
-.cell-image {
+.cell-image-shell {
   width: 100%;
   aspect-ratio: 1;
-  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.cell-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cell-locked-mark {
+  color: var(--text-tertiary);
+  font-size: 22px;
+  line-height: 1;
 }
 
 .cell-title {
