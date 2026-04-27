@@ -64,7 +64,14 @@
         群聊
         <span v-if="groupsBadge" class="tab-badge" aria-hidden="true"></span>
       </button>
-      <button type="button" class="sub-tab-add" @click="openContactSearch" title="搜索联系人">+</button>
+      <button
+        type="button"
+        class="sub-tab-add"
+        :title="contactsSubTab === 'groups' ? '搜索群聊' : '搜索联系人'"
+        @click="openContactSearch"
+      >
+        +
+      </button>
     </div>
 
     <Teleport to="body">
@@ -91,7 +98,7 @@
         </header>
 
         <div class="contact-search-body">
-          <button type="button" class="create-group-btn" @click="goToCreateGroup">
+          <button type="button" class="create-group-btn" @click="openGroupCreateSheet">
             <svg viewBox="0 0 24 24" width="18" height="18">
               <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/>
             </svg>
@@ -157,7 +164,75 @@
       </div>
     </Teleport>
 
+    <Teleport to="body">
+      <div v-if="showGroupCreateSheet" class="group-create-overlay" @click.self="closeGroupCreateSheet">
+        <section class="group-create-sheet">
+          <header class="group-create-head">
+            <button type="button" class="contact-topbar-back" @click="closeGroupCreateSheet">
+              <svg viewBox="0 0 1024 1024" width="20" height="20">
+                <path d="M768 112.512L718.016 64 256 512l462.016 448 49.984-48.512L355.968 512z" fill="currentColor"/>
+              </svg>
+            </button>
+            <strong>创建群聊</strong>
+            <button type="button" class="group-create-submit" :disabled="creatingGroup" @click="submitGroupChat">
+              {{ creatingGroup ? '创建中' : '完成' }}
+            </button>
+          </header>
+
+          <div class="group-create-body">
+            <label class="group-avatar-editor">
+              <img :src="groupForm.avatar.trim() || groupAvatarPreview" alt="群头像" />
+              <span>群头像</span>
+              <input v-model="groupForm.avatar" placeholder="可粘贴图片地址" />
+            </label>
+
+            <label class="group-field">
+              <span>群聊名称</span>
+              <input v-model="groupForm.name" maxlength="30" placeholder="例如：深夜频道" />
+            </label>
+
+            <label class="group-field">
+              <span>群公告</span>
+              <textarea v-model="groupForm.announcement" rows="3" maxlength="300" placeholder="写给群成员看的公告" />
+            </label>
+
+            <section class="invite-panel">
+              <div class="invite-panel-head">
+                <span>邀请角色</span>
+                <small>已选 {{ selectedMemberIds.length }}</small>
+              </div>
+              <div class="invite-member-list">
+                <button
+                  v-for="member in inviteCandidates"
+                  :key="member.id"
+                  type="button"
+                  class="invite-member-item"
+                  :class="{ active: selectedMemberIds.includes(member.id) }"
+                  @click="toggleGroupMember(member.id)"
+                >
+                  <img :src="member.avatar || defaultAvatar" :alt="member.name" />
+                  <span>{{ member.name }}</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+
     <section v-if="activeTab === 'contacts'" class="card-grid">
+      <article
+        v-for="req in pendingFriendRequests"
+        :key="req.id"
+        class="friend-card friend-request-card"
+      >
+        <img :src="req.characterAvatar || defaultAvatar" :alt="req.characterName" class="friend-avatar" />
+        <div class="friend-info">
+          <span class="friend-name">{{ req.characterName }}</span>
+          <span class="friend-bio">请求添加你为好友</span>
+        </div>
+        <button type="button" class="friend-accept-btn" @click.stop="acceptFriendReq(req.characterId)">通过</button>
+      </article>
       <article
         v-for="character in filteredCollectedCharacters"
         :key="character.id"
@@ -285,6 +360,7 @@ import { getStorageDriver } from '@/services/storage'
 import { exportService } from '@/services/export'
 import { dataManagementService } from '@/services/data-management'
 import { useCharacterStore } from '@/stores/character'
+import { useFriendRequestStore } from '@/stores/friend-requests'
 import { useChatStore } from '@/stores/chat'
 import { useMomentsStore } from '@/stores/moments'
 import {
@@ -311,6 +387,8 @@ import { MessageType, type IMessage, type IChatSession } from '@/types/chat'
 import { uni } from '@/utils/uni-polyfill'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
+import { createSilverAvatarDataUrl } from '@/utils/silver-art'
+import { generateUUID } from '@/utils/uuid'
 
 type HistoryTab = 'contacts' | 'liked' | 'chatted'
 type ContactsSubTab = 'friends' | 'groups'
@@ -332,6 +410,7 @@ const router = useRouter()
 const chatStore = useChatStore()
 const characterStore = useCharacterStore()
 const momentsStore = useMomentsStore()
+const friendRequestStore = useFriendRequestStore()
 const storage = getStorageDriver()
 
 const activeTab = ref<HistoryTab>('chatted')
@@ -343,6 +422,14 @@ const contactSearchInputRef = ref<HTMLInputElement | null>(null)
 const groupSheetTarget = ref<ICharacter | null>(null)
 const joinGroupTarget = ref<ICharacter | null>(null)
 const joinVerifyText = ref('')
+const showGroupCreateSheet = ref(false)
+const creatingGroup = ref(false)
+const selectedMemberIds = ref<string[]>([])
+const groupForm = ref({
+  name: '',
+  avatar: '',
+  announcement: '',
+})
 const friendBios = reactive<Record<string, string>>({})
 const searchKeyword = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
@@ -400,6 +487,17 @@ const groupCharacters = computed(() =>
   [...characterStore.characters]
     .filter(c => isGroupCharacter(c))
     .sort((a, b) => b.updatedAt - a.updatedAt)
+)
+
+const inviteCandidates = computed(() =>
+  characterStore.characters.filter(character =>
+    character.sourceType !== 'builtin-story' &&
+    !isGroupCharacter(character)
+  )
+)
+
+const groupAvatarPreview = computed(() =>
+  createSilverAvatarDataUrl(groupForm.value.name.trim() || '群')
 )
 
 const likedCharacters = computed(() =>
@@ -558,6 +656,7 @@ function filterCharacters(list: ICharacter[]) {
 
 const filteredCollectedCharacters = computed(() => filterCharacters(collectedCharacters.value))
 const filteredLikedCharacters = computed(() => filterCharacters(likedCharacters.value))
+const pendingFriendRequests = computed(() => friendRequestStore.pendingRequests)
 
 const filteredSessionCardsForTab = computed(() => {
   const source = chattedSessions.value
@@ -783,6 +882,11 @@ function markStorySessionsRead(sessionIds: string[]) {
   }
 }
 
+function acceptFriendReq(characterId: string) {
+  characterStore.toggleFriend(characterId)
+  friendRequestStore.acceptRequest(characterId)
+}
+
 function goToChat(characterId: string) {
   if (activeTab.value === 'contacts') {
     readState.value = markContactsRead(contactsSubTab.value)
@@ -896,9 +1000,71 @@ function submitJoinGroup() {
   }, 1200)
 }
 
-function goToCreateGroup() {
+function openGroupCreateSheet() {
   closeContactSearch()
-  router.push('/character/create?mode=group-chat')
+  contactsSubTab.value = 'groups'
+  groupForm.value = { name: '', avatar: '', announcement: '' }
+  selectedMemberIds.value = []
+  showGroupCreateSheet.value = true
+}
+
+function closeGroupCreateSheet() {
+  showGroupCreateSheet.value = false
+}
+
+function toggleGroupMember(id: string) {
+  selectedMemberIds.value = selectedMemberIds.value.includes(id)
+    ? selectedMemberIds.value.filter(item => item !== id)
+    : [...selectedMemberIds.value, id]
+}
+
+async function submitGroupChat() {
+  const name = groupForm.value.name.trim()
+  if (!name) {
+    uni.showToast({ title: '请填写群聊名称', icon: 'none' })
+    return
+  }
+
+  creatingGroup.value = true
+  try {
+    const members = characterStore.characters.filter(item => selectedMemberIds.value.includes(item.id))
+    const id = await characterStore.createCharacter({
+      id: generateUUID(),
+      name,
+      avatar: groupForm.value.avatar.trim() || createSilverAvatarDataUrl(name),
+      background: '群聊派对 / 普通群聊',
+      description: groupForm.value.announcement.trim() || `${name} 的群聊`,
+      greeting: `你创建了群聊「${name}」。`,
+      settings: [
+        '【群聊规则】',
+        '这是一个类似手机 QQ 的群聊。用户本人始终在群里。',
+        '群成员按排队模式依次发言，避免所有角色同时抢话。',
+        groupForm.value.announcement.trim() ? `群公告：${groupForm.value.announcement.trim()}` : '',
+        members.length ? `已邀请角色：${members.map(item => item.name).join('、')}` : '当前只有用户本人，可继续邀请角色加入。',
+      ].filter(Boolean).join('\n'),
+      mode: 'group-chat',
+      category: '群聊派对',
+      subCategory: '普通群聊',
+      memberIds: members.map(item => item.id),
+      members: members.map(item => item.name),
+      groupAnnouncement: groupForm.value.announcement.trim(),
+      groupChatMode: 'queue',
+      sourceType: 'manual',
+      tags: ['群聊派对', '普通群聊', '群聊'],
+      isFriend: true,
+      isFavorite: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+    closeGroupCreateSheet()
+    await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
+    contactsSubTab.value = 'groups'
+    router.push(`/chat/${id}`)
+  } catch {
+    uni.showToast({ title: '创建群聊失败', icon: 'none' })
+  } finally {
+    creatingGroup.value = false
+  }
 }
 
 function closeSearch() {
@@ -1281,6 +1447,25 @@ async function handleImportFile(event: Event) {
   }
 }
 
+.friend-request-card {
+  border-color: rgba(56, 189, 248, 0.30);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.friend-accept-btn {
+  padding: 6px 18px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.25);
+  color: #e0f2fe;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-base);
+
+  &:hover { background: rgba(56, 189, 248, 0.40); }
+}
+
 .friend-avatar {
   width: 48px;
   height: 48px;
@@ -1631,6 +1816,169 @@ async function handleImportFile(event: Event) {
   svg {
     flex-shrink: 0;
   }
+}
+
+.group-create-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10070;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 18% 10%, rgba(52, 211, 153, 0.18) 0%, transparent 46%),
+    linear-gradient(180deg, #07101a 0%, #0a1724 100%);
+}
+
+.group-create-sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--text-primary);
+}
+
+.group-create-head {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(5, 13, 20, 0.82);
+  backdrop-filter: blur(18px);
+}
+
+.group-create-head strong {
+  text-align: center;
+  font-size: 17px;
+}
+
+.group-create-submit {
+  min-width: 56px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.92);
+  color: #06101a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.group-create-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.group-create-body {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 28px);
+}
+
+.group-avatar-editor {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  grid-template-rows: auto auto;
+  gap: 6px 14px;
+  align-items: center;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.group-avatar-editor img {
+  grid-row: 1 / span 2;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.group-avatar-editor span,
+.group-field span,
+.invite-panel-head span {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.group-avatar-editor input,
+.group-field input,
+.group-field textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  padding: 11px 12px;
+  font: inherit;
+  outline: none;
+}
+
+.group-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.group-field textarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.invite-panel {
+  margin-top: 18px;
+}
+
+.invite-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.invite-panel-head small {
+  color: var(--text-secondary);
+}
+
+.invite-member-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.invite-member-item {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  padding: 10px 6px;
+  cursor: pointer;
+}
+
+.invite-member-item.active {
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text-primary);
+}
+
+.invite-member-item img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 6px;
+}
+
+.invite-member-item span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 .contact-search-results {

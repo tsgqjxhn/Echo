@@ -86,6 +86,14 @@
         </div>
       </div>
 
+      <div class="game-action-panel">
+        <button type="button" class="action-wide undo-btn" :disabled="moveHistory.length === 0 || !isPlayerTurn || !!gameOverMsg" @click="undoMove">悔棋</button>
+      </div>
+
+      <div v-if="aiRequestState !== 'idle'" class="ai-waiting-card">
+        {{ aiRequestState === 'waiting' ? '正在邀请角色进入对局…' : '角色已收到对局邀请' }}
+      </div>
+
       <div class="captured-area">
         <span class="captured-label">已吃：</span>
         <span v-for="(p, i) in capturedByPlayer" :key="'cp' + i" class="captured-piece">{{ pieceSymbol(p) }}</span>
@@ -132,6 +140,14 @@ const gameOverMsg = ref('')
 const capturedByPlayer = ref<number[]>([])
 const capturedByOpponent = ref<number[]>([])
 const lastMove = ref<{ from: [number, number]; to: [number, number] } | null>(null)
+const moveHistory = ref<Array<{
+  board: BoardState
+  currentTurn: 1 | -1
+  capturedByPlayer: number[]
+  capturedByOpponent: number[]
+  lastMove: { from: [number, number]; to: [number, number] } | null
+}>>([])
+const aiRequestState = ref<'idle' | 'waiting' | 'sent'>('idle')
 let friendCharacter: ICharacter | null = null
 let aiTimer = 0
 
@@ -204,8 +220,10 @@ function startWithFriend(f: ICharacter) {
   lastMove.value = null
   capturedByPlayer.value = []
   capturedByOpponent.value = []
+  moveHistory.value = []
   gameOverMsg.value = ''
   gameStarted.value = true
+  notifyFriendGameCreated(f)
 }
 
 function startLocal() {
@@ -218,6 +236,8 @@ function startLocal() {
   lastMove.value = null
   capturedByPlayer.value = []
   capturedByOpponent.value = []
+  moveHistory.value = []
+  aiRequestState.value = 'idle'
   gameOverMsg.value = ''
   gameStarted.value = true
 }
@@ -231,6 +251,7 @@ function clickSquare(r: number, c: number) {
   if (selectedSquare.value) {
     const isValid = validMoves.value.some(([vr, vc]) => vr === r && vc === c)
     if (isValid) {
+      saveHistorySnapshot()
       movePiece(selectedSquare.value[0], selectedSquare.value[1], r, c)
       selectedSquare.value = null
       validMoves.value = []
@@ -245,6 +266,44 @@ function clickSquare(r: number, c: number) {
   } else {
     selectedSquare.value = null
     validMoves.value = []
+  }
+}
+
+function saveHistorySnapshot() {
+  moveHistory.value.push({
+    board: cloneBoard(board.value),
+    currentTurn: currentTurn.value,
+    capturedByPlayer: [...capturedByPlayer.value],
+    capturedByOpponent: [...capturedByOpponent.value],
+    lastMove: lastMove.value ? { from: [...lastMove.value.from] as [number, number], to: [...lastMove.value.to] as [number, number] } : null,
+  })
+}
+
+function undoMove() {
+  const snapshot = moveHistory.value.pop()
+  if (!snapshot) return
+  if (aiTimer) {
+    clearTimeout(aiTimer)
+    aiTimer = 0
+  }
+  board.value = cloneBoard(snapshot.board)
+  currentTurn.value = snapshot.currentTurn
+  capturedByPlayer.value = [...snapshot.capturedByPlayer]
+  capturedByOpponent.value = [...snapshot.capturedByOpponent]
+  lastMove.value = snapshot.lastMove
+  selectedSquare.value = null
+  validMoves.value = []
+  gameOverMsg.value = ''
+}
+
+async function notifyFriendGameCreated(friend: ICharacter) {
+  aiRequestState.value = 'waiting'
+  try {
+    await chatStore.initChat(friend.id)
+    await chatStore.sendMessage(`我创建了一局国际象棋并邀请你对弈。请以${friend.name}的口吻简短回应是否接受邀请，并给出一句开局态度。`)
+    aiRequestState.value = 'sent'
+  } catch {
+    aiRequestState.value = 'idle'
   }
 }
 
@@ -652,6 +711,7 @@ function resetGame() {
   currentTurn.value = 1
   capturedByPlayer.value = []
   capturedByOpponent.value = []
+  moveHistory.value = []
   gameOverMsg.value = ''
   if (currentTurn.value !== playerColor.value) {
     aiTimer = window.setTimeout(doAiMove, 400)
@@ -956,6 +1016,38 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
+.game-action-panel {
+  display: flex;
+  gap: 8px;
+}
+
+.action-wide {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  background: rgba(56, 189, 248, 0.08);
+  color: rgba(125, 211, 252, 0.86);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+}
+
+.ai-waiting-card {
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.14);
+  border-radius: 10px;
+  background: rgba(52, 211, 153, 0.08);
+  color: rgba(110, 231, 183, 0.9);
+  font-size: 13px;
+  text-align: center;
+}
+
 .captured-label { font-size: 11px; color: var(--text-tertiary); margin-right: 4px; }
 .captured-sep { color: rgba(255, 255, 255, 0.1); margin: 0 6px; }
 .captured-piece { color: #f0f0f0; }
@@ -977,12 +1069,25 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 32px;
+  width: min(100vw, 520px);
+  min-height: 220px;
+  justify-content: center;
+  padding: 32px 22px;
   background: #0c1e2e;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 0;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
 }
 
 .overlay-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin: 0; }
+
+.overlay-card .start-btn,
+.overlay-card .back-btn-sm {
+  width: min(280px, 100%);
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
 </style>

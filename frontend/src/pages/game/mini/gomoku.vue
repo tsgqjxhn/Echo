@@ -56,6 +56,14 @@
         <canvas ref="canvas" class="board-canvas" :width="canvasSize" :height="canvasSize" @click="onClickBoard" @touchend.prevent="onTouchBoard" />
       </div>
 
+      <div class="game-action-panel">
+        <button type="button" class="action-wide undo-btn" :disabled="moveHistory.length === 0 || !isPlayerTurn || !!gameOverMsg" @click="undoMove">悔棋</button>
+      </div>
+
+      <div v-if="aiRequestState !== 'idle'" class="ai-waiting-card">
+        {{ aiRequestState === 'waiting' ? '正在邀请角色进入对局…' : '角色已收到对局邀请' }}
+      </div>
+
       <div v-if="gameOverMsg" class="overlay">
         <div class="overlay-card">
           <p class="overlay-title">{{ gameOverMsg }}</p>
@@ -89,6 +97,8 @@ const gameOverMsg = ref('')
 const playerColor = ref<1 | -1>(1) // 1=black(先手), -1=white
 const currentTurn = ref<1 | -1>(1)
 const lastMove = ref<[number, number] | null>(null)
+const moveHistory = ref<Array<{ board: number[][]; currentTurn: 1 | -1; lastMove: [number, number] | null }>>([])
+const aiRequestState = ref<'idle' | 'waiting' | 'sent'>('idle')
 
 let board: number[][] = []
 let friendCharacter: ICharacter | null = null
@@ -117,19 +127,60 @@ function startWithFriend(f: ICharacter) {
   opponentName.value = f.name
   playerColor.value = 1; currentTurn.value = 1
   lastMove.value = null; gameOverMsg.value = ''
+  moveHistory.value = []
   initBoard(); gameStarted.value = true
+  notifyFriendGameCreated(f)
 }
 
 function startLocal() {
   opponentName.value = `引擎 (${difficulties[difficulty.value - 1].name})`
   playerColor.value = 1; currentTurn.value = 1
   lastMove.value = null; gameOverMsg.value = ''
+  moveHistory.value = []
+  aiRequestState.value = 'idle'
   initBoard(); gameStarted.value = true
 }
 
 function resetGame() {
   initBoard(); lastMove.value = null; gameOverMsg.value = ''
-  currentTurn.value = 1; draw()
+  currentTurn.value = 1; moveHistory.value = []; draw()
+}
+
+function cloneBoardState(): number[][] {
+  return board.map(row => [...row])
+}
+
+function saveHistorySnapshot() {
+  moveHistory.value.push({
+    board: cloneBoardState(),
+    currentTurn: currentTurn.value,
+    lastMove: lastMove.value ? [...lastMove.value] as [number, number] : null,
+  })
+}
+
+function undoMove() {
+  const snapshot = moveHistory.value.pop()
+  if (!snapshot) return
+  if (aiTimer) {
+    clearTimeout(aiTimer)
+    aiTimer = 0
+  }
+  board = snapshot.board.map(row => [...row])
+  currentTurn.value = snapshot.currentTurn
+  lastMove.value = snapshot.lastMove
+  gameOverMsg.value = ''
+  draw()
+}
+
+async function notifyFriendGameCreated(friend: ICharacter) {
+  aiRequestState.value = 'waiting'
+  try {
+    await chatStore.initChat(friend.id)
+    await chatStore.sendMessage(`我创建了一局五子棋并邀请你对弈。请以${friend.name}的口吻简短回应是否接受邀请，并给出一句开局态度。`)
+    aiRequestState.value = 'sent'
+  } catch {
+    aiRequestState.value = 'idle'
+  }
 }
 
 // Affinity (shared system)
@@ -204,6 +255,7 @@ function onClickBoard(e: MouseEvent) {
   const rect = canvas.value!.getBoundingClientRect()
   const [r, c] = getCell(e.clientX - rect.left, e.clientY - rect.top)
   if (r < 0 || board[r][c] !== 0) return
+  saveHistorySnapshot()
   placePiece(r, c)
 }
 
@@ -213,6 +265,7 @@ function onTouchBoard(e: TouchEvent) {
   const t = e.changedTouches[0]
   const [r, c] = getCell(t.clientX - rect.left, t.clientY - rect.top)
   if (r < 0 || board[r][c] !== 0) return
+  saveHistorySnapshot()
   placePiece(r, c)
 }
 
@@ -528,14 +581,39 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
   border-radius: 8px; border: 2px solid rgba(255,255,255,0.08);
   box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 100%;
 }
+.game-action-panel { display: flex; gap: 8px; }
+.action-wide {
+  flex: 1; min-height: 42px; border-radius: 10px;
+  border: 1px solid rgba(56,189,248,0.18);
+  background: rgba(56,189,248,0.08);
+  color: rgba(125,211,252,0.86);
+  font: inherit; font-weight: 600; cursor: pointer;
+  &:disabled { opacity: 0.42; cursor: not-allowed; }
+}
+.ai-waiting-card {
+  padding: 10px 12px; border: 1px solid rgba(52,211,153,0.14);
+  border-radius: 10px; background: rgba(52,211,153,0.08);
+  color: rgba(110,231,183,0.9); font-size: 13px; text-align: center;
+}
 .overlay {
   position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
   justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
 }
 .overlay-card {
-  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 32px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  width: min(100vw, 520px); min-height: 220px; padding: 32px 22px;
   background: #0c1e2e; border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px; box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  border-radius: 0; box-shadow: 0 24px 64px rgba(0,0,0,0.5);
 }
 .overlay-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin: 0; }
+
+.overlay-card .start-btn,
+.overlay-card .back-btn-sm {
+  width: min(280px, 100%);
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
 </style>

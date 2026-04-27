@@ -45,6 +45,15 @@
         <!-- content -->
         <p class="post-content">{{ post.content }}</p>
 
+        <button
+          v-if="post.imageUrl"
+          type="button"
+          class="post-image-button"
+          @click="enlargeImage(post.imageUrl, post.content)"
+        >
+          <img :src="post.imageUrl" :alt="post.content" class="post-image" />
+        </button>
+
         <!-- action bar -->
         <div class="post-actions">
           <button
@@ -261,6 +270,12 @@ function enlargeAvatar(src: string, name: string) {
   viewerAlt.value = name
   viewerVisible.value = true
 }
+
+function enlargeImage(src: string, caption: string) {
+  viewerSrc.value = src
+  viewerAlt.value = caption
+  viewerVisible.value = true
+}
 </script>
 
 <style scoped lang="scss">
@@ -414,6 +429,25 @@ function enlargeAvatar(src: string, name: string) {
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.post-image-button {
+  display: block;
+  width: min(420px, calc(100% - 54px));
+  margin: 0 0 12px 54px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.post-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
 // action bar

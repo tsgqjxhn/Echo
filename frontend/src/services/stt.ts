@@ -71,10 +71,75 @@ function getSpeechRecognitionCtor(): (new () => BrowserSpeechRecognition) | null
 }
 
 function inferAudioFilename(blob: Blob, fallback = 'recording.webm'): string {
-  if (blob.type === 'audio/mpeg') return 'recording.mp3'
-  if (blob.type === 'audio/mp4') return 'recording.m4a'
-  if (blob.type === 'audio/wav') return 'recording.wav'
+  const type = blob.type.split(';')[0].trim().toLowerCase()
+  if (type === 'audio/mpeg' || type === 'audio/mp3') return 'recording.mp3'
+  if (type === 'audio/mp4' || type === 'audio/aac' || type === 'audio/x-m4a') return 'recording.m4a'
+  if (type === 'audio/wav' || type === 'audio/x-wav' || type === 'audio/wave') return 'recording.wav'
+  if (type === 'audio/ogg') return 'recording.ogg'
+  if (type === 'audio/flac') return 'recording.flac'
   return fallback
+}
+
+function getAudioContextCtor(): typeof AudioContext | null {
+  if (typeof window === 'undefined') return null
+  return (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | null
+}
+
+function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
+  const numChannels = 1
+  const sampleRate = buffer.sampleRate
+  const channelData = buffer.getChannelData(0)
+  const dataLength = channelData.length * 2
+  const arrayBuffer = new ArrayBuffer(44 + dataLength)
+  const view = new DataView(arrayBuffer)
+
+  const writeString = (offset: number, str: string): void => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+  }
+
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + dataLength, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, numChannels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * numChannels * 2, true)
+  view.setUint16(32, numChannels * 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, dataLength, true)
+
+  let offset = 44
+  for (let i = 0; i < channelData.length; i++) {
+    const sample = Math.max(-1, Math.min(1, channelData[i]))
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+    offset += 2
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' })
+}
+
+async function convertBlobToWav(blob: Blob, targetSampleRate = 16000): Promise<Blob> {
+  const AudioCtor = getAudioContextCtor()
+  if (!AudioCtor || typeof OfflineAudioContext === 'undefined') return blob
+
+  const arrayBuffer = await blob.arrayBuffer()
+  const decodeCtx = new AudioCtor()
+  try {
+    const decoded = await decodeCtx.decodeAudioData(arrayBuffer.slice(0))
+    const sampleRate = targetSampleRate || decoded.sampleRate
+    const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * sampleRate)), sampleRate)
+    const source = offline.createBufferSource()
+    source.buffer = decoded
+    source.connect(offline.destination)
+    source.start(0)
+    const rendered = await offline.startRendering()
+    return audioBufferToWavBlob(rendered)
+  } finally {
+    decodeCtx.close().catch(() => undefined)
+  }
 }
 
 function inferAudioMimeType(source: string): string {
@@ -121,6 +186,7 @@ export class STTService {
   private onErrorCallback?: ErrorCallback
   private useLocal = false
   private useNativeLocal = false
+  private useNativeAudio = false
   private localTranscript = ''
   private nativeSpeechListeners: PluginListenerHandle[] = []
 
@@ -145,6 +211,11 @@ export class STTService {
   }
 
   async startRecording(): Promise<void> {
+    this.useLocal = false
+    this.useNativeLocal = false
+    this.useNativeAudio = false
+    this.localTranscript = ''
+
     const providerConfig =
       (await apiConfigService.getDefaultConfig('stt')) ||
       (await apiConfigService.getDefaultConfig('voice'))
@@ -158,23 +229,62 @@ export class STTService {
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
       : null
 
-    if (nativeAvailability?.sttAvailable) {
+    const hasRemoteSTTProvider = !!providerConfig && providerConfig.provider !== 'local'
+    const preferNativeSTT = !!nativeAvailability?.sttAvailable && !hasRemoteSTTProvider
+
+    if (preferNativeSTT) {
       this.useLocal = true
       this.useNativeLocal = true
-      return this.startNativeLocalRecognition()
+      try {
+        return await this.startNativeLocalRecognition()
+      } catch (nativeRecognitionError) {
+        this.useLocal = false
+        this.useNativeLocal = false
+        this.localTranscript = ''
+        if (isNativeRuntime()) {
+          try {
+            return await this.startNativeAudioRecording()
+          } catch (nativeAudioError) {
+            throw new Error(
+              `${(nativeRecognitionError as Error).message || '系统语音识别启动失败'}；原生录音兜底也失败：${(nativeAudioError as Error).message || '未知错误'}`
+            )
+          }
+        }
+        throw nativeRecognitionError
+      }
     }
 
     if (providerConfig?.provider === 'local') {
-      this.useLocal = true
-      this.useNativeLocal = false
-      return this.startLocalRecognition()
+      if (isNativeRuntime() && nativeAvailability?.sttAvailable) {
+        this.useLocal = true
+        this.useNativeLocal = true
+        try {
+          return await this.startNativeLocalRecognition()
+        } catch (nativeError) {
+          this.useLocal = false
+          this.useNativeLocal = false
+          throw new Error(
+            `${(nativeError as Error).message || '系统语音识别启动失败'}。如设备未安装语音模型，请改用云端 STT 提供商。`
+          )
+        }
+      }
+      if (getSpeechRecognitionCtor()) {
+        this.useLocal = true
+        this.useNativeLocal = false
+        return this.startLocalRecognition()
+      }
+      throw new Error('当前环境未提供本地语音识别引擎，请在设置中选择云端 STT 提供商')
     }
 
-    this.useLocal = false
-    this.useNativeLocal = false
-    this.localTranscript = ''
-
     let h5RecordingError: Error | null = null
+
+    if (isNativeRuntime()) {
+      try {
+        return await this.startNativeAudioRecording()
+      } catch (nativeAudioError) {
+        h5RecordingError = nativeAudioError as Error
+      }
+    }
 
     // Try browser MediaRecorder + getUserMedia first (works in Capacitor WebView with permissions)
     if (typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getUserMedia === 'function') {
@@ -216,6 +326,7 @@ export class STTService {
   async stopRecording(): Promise<string> {
     if (this.useLocal && this.useNativeLocal) return this.stopNativeLocalRecognition()
     if (this.useLocal && this.recognition) return this.stopLocalRecognition()
+    if (this.useNativeAudio) return this.stopNativeAudioRecording()
     if (this.mediaRecorder) return this.stopH5Recording()
     return this.stopNativeRecording()
   }
@@ -255,6 +366,9 @@ export class STTService {
       void NativeSpeech.cancelRecognition().catch(() => undefined)
       void this.detachNativeSpeechListeners()
     }
+    if (this.useNativeAudio) {
+      void NativeSpeech.cancelAudioRecording().catch(() => undefined)
+    }
     if (this.recognition) {
       this.recognition.onresult = null
       this.recognition.onerror = null
@@ -274,6 +388,7 @@ export class STTService {
     this.state = RecordingState.IDLE
     this.useLocal = false
     this.useNativeLocal = false
+    this.useNativeAudio = false
     this.localTranscript = ''
   }
 
@@ -554,6 +669,28 @@ export class STTService {
     })
   }
 
+  private async startNativeAudioRecording(): Promise<void> {
+    this.cleanupH5Resources()
+    this.recordedBlob = null
+    this.tempAudioPath = ''
+    await NativeSpeech.startAudioRecording({
+      sampleRate: this.config.sampleRate,
+      numberOfChannels: this.config.numberOfChannels,
+      format: this.config.format,
+    })
+    this.useNativeAudio = true
+    this.state = RecordingState.RECORDING
+  }
+
+  private async stopNativeAudioRecording(): Promise<string> {
+    this.state = RecordingState.PROCESSING
+    const result = await NativeSpeech.stopAudioRecording()
+    this.recordedBlob = base64ToBlob(result.base64, result.mimeType || 'audio/mp4')
+    this.tempAudioPath = result.filename || 'recording.m4a'
+    this.useNativeAudio = false
+    return this.tempAudioPath
+  }
+
   private async transcribeSource(source: string): Promise<string> {
     const normalized = source.trim()
     if (!normalized) return ''
@@ -570,10 +707,13 @@ export class STTService {
   private async transcribeBlob(blob: Blob, filename: string): Promise<string> {
     const providerConfig =
       (await apiConfigService.getDefaultConfig('stt')) ||
-      (await apiConfigService.getDefaultConfig('voice')) ||
-      (await apiConfigService.getDefaultConfig('text'))
+      (await apiConfigService.getDefaultConfig('voice'))
 
-    if (!providerConfig) throw new Error('请先配置可用的 API 提供商')
+    if (!providerConfig) throw new Error('请先在设置中配置 STT 提供商')
+
+    if (providerConfig.provider === 'local') {
+      throw new Error('本地 STT 仅支持系统语音识别，无法对录音文件转写')
+    }
 
     const adapter = getAdapterOrDefault(providerConfig.provider)
 
@@ -582,11 +722,27 @@ export class STTService {
     }
 
     const model = resolveTranscriptionModel(providerConfig)
+
+    let uploadBlob = blob
+    let uploadFilename = filename
+    const baseType = blob.type.split(';')[0].trim().toLowerCase()
+    const widelySupported = baseType === 'audio/mpeg' || baseType === 'audio/mp3'
+      || baseType === 'audio/wav' || baseType === 'audio/x-wav' || baseType === 'audio/wave'
+      || baseType === 'audio/flac'
+    if (!widelySupported) {
+      try {
+        uploadBlob = await convertBlobToWav(blob, this.config.sampleRate || 16000)
+        uploadFilename = 'recording.wav'
+      } catch {
+        uploadBlob = new Blob([blob], { type: baseType || 'application/octet-stream' })
+      }
+    }
+
     const fd = adapter.buildSTTFormData({
       model,
       language: this.config.language,
-      file: blob,
-      filename,
+      file: uploadBlob,
+      filename: uploadFilename,
     })
 
     const url = adapter.resolveEndpoint(providerConfig.baseURL, 'stt')

@@ -1,9 +1,11 @@
 package com.echo.app.plugins;
 
 import android.content.Intent;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -19,6 +21,8 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.util.ArrayList;
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -40,6 +44,8 @@ public class NativeSpeechPlugin extends Plugin {
     private Runnable pendingStopFallback;
     private String latestTranscript = "";
     private String latestPartialTranscript = "";
+    private MediaRecorder audioRecorder;
+    private File audioRecordFile;
 
     private TextToSpeech textToSpeech;
     private boolean ttsReady = false;
@@ -138,6 +144,72 @@ public class NativeSpeechPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void startAudioRecording(PluginCall call) {
+        runOnMainThread(() -> {
+            cancelAudioRecordingInternal();
+
+            try {
+                audioRecordFile = File.createTempFile("echo-recording-", ".m4a", getContext().getCacheDir());
+                audioRecorder = new MediaRecorder();
+                audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                audioRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                audioRecorder.setAudioChannels(Math.max(1, call.getInt("numberOfChannels", 1)));
+                audioRecorder.setAudioSamplingRate(Math.max(8000, call.getInt("sampleRate", 16000)));
+                audioRecorder.setOutputFile(audioRecordFile.getAbsolutePath());
+                audioRecorder.prepare();
+                audioRecorder.start();
+
+                JSObject result = new JSObject();
+                result.put("started", true);
+                call.resolve(result);
+            } catch (Exception error) {
+                cancelAudioRecordingInternal();
+                call.reject(error.getMessage() != null ? error.getMessage() : "原生录音启动失败");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void stopAudioRecording(PluginCall call) {
+        runOnMainThread(() -> {
+            try {
+                if (audioRecorder == null || audioRecordFile == null) {
+                    call.reject("当前没有正在进行的录音");
+                    return;
+                }
+
+                try {
+                    audioRecorder.stop();
+                } catch (RuntimeException ignored) {
+                }
+                audioRecorder.release();
+                audioRecorder = null;
+
+                byte[] bytes = readAllBytes(audioRecordFile);
+                JSObject result = new JSObject();
+                result.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
+                result.put("mimeType", "audio/mp4");
+                result.put("filename", "recording.m4a");
+                audioRecordFile.delete();
+                audioRecordFile = null;
+                call.resolve(result);
+            } catch (Exception error) {
+                cancelAudioRecordingInternal();
+                call.reject(error.getMessage() != null ? error.getMessage() : "原生录音停止失败");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void cancelAudioRecording(PluginCall call) {
+        runOnMainThread(() -> {
+            cancelAudioRecordingInternal();
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void speak(PluginCall call) {
         final String text = call.getString("text", "").trim();
         if (text.isEmpty()) {
@@ -206,8 +278,49 @@ public class NativeSpeechPlugin extends Plugin {
         super.handleOnDestroy();
         runOnMainThread(() -> {
             cancelRecognitionInternal(false);
+            cancelAudioRecordingInternal();
             releaseTextToSpeech();
         });
+    }
+
+    private byte[] readAllBytes(File file) throws Exception {
+        long length = file.length();
+        if (length <= 0 || length > Integer.MAX_VALUE) {
+            throw new Exception("录音文件无效");
+        }
+
+        byte[] bytes = new byte[(int) length];
+        try (FileInputStream input = new FileInputStream(file)) {
+            int offset = 0;
+            while (offset < bytes.length) {
+                int count = input.read(bytes, offset, bytes.length - offset);
+                if (count < 0) break;
+                offset += count;
+            }
+        }
+        return bytes;
+    }
+
+    private void cancelAudioRecordingInternal() {
+        if (audioRecorder != null) {
+            try {
+                audioRecorder.stop();
+            } catch (Exception ignored) {
+            }
+            try {
+                audioRecorder.release();
+            } catch (Exception ignored) {
+            }
+            audioRecorder = null;
+        }
+
+        if (audioRecordFile != null) {
+            try {
+                audioRecordFile.delete();
+            } catch (Exception ignored) {
+            }
+            audioRecordFile = null;
+        }
     }
 
     private void ensureTextToSpeech() {
@@ -522,8 +635,16 @@ public class NativeSpeechPlugin extends Plugin {
                 return "系统语音识别服务异常";
             case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                 return "长时间未检测到说话";
+            case 12: // ERROR_LANGUAGE_NOT_SUPPORTED
+                return "系统语音识别不支持当前语言，请改用云端 STT";
+            case 13: // ERROR_LANGUAGE_UNAVAILABLE
+                return "本地语音模型未下载，请到「系统设置 > 语言和输入 > 语音输入」下载离线包，或改用云端 STT";
+            case 14: // ERROR_SERVER_DISCONNECTED
+                return "系统语音识别服务已断开";
+            case 15: // ERROR_TOO_MANY_REQUESTS
+                return "系统语音识别请求过多";
             default:
-                return "系统语音识别失败";
+                return "系统语音识别失败 (code=" + error + ")";
         }
     }
 

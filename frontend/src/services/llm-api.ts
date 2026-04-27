@@ -30,6 +30,17 @@ function inferImageMimeType(path: string): string {
   return 'image/jpeg'
 }
 
+function isChatStreamEnabled(): boolean {
+  try {
+    const raw = localStorage.getItem('echo_chat_defaults')
+    if (!raw) return true
+    const parsed = JSON.parse(raw) as { streamEnabled?: boolean }
+    return parsed.streamEnabled !== false
+  } catch {
+    return true
+  }
+}
+
 function blobToDataURL(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -261,6 +272,12 @@ export class LLMAPIService {
     const service = this
 
     const stream = (async function* (): AsyncGenerator<ChatChunk, void, unknown> {
+      if (!isChatStreamEnabled() || !service.adapter.capabilities.chatStream) {
+        const content = await service.chat(context)
+        if (content) yield { content, isFirst: true }
+        return
+      }
+
       if (isNativeRuntime()) {
         const request = await service['buildChatRequest'](context, true)
         const nativeStream = await openNativeChatStream({

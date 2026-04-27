@@ -24,7 +24,7 @@ import echoBgm from '@/static/images/背景音乐.mp3'
 export const ECHO_STORY_NAME = '回声'
 export const ECHO_FIRST_CONVERSATION_NAME = '回响'
 export const ECHO_STORY_CHARACTER_ID = 'builtin-echo-xing'
-export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-v4'
+export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-v5'
 
 const MUSIC_RATES = [1, 0.94, 1.08, 0.98, 1.12, 0.9]
 
@@ -127,6 +127,10 @@ export function resolveStoryAvatar(key: StoryAvatarKey | null | undefined): stri
 
 function resolveAvatarKeyFromText(text: string): StoryAvatarKey | null {
   const patterns = [
+    /\[头像状态[:：][^=\]]+=>([^\]]+)\]/,
+    /\[头像更换[:：][^=\]]+=>([^\]]+)\]/,
+    /\[头像解锁[:：]\s*([^\]]+)\]/,
+    /\[头像更新[:：]\s*([^\]]+)\]/,
     /头像解锁[:：]?【(.+?)】/,
     /头像更新[:：]?【(.+?)】/,
     /头像已从【.+?】(?:永久)?变更为【(.+?)】/,
@@ -138,16 +142,16 @@ function resolveAvatarKeyFromText(text: string): StoryAvatarKey | null {
     if (!label) {
       continue
     }
-    if (label.includes('短发')) {
+    if (label.includes('avatar-short-hair') || label === 'short' || label.includes('短发')) {
       return 'short'
     }
-    if (label.includes('模糊')) {
+    if (label.includes('avatar-blur') || label === 'blur' || label.includes('模糊')) {
       return 'blur'
     }
-    if (label.includes('正面清晰') || label.includes('清晰形象') || label === '星') {
+    if (label.includes('avatar-xing') || label === 'clear' || label.includes('正面清晰') || label.includes('清晰形象') || label === '星') {
       return 'xing'
     }
-    if (label.includes('?') || label.includes('未知')) {
+    if (label.includes('avatar-question') || label === 'question' || label.includes('?') || label.includes('未知')) {
       return 'question'
     }
   }
@@ -161,6 +165,7 @@ function resolveAvatarKeyFromText(text: string): StoryAvatarKey | null {
 
 function resolveContactNameFromText(text: string): string | null {
   const patterns = [
+    /\[名字更改[:：][^=\]]+=>([^\]]+)\]/,
     /联系人名称更新为【(.+?)】/,
     /联系人名称由【.+?】(?:永久)?更新为【(.+?)】/,
     /联系人暂记为[:：]\s*([^。]+)/,
@@ -188,6 +193,27 @@ export function applyConversationPresentation(
 
 function normalizeStorySegments(segments: DialogueSegment[]): DialogueSegment[] {
   return segments.flatMap(segment => {
+    if (segment.kind === 'choice' && segment.messages.length > 0) {
+      const leadingSegments = normalizeStorySegments([
+        {
+          id: `${segment.id}-leading-messages`,
+          kind: 'messages',
+          scene: segment.scene,
+          prompt: segment.prompt,
+          messages: segment.messages.map(message => ({ ...message })),
+          options: [],
+        },
+      ] as DialogueSegment[])
+
+      return [
+        ...leadingSegments,
+        {
+          ...segment,
+          messages: [],
+        },
+      ] as DialogueSegment[]
+    }
+
     if (segment.kind !== 'messages' || !segment.messages.some(message => message.role === 'me')) {
       return [segment]
     }

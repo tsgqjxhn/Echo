@@ -27,7 +27,7 @@
         </svg>
       </button>
 
-      <button type="button" class="btn-more" aria-label="更多" @click="showChatMore = !showChatMore">
+      <button v-if="hasChatMoreActions" type="button" class="btn-more" aria-label="更多" @click="showChatMore = !showChatMore">
         <svg viewBox="0 0 1024 1024" width="22" height="22">
           <path d="M512 298.6496a85.3504 85.3504 0 1 0 0-170.6496 85.3504 85.3504 0 0 0 0 170.6496z" fill="currentColor"/>
           <path d="M512 512m-85.3504 0a85.3504 85.3504 0 1 0 170.7008 0 85.3504 85.3504 0 1 0-170.7008 0Z" fill="currentColor"/>
@@ -206,21 +206,11 @@
     <Teleport to="body">
       <div v-if="showChatMore" class="chat-more-overlay" @click.self="showChatMore = false">
         <div class="chat-more-menu">
-          <button type="button" class="chat-more-item" @click="openGallery">
+          <button v-if="hasGalleryAction" type="button" class="chat-more-item" @click="openGallery">
             <svg viewBox="0 0 24 24" width="20" height="20">
               <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" fill="currentColor"/>
             </svg>
             <span>图鉴</span>
-          </button>
-          <button type="button" class="chat-more-item" @click="toggleAutoVoicePlayback">
-            <svg v-if="autoVoicePlayback" viewBox="0 0 24 24" width="20" height="20">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" width="20" height="20">
-              <path d="M6 9v6h4l5 5V4l-5 5H6zm12.5 3a6.5 6.5 0 0 0-2-4.69v9.38a6.5 6.5 0 0 0 2-4.69z" fill="currentColor"/>
-              <path d="M4 4l16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
-            </svg>
-            <span>{{ autoVoicePlayback ? '关闭自动朗读' : '开启自动朗读' }}</span>
           </button>
         </div>
       </div>
@@ -422,6 +412,10 @@ const hasSendableContent = computed(() => inputText.value.trim().length > 0)
 const showBracketButton = computed(() => !voiceMode.value && (hasComposerContent.value || isInputFocused.value))
 const showVoiceToggle = computed(() => !hasComposerContent.value)
 const showSendButton = computed(() => hasComposerContent.value)
+const hasGalleryAction = computed(() =>
+  characterId.value === ECHO_STORY_CHARACTER_ID || character.value?.sourceType === 'builtin-story'
+)
+const hasChatMoreActions = computed(() => hasGalleryAction.value)
 const showBackButton = computed(() => isHistoryEntry.value)
 const showRandomSwitchButton = computed(() => !isHistoryEntry.value)
 const isCurrentChatGenerating = computed(() => chatStore.isCurrentSessionGenerating)
@@ -773,9 +767,7 @@ function insertParenthesesAtCursor() {
 }
 
 function onInputPointerDown() {
-  longPressTimer = setTimeout(() => {
-    voiceMode.value = true
-  }, 600)
+  longPressTimer = null
 }
 
 function onInputPointerUp() {
@@ -906,6 +898,11 @@ function openCharacterDetail() {
 }
 
 function openGallery() {
+  if (characterId.value !== ECHO_STORY_CHARACTER_ID && character.value?.sourceType !== 'builtin-story') {
+    uni.showToast({ title: '图鉴仅绑定星故事', icon: 'none' })
+    showChatMore.value = false
+    return
+  }
   showChatMore.value = false
   charPopoverVisible.value = false
   showGallery.value = true
@@ -1017,7 +1014,19 @@ async function sheetInviteToGroup() {
 
 function confirmInviteToGroup(group: ICharacter) {
   showInviteModal.value = false
-  uni.showToast({ title: `已邀请加入「${group.name}」`, icon: 'success' })
+  if (!character.value) return
+  const memberIds = Array.from(new Set([...(group.memberIds || []), character.value.id]))
+  const members = Array.from(new Set([...(group.members || []), character.value.name]))
+  characterStore.updateCharacter({
+    ...group,
+    memberIds,
+    members,
+    updatedAt: Date.now(),
+  }).then(() => {
+    uni.showToast({ title: `已邀请加入「${group.name}」`, icon: 'success' })
+  }).catch(() => {
+    uni.showToast({ title: '邀请失败', icon: 'none' })
+  })
 }
 
 onUnmounted(() => {

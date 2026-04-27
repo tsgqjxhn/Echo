@@ -72,16 +72,19 @@ export class TTSService {
       (await apiConfigService.getDefaultConfig('tts')) ||
       (await apiConfigService.getDefaultConfig('voice'))
 
+    const hasRemoteTTSProvider = !!providerConfig && providerConfig.provider !== 'local'
+
     const nativeAvailability = isNativeRuntime()
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
       : null
 
-    if (nativeAvailability?.ttsAvailable) {
-      return this.nativeSpeak(text)
-    }
-
-    if (providerConfig?.provider === 'local') {
-      return this.localSpeak(text)
+    if (!hasRemoteTTSProvider) {
+      if (nativeAvailability?.ttsAvailable) return this.nativeSpeak(text)
+      if (getSpeechSynthesis()) return this.localSpeak(text)
+      const error = new Error('当前环境不支持本地语音合成，请在设置中配置 TTS 提供商')
+      this.state = TTSState.ERROR
+      this.onErrorCallback?.(error)
+      throw error
     }
 
     try {
@@ -295,10 +298,9 @@ export class TTSService {
   private async synthesizeSpeech(text: string): Promise<Blob> {
     const providerConfig =
       (await apiConfigService.getDefaultConfig('tts')) ||
-      (await apiConfigService.getDefaultConfig('voice')) ||
-      (await apiConfigService.getDefaultConfig('text'))
+      (await apiConfigService.getDefaultConfig('voice'))
 
-    if (!providerConfig) throw new Error('请先配置可用的 API 提供商')
+    if (!providerConfig) throw new Error('请先在设置中配置 TTS 提供商')
 
     const adapter = getAdapterOrDefault(providerConfig.provider)
 

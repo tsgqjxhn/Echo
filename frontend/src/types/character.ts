@@ -82,6 +82,11 @@ export interface ICharacter {
   behavior?: string
   values?: string
   members?: string[]
+  memberIds?: string[]
+  groupAvatar?: string
+  groupAnnouncement?: string
+  groupDescription?: string
+  groupChatMode?: 'queue' | 'free'
   tags?: string[]
   sourceType?: 'manual' | 'document-import' | 'builtin-story'
   sourceName?: string

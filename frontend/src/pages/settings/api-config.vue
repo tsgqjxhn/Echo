@@ -100,6 +100,14 @@
             <span class="local-info-value">离线可用</span>
           </div>
           <p class="hint">使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。</p>
+          <button
+            type="button"
+            class="default-btn"
+            :disabled="!selectedConfigId"
+            @click="setAsDefault"
+          >
+            {{ isCurrentDefault ? '当前默认' : '设为此类型默认配置' }}
+          </button>
         </div>
         <p v-if="capabilityWarning" class="hint warning">{{ capabilityWarning }}</p>
       </div>
@@ -276,6 +284,11 @@ const configsForType = computed(() =>
   allConfigs.value.filter(c => (c.configType || 'text') === effectiveConfigType.value)
 )
 
+const isCurrentDefault = computed(() =>
+  !!selectedConfigId.value
+  && configsForType.value.find(c => c.id === selectedConfigId.value)?.isDefault === true
+)
+
 const canConnect = computed(() => !!form.value.apiKey.trim() || !!selectedConfigId.value)
 
 const sectionLabel = computed(() => {
@@ -427,6 +440,13 @@ async function saveConfig() {
       configType: effectiveConfigType.value
     }
 
+    if (!payload.isDefault) {
+      const hasDefault = configsForType.value.some(c => c.isDefault && c.id !== payload.id)
+      if (!hasDefault) {
+        payload.isDefault = true
+      }
+    }
+
     await apiConfigService.save(payload)
     selectedConfigId.value = payload.id
     await loadAll()
@@ -517,18 +537,20 @@ async function connectModels() {
 }
 
 async function setAsDefault() {
-  if (!selectedConfigId.value || !selectedModel.value) return
+  if (!selectedConfigId.value) return
+  if (form.value.provider !== 'local' && !selectedModel.value) return
 
   saving.value = true
   try {
+    const isLocal = form.value.provider === 'local'
     // Update all configs of this type: clear isDefault
     for (const c of configsForType.value) {
       if (c.isDefault || c.id === selectedConfigId.value) {
         await apiConfigService.save({
           ...c,
           isDefault: c.id === selectedConfigId.value,
-          model: c.id === selectedConfigId.value ? selectedModel.value : c.model,
-          models: c.id === selectedConfigId.value
+          model: c.id === selectedConfigId.value && !isLocal ? selectedModel.value : c.model,
+          models: c.id === selectedConfigId.value && !isLocal
             ? normalizeModelList([...modelList.value, selectedModel.value])
             : c.models
         })

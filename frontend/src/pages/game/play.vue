@@ -9,6 +9,8 @@
     <div class="play-body">
       <ChessGame v-if="gameId === 'chess'" />
       <GomokuGame v-else-if="gameId === 'gomoku'" />
+      <Match3Game v-else-if="gameId === 'match3'" />
+      <CutRopeGame v-else-if="gameId === 'cut-rope'" />
       <PuzzleGame v-else-if="gameId === 'puzzle'" :standalone="true" @exit="router.back()" />
       <div v-else class="placeholder">
         <p>游戏加载中…</p>
@@ -22,6 +24,8 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ChessGame from './mini/chess.vue'
 import GomokuGame from './mini/gomoku.vue'
+import Match3Game from './mini/match3.vue'
+import CutRopeGame from './mini/cut-rope.vue'
 import PuzzleGame from './mini/puzzle.vue'
 
 const route = useRoute()
@@ -32,6 +36,8 @@ const gameId = computed(() => route.params.id as string)
 const gameTitles: Record<string, string> = {
   chess: '国际象棋',
   gomoku: '五子棋',
+  match3: '星糖消消乐',
+  'cut-rope': '糖果绳索',
   puzzle: '残缺的逻辑',
 }
 

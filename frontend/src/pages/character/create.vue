@@ -294,7 +294,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
@@ -368,6 +368,23 @@ const form = ref({
   themeGroup: '',
   themeType: '',
   avatar: '',
+})
+
+onMounted(() => {
+  try {
+    const defaults = JSON.parse(localStorage.getItem('echo_chat_defaults') || '{}') as { defaultMode?: ICharacter['mode'] }
+    if (defaults.defaultMode === 'group-chat') {
+      form.value.category = '群聊派对'
+      form.value.subCategory = '普通群聊'
+      showBasic.value = true
+    } else if (defaults.defaultMode === 'challenge-dialogue') {
+      form.value.category = '剧情&游戏'
+      form.value.subCategory = '剧情游戏'
+      showBasic.value = true
+    }
+  } catch {
+    // keep initial category
+  }
 })
 
 const templateData = ref<Record<string, unknown>>({})
@@ -717,6 +734,11 @@ async function submit() {
       switchAnimation: mediaData.switchAnimation || undefined,
       emotionAnimations: emotionAnimations.filter(e => e.emotion.trim() && e.animationUrl) || undefined,
       gameData: gameImportData.value || undefined,
+    }
+
+    if (resolvedMode.value === 'group-chat' || resolvedMode.value === 'group-challenge') {
+      character.groupAnnouncement = String(templateData.value.groupRules ?? templateData.value.groupBackground ?? '').trim()
+      character.groupChatMode = 'queue'
     }
 
     // Inject user profile + TTS data into settings if provided

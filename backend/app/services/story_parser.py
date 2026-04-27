@@ -12,6 +12,7 @@ DialogueVariant = Literal["message", "scene", "hint"]
 DAY_PREFIX = "\u7b2c"
 DAY_SUFFIX = "\u5929"
 PLAYER_LABEL = "\u4f60"
+PLAYER_EXPLICIT_LABEL = "\u73a9\u5bb6"
 SELF_LABEL = "\u6211"
 STAR_LABEL = "\u661f"
 SYSTEM_LABEL = "\u7cfb\u7edf"
@@ -49,11 +50,13 @@ class ParsedStorySegment:
     options: list[ParsedStoryOption] = field(default_factory=list)
 
 
-DAY_RE = re.compile(r"^#(?!#)\s*(第\d+天)\s*$")
+DAY_RE = re.compile(r"^#{1,3}\s*(第\d+天)(?:[｜|：:].*)?$")
 SCENE_RE = re.compile(r"^##(?!#)\s*(.+?)\s*$")
 SECTION_RE = re.compile(r"^###(?!#)\s*(.+?)\s*$")
 OPTION_RE = re.compile(r"^\[选项\s*([A-Z])\]\s*(.+?)\s*$")
 BRANCH_RE = re.compile(r"^\*\*.*?若选\s*([A-Z](?:\s*/\s*[A-Z])*)[^*]*\*\*$")
+PLAIN_BRANCH_RE = re.compile(r"^▶\s*若选\s*([A-Z](?:\s*/\s*[A-Z])*)")
+FINAL_BRANCH_RE = re.compile(r"^▶\s*若进入【结局\s*([A-Z])")
 LEGACY_BRANCH_RE = re.compile(r"^【系统】若玩家选了\s*([A-Z])")
 DIALOGUE_RE = re.compile(r"^【([^】]+)】\s*(.*)$")
 WAIT_RE = re.compile(r"^（等待\s*([^)）]+)[)）]\s*$")
@@ -61,6 +64,7 @@ WAIT_RE = re.compile(r"^（等待\s*([^)）]+)[)）]\s*$")
 
 ROLE_MAP: dict[str, DialogueRole] = {
     PLAYER_LABEL: "me",
+    PLAYER_EXPLICIT_LABEL: "me",
     SELF_LABEL: "me",
     STAR_LABEL: "other",
     SYSTEM_LABEL: "system",
@@ -68,7 +72,8 @@ ROLE_MAP: dict[str, DialogueRole] = {
 
 
 def strip_annotation(text: str) -> str:
-    return re.sub(r"\s*（[^（）]*）\s*$", "", text).strip()
+    cleaned = re.sub(r"^\s*[（(][^（）()]*[）)]\s*", "", text).strip()
+    return re.sub(r"\s*[（(][^（）()]*[）)]\s*$", "", cleaned).strip()
 
 
 def strip_heading_prefix(text: str) -> str:
@@ -77,7 +82,7 @@ def strip_heading_prefix(text: str) -> str:
 
 def normalize_choice_prompt(text: str) -> str:
     prompt = text.replace(CHOICE_MARK, "").strip()
-    prompt = re.sub(r"^玩家选择[一二三四五六七八九十百0-9]+\s*", "", prompt)
+    prompt = re.sub(r"^玩家(?:终极)?选择(?:[一二三四五六七八九十百0-9]+)?\s*", "", prompt)
     prompt = prompt.strip("（）() ").strip()
     return prompt or "请选择"
 
@@ -178,10 +183,13 @@ class StoryParser:
 
         speaker = match.group(1).strip()
         content = match.group(2).strip()
-        role = ROLE_MAP.get(speaker, "system")
+        role = ROLE_MAP.get(speaker, "other")
 
         if role == "system":
             return self.parse_system_content(content)
+
+        if role == "me":
+            content = strip_annotation(content)
 
         return [
             ParsedStoryMessage(
@@ -200,6 +208,7 @@ class StoryParser:
         scene_label: str | None,
         heading: str,
     ) -> tuple[ParsedStorySegment, int]:
+        leading_messages: list[ParsedStoryMessage] = []
         options: list[ParsedStoryOption] = []
         option_map: dict[str, ParsedStoryOption] = {}
         index = start_index + 1
@@ -212,7 +221,21 @@ class StoryParser:
 
             option_match = OPTION_RE.match(line)
             if not option_match:
-                break
+                if options:
+                    break
+
+                if (
+                    line == "---"
+                    or DAY_RE.match(line)
+                    or SCENE_RE.match(line)
+                    or SECTION_RE.match(line)
+                    or line.startswith(CHOICE_MARK)
+                ):
+                    break
+
+                leading_messages.extend(self.parse_dialogue_line(line))
+                index += 1
+                continue
 
             key = option_match.group(1)
             option = ParsedStoryOption(
@@ -237,7 +260,15 @@ class StoryParser:
             if DAY_RE.match(line) or SCENE_RE.match(line) or SECTION_RE.match(line):
                 break
 
-            branch_match = BRANCH_RE.match(line) or LEGACY_BRANCH_RE.match(line)
+            if line.startswith(CHOICE_MARK):
+                break
+
+            branch_match = (
+                BRANCH_RE.match(line)
+                or PLAIN_BRANCH_RE.match(line)
+                or FINAL_BRANCH_RE.match(line)
+                or LEGACY_BRANCH_RE.match(line)
+            )
             if not branch_match:
                 index += 1
                 continue
@@ -257,7 +288,10 @@ class StoryParser:
                     or DAY_RE.match(candidate)
                     or SCENE_RE.match(candidate)
                     or SECTION_RE.match(candidate)
+                    or candidate.startswith(CHOICE_MARK)
                     or BRANCH_RE.match(candidate)
+                    or PLAIN_BRANCH_RE.match(candidate)
+                    or FINAL_BRANCH_RE.match(candidate)
                     or LEGACY_BRANCH_RE.match(candidate)
                 ):
                     break
@@ -279,6 +313,7 @@ class StoryParser:
             kind="choice",
             scene=scene_label,
             prompt=normalize_choice_prompt(heading),
+            messages=leading_messages,
             options=options,
         )
         return segment, index
@@ -367,6 +402,13 @@ class StoryParser:
                     current_scene = f"{current_day} · {clean_heading}" if current_day else clean_heading
                     index += 1
                     continue
+
+            if line.startswith(CHOICE_MARK):
+                flush_messages()
+                choice_segment, next_index = self.parse_choice_block(lines, index, current_scene, line)
+                segments.append(choice_segment)
+                index = next_index
+                continue
 
             buffered_messages.extend(self.parse_dialogue_line(line))
             index += 1

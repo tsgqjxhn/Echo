@@ -15,6 +15,7 @@ export interface MomentPost {
   characterName: string
   characterAvatar: string | null
   content: string
+  imageUrl?: string
   postedAt: number
   likes: number
   isLikedByMe: boolean

@@ -166,6 +166,7 @@
         </button>
       </section>
     </div>
+
   </div>
 </template>
 
@@ -246,7 +247,6 @@ const filteredCharacters = computed(() => {
       return matchesBig && matchesTheme && matchesSearch
     })
 })
-
 
 const selectedImportFileName = computed(() => selectedImportFile.value?.name || '')
 
@@ -362,6 +362,7 @@ async function submitImportDocument() {
     })
   }
 }
+
 </script>
 
 <style lang="scss" scoped>

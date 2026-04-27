@@ -16,7 +16,7 @@
         <select v-model="defaultMode" class="select-input">
           <option value="free-dialogue">自由对话</option>
           <option value="challenge-dialogue">挑战对话</option>
-          <option value="group-chat">群聊派对</option>
+          <option value="group-chat">群聊排队</option>
         </select>
       </div>
 
@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -64,6 +64,18 @@ const defaultMode = ref('free-dialogue')
 const replyLength = ref('medium')
 const temperature = ref(70)
 const streamEnabled = ref(true)
+
+onMounted(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('echo_chat_defaults') || '{}')
+    defaultMode.value = saved.defaultMode || 'free-dialogue'
+    replyLength.value = saved.replyLength || 'medium'
+    temperature.value = Math.round(Number(saved.temperature ?? 0.7) * 100)
+    streamEnabled.value = saved.streamEnabled !== false
+  } catch {
+    // keep defaults
+  }
+})
 
 watch([defaultMode, replyLength, temperature, streamEnabled], () => {
   localStorage.setItem('echo_chat_defaults', JSON.stringify({

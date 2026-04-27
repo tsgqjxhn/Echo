@@ -12,12 +12,13 @@ import type {
   StreamChunkResult,
 } from '../types'
 import { pollVolcengineTask, submitVolcengineTask } from './async-task'
+import { extractMessageText, normalizeUsage, parseOpenAIStreamLine } from '../openai/stream-parser'
 
 const DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3'
 
 export const volcengineCapabilities: ProviderCapabilities = {
-  chat: false,
-  chatStream: false,
+  chat: true,
+  chatStream: true,
   tts: false,
   stt: false,
   imageGeneration: true,
@@ -41,21 +42,40 @@ export const volcengineAdapter: ProviderAdapter = {
     const base = resolveBaseURL(baseURL)
     switch (service) {
       case 'image': return `${base}/images/generations`
+      case 'chat': return `${base}/chat/completions`
       case 'video': return `${base}/video/generation/tasks`
       default: throw new Error(`火山方舟不支持 ${service} 服务`)
     }
   },
 
-  buildChatBody(_request: AdapterChatRequest): Record<string, unknown> {
-    throw new Error('火山方舟不支持文本聊天')
+  buildChatBody(request: AdapterChatRequest): Record<string, unknown> {
+    const messages = [...request.messages]
+    const firstMessage = messages[0]
+    if (
+      request.systemPrompt.trim() &&
+      !(firstMessage?.role === 'system' && firstMessage.content === request.systemPrompt.trim())
+    ) {
+      messages.unshift({ role: 'system', content: request.systemPrompt.trim() })
+    }
+    return { model: request.model, messages, stream: request.stream }
   },
 
-  parseChatResponse(): ChatCompletionResult {
-    throw new Error('火山方舟不支持文本聊天')
+  parseChatResponse(raw: unknown): ChatCompletionResult {
+    const data = raw as Record<string, unknown>
+    const choices = data.choices as Array<Record<string, unknown>> | undefined
+    const message = choices?.[0]?.message
+    const content = extractMessageText(message?.content)
+
+    return {
+      content,
+      usage: normalizeUsage(data.usage),
+      finishReason: (choices?.[0]?.finish_reason as string) || undefined,
+      model: (data.model as string) || undefined,
+    }
   },
 
-  parseStreamChunk(): StreamChunkResult | null {
-    return null
+  parseStreamChunk(line: string): StreamChunkResult | null {
+    return parseOpenAIStreamLine(line)
   },
 
   buildTTSBody(_request: AdapterTTSRequest): Record<string, unknown> {

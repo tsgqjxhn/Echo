@@ -144,8 +144,10 @@ export async function requestPermission(alias: PermissionAlias): Promise<NativeP
     return current
   }
 
-  // If permanently denied, tell user to go to settings
-  if (current.state === 'denied') {
+  // Web Permissions API can report a stale "denied" state after users changed
+  // site settings. For microphone/camera, the authoritative check is the real
+  // getUserMedia request below, so do not block before trying it.
+  if (current.state === 'denied' && (isNativeRuntime() || alias === 'storage')) {
     const config = DIALOG_MESSAGES[alias]
     if (typeof window !== 'undefined') {
       alert(`${config.title}\n\n${config.message}\n\n请在系统设置中手动开启权限。`)

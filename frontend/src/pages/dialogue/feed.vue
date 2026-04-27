@@ -59,22 +59,6 @@
               <div v-else class="message-bubble" :class="`message-bubble--${message.role}`">
                 {{ message.text }}
               </div>
-              <button
-                v-if="message.role === 'assistant' && !isImageUrl(message.text)"
-                type="button"
-                class="dialogue-tts-btn"
-                :class="{ speaking: speakingDialogueMessageId === message.id }"
-                :aria-label="speakingDialogueMessageId === message.id ? '停止朗读' : '朗读消息'"
-                @click.stop="toggleDialogueTTS(message)"
-              >
-                <svg v-if="speakingDialogueMessageId === message.id" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                  <path d="M6 9v6h4l5 5V4l-5 5H6zm12.5 3a6.5 6.5 0 0 0-2-4.69v9.38a6.5 6.5 0 0 0 2-4.69z" fill="currentColor"/>
-                  <path d="M4 4l16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
-                </svg>
-                <svg v-else viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
-                </svg>
-              </button>
             </div>
 
             <template v-if="message.role === 'user'">
@@ -125,6 +109,16 @@
           </div>
         </div>
 
+        <div v-else-if="pendingFriendRequestName" class="choice-box">
+          <button
+            type="button"
+            class="choice-button friend-accept-btn"
+            :disabled="isBusy"
+            @click="acceptFriendRequest"
+          >
+            通过
+          </button>
+        </div>
         <div v-else-if="replyOptions.length > 0" class="choice-box">
           <button
             v-for="option in replyOptions"
@@ -213,40 +207,6 @@
       </div>
     </Teleport>
 
-    <Teleport to="body">
-      <div v-if="showMomentsCard" class="moments-card-overlay" @click.self="closeMomentsCard">
-        <section class="moments-popup">
-          <header class="moments-popup-head">
-            <strong>朋友圈</strong>
-            <button type="button" class="moments-popup-close" @click="closeMomentsCard">&times;</button>
-          </header>
-
-          <article class="moments-post-card">
-            <div class="mp-head">
-              <img :src="xingAvatar" alt="星" class="mp-avatar" />
-              <div class="mp-meta">
-                <span class="mp-name">星</span>
-                <span class="mp-visibility">仅你可见</span>
-              </div>
-            </div>
-
-            <div class="mp-image-block"></div>
-
-            <p class="mp-text">{{ currentMomentText }}</p>
-
-            <div class="mp-actions">
-              <span class="mp-time">刚刚</span>
-              <div class="mp-reactions">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="#f87171" stroke="#f87171" stroke-width="2">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-                <span class="mp-liker">你</span>
-              </div>
-            </div>
-          </article>
-        </section>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -285,9 +245,12 @@ import {
 import { uni } from '@/utils/uni-polyfill'
 import StoryGallery from '@/components/StoryGallery/index.vue'
 import ImageViewer from '@/components/ImageViewer/index.vue'
-import { GALLERY_ITEMS, unlockGalleryItem } from '@/services/story-gallery'
+import { unlockGalleryItem } from '@/services/story-gallery'
+import { getStoryImageAsset, getStoryMomentAsset, type StoryImageAsset, type StoryMomentAsset } from '@/services/story-assets'
 import PuzzleGame from '@/pages/game/mini/puzzle.vue'
 import { useMomentsStore, type MomentPost } from '@/stores/moments'
+import { useFriendRequestStore } from '@/stores/friend-requests'
+import { useCharacterStore } from '@/stores/character'
 import { TTSService } from '@/services/tts'
 import { loadTTSConfig } from '@/services/voice-settings'
 
@@ -313,6 +276,8 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const momentsStore = useMomentsStore()
+const friendRequestStore = useFriendRequestStore()
+const characterStore = useCharacterStore()
 
 const DEFAULT_STORY_MOMENT_TEXT = '如果连记忆都是假的，那我到底算个什么东西？'
 
@@ -349,8 +314,9 @@ const showGallery = ref(false)
 const imageViewerVisible = ref(false)
 const imageViewerSrc = ref('')
 const showPuzzleGame = ref(false)
-const showMomentsCard = ref(false)
 const currentMomentText = ref(DEFAULT_STORY_MOMENT_TEXT)
+const currentMomentImageSrc = ref('')
+const pendingFriendRequestName = ref('')
 const dialogueTTSService = ref<TTSService | null>(null)
 const speakingDialogueMessageId = ref('')
 
@@ -404,9 +370,10 @@ async function toggleDialogueTTS(message: VisibleMessage) {
   }
 }
 
-function ensureStoryMomentPost() {
-  const content = currentMomentText.value.trim() || DEFAULT_STORY_MOMENT_TEXT
-  const storyMomentId = `echo-story-${Array.from(content).reduce((seed, ch) => seed + ch.charCodeAt(0), 0)}`
+function ensureStoryMomentPost(momentAsset: StoryMomentAsset | null = null) {
+  const content = (momentAsset?.content || currentMomentText.value).trim() || DEFAULT_STORY_MOMENT_TEXT
+  const imageUrl = momentAsset?.src || currentMomentImageSrc.value || undefined
+  const storyMomentId = momentAsset?.id || `echo-story-${Array.from(content).reduce((seed, ch) => seed + ch.charCodeAt(0), 0)}`
 
   if (momentsStore.posts.some(post => post.id === storyMomentId)) {
     return
@@ -418,6 +385,7 @@ function ensureStoryMomentPost() {
     characterName: '星',
     characterAvatar: xingAvatar,
     content,
+    imageUrl,
     postedAt: Date.now(),
     likes: 1,
     isLikedByMe: true,
@@ -429,8 +397,43 @@ function ensureStoryMomentPost() {
 }
 
 function extractMomentContent(text: string): string | null {
-  const match = text.match(/朋友圈动态插入[:：]\s*(.+)$/)
+  const legacyMatch = text.match(/朋友圈动态插入[:：]\s*(.+)$/)
+  if (legacyMatch?.[1]) {
+    return legacyMatch[1].trim()
+  }
+
+  const momentId = extractMomentId(text)
+  if (!momentId) {
+    return null
+  }
+
+  return getStoryMomentAsset(momentId)?.content || null
+}
+
+function extractMomentId(text: string): string | null {
+  const match = text.match(/\[朋友圈发布[:：]\s*([^\]]+)\]/)
   return match?.[1]?.trim() || null
+}
+
+function resolveImageTrigger(text: string): StoryImageAsset | null {
+  const bracketMatch = text.match(/\[图片插入[:：]\s*([^\]]+)\]/)
+  const legacyMatch = text.match(/\[图片插入[：:]\s*(.+?)[——\-–—]/)
+  const payload = (bracketMatch?.[1] || legacyMatch?.[1] || '').trim()
+
+  if (!payload) {
+    return null
+  }
+
+  const [assetId, title] = payload.split('|').map(item => item.trim())
+  return getStoryImageAsset(assetId) || getStoryImageAsset(title || payload)
+}
+
+function unlockGalleryFromSystemText(text: string) {
+  const unlockMatches = text.matchAll(/\[图鉴解锁[:：]\s*([^\]]+)\]/g)
+  for (const match of unlockMatches) {
+    const asset = getStoryImageAsset(match[1])
+    unlockGalleryItem(asset?.id || match[1].trim())
+  }
 }
 
 function unlockAvatarFromSystemText(text: string) {
@@ -661,6 +664,42 @@ function sleep(ms: number) {
   })
 }
 
+const STREAM_CHAR_DELAY_MS = 32
+const STREAM_SCROLL_EVERY_CHARS = 6
+
+async function streamRevealAssistantText(messageId: string, fullText: string, token?: number) {
+  const finalize = () => {
+    const idx = displayedMessages.value.findIndex(m => m.id === messageId)
+    if (idx >= 0) {
+      displayedMessages.value.splice(idx, 1, { ...displayedMessages.value[idx], text: fullText })
+    }
+  }
+
+  const chars = Array.from(fullText)
+  let revealed = ''
+  for (let i = 0; i < chars.length; i += 1) {
+    if (token !== undefined && token !== activeRunToken) {
+      finalize()
+      return
+    }
+
+    revealed += chars[i]
+    const idx = displayedMessages.value.findIndex(m => m.id === messageId)
+    if (idx >= 0) {
+      displayedMessages.value.splice(idx, 1, { ...displayedMessages.value[idx], text: revealed })
+    }
+    if (i % STREAM_SCROLL_EVERY_CHARS === STREAM_SCROLL_EVERY_CHARS - 1) {
+      await scrollToBottom('auto')
+    }
+    if (i < chars.length - 1) {
+      await sleep(STREAM_CHAR_DELAY_MS)
+    }
+  }
+
+  finalize()
+  await scrollToBottom('auto')
+}
+
 async function waitWithToken(ms: number, token: number) {
   if (ms > 0) {
     await sleep(ms)
@@ -742,7 +781,7 @@ function applyConversationMusic(conversation: StoryConversationDefinition | null
   }
 }
 
-async function appendVisibleStoryMessage(message: DialogueMessage, conversationId: string) {
+async function appendVisibleStoryMessage(message: DialogueMessage, conversationId: string, token?: number) {
   const conversationState = runtimeState.value.states[conversationId]
 
   if (!conversationState?.sessionId) {
@@ -758,62 +797,112 @@ async function appendVisibleStoryMessage(message: DialogueMessage, conversationI
     }
 
     // Detect H5 mini-game trigger
-    if (message.role === 'system' && message.text.includes('H5小游戏插入')) {
+    if (message.role === 'system' && (message.text.includes('H5小游戏插入') || message.text.includes('[H5嵌入'))) {
       isBusy.value = false
       isTyping.value = false
       showPuzzleGame.value = true
     }
 
     // Detect moments post trigger
-    if (message.role === 'system' && message.text.includes('朋友圈动态插入')) {
-      currentMomentText.value = extractMomentContent(message.text) || DEFAULT_STORY_MOMENT_TEXT
-      ensureStoryMomentPost()
-      showMomentsCard.value = true
+    if (message.role === 'system' && (message.text.includes('朋友圈动态插入') || message.text.includes('[朋友圈发布'))) {
+      const momentId = extractMomentId(message.text)
+      const momentAsset = momentId ? getStoryMomentAsset(momentId) : null
+      currentMomentText.value = momentAsset?.content || extractMomentContent(message.text) || DEFAULT_STORY_MOMENT_TEXT
+      currentMomentImageSrc.value = momentAsset?.src || ''
+      ensureStoryMomentPost(momentAsset)
+      // Inline notification instead of popup
+      if (conversationState?.sessionId) {
+        const savedMsg = await appendConversationMessage(conversationState.sessionId, 'assistant', '对方发布了一条动态')
+        displayedMessages.value.push({ id: savedMsg.id, role: 'assistant', text: savedMsg.content })
+      }
+    }
+
+    // Detect friend request trigger
+    if (message.role === 'system' && message.text.includes('[好友请求')) {
+      const frMatch = message.text.match(/\[好友请求[:：]([^\]]+)\]/)
+      const frName = frMatch?.[1]?.trim() || '星'
+      if (!friendRequestStore.isAccepted(ECHO_STORY_CHARACTER_ID)) {
+        friendRequestStore.addRequest({
+          id: `fr-${ECHO_STORY_CHARACTER_ID}`,
+          characterId: ECHO_STORY_CHARACTER_ID,
+          characterName: frName,
+          characterAvatar: resolveStoryAvatar(runtimeState.value.currentAvatarKey),
+          requestedAt: Date.now(),
+        })
+        pendingFriendRequestName.value = frName
+        if (conversationState?.sessionId) {
+          const savedMsg = await appendConversationMessage(conversationState.sessionId, 'assistant', `${frName}请求添加你为好友`)
+          displayedMessages.value.push({ id: savedMsg.id, role: 'assistant', text: savedMsg.content })
+        }
+      }
     }
 
     if (message.role === 'system') {
       unlockAvatarFromSystemText(message.text)
+      unlockGalleryFromSystemText(message.text)
     }
 
     // Detect image insertion trigger
     if (message.role === 'system' && message.text.includes('[图片插入')) {
-      const imageMatch = message.text.match(/\[图片插入[：:]\s*(.+?)[——\-–—]/)
-      if (imageMatch) {
-        const imageTitle = imageMatch[1].trim()
-        const galleryItem = GALLERY_ITEMS.find(item =>
-          imageTitle === item.title ||
-          imageTitle.includes(item.title) ||
-          item.title.includes(imageTitle)
-        )
-        if (galleryItem) {
-          unlockGalleryItem(galleryItem.id)
-          const imageContent = `[IMAGE:${galleryItem.src}]`
-          const savedMessage = await appendConversationMessage(conversationState.sessionId, 'assistant', imageContent)
-          displayedMessages.value.push({
-            id: savedMessage.id,
-            role: 'assistant' as const,
-            text: imageContent,
-          })
-          conversationState.lastUpdatedAt = savedMessage.timestamp
-          persistRuntime()
-          await scrollToBottom('auto')
-        }
+      const galleryItem = resolveImageTrigger(message.text)
+      if (galleryItem) {
+        unlockGalleryItem(galleryItem.id)
+        const imageContent = `[IMAGE:${galleryItem.src}]`
+        const savedMessage = await appendConversationMessage(conversationState.sessionId, 'assistant', imageContent)
+        displayedMessages.value.push({
+          id: savedMessage.id,
+          role: 'assistant' as const,
+          text: imageContent,
+        })
+        conversationState.lastUpdatedAt = savedMessage.timestamp
+        persistRuntime()
+        await scrollToBottom('auto')
       }
     }
 
     return
   }
 
+  if (message.text.includes('[图片插入')) {
+    const galleryItem = resolveImageTrigger(message.text)
+    if (galleryItem) {
+      unlockGalleryItem(galleryItem.id)
+      const imageContent = `[IMAGE:${galleryItem.src}]`
+      const savedMessage = await appendConversationMessage(conversationState.sessionId, mappedRole, imageContent)
+      displayedMessages.value.push({
+        id: savedMessage.id,
+        role: mappedRole,
+        text: imageContent,
+      })
+      conversationState.lastUpdatedAt = savedMessage.timestamp
+      conversationState.unreadCount = 0
+      persistRuntime()
+      await scrollToBottom('auto')
+      return
+    }
+  }
+
   const savedMessage = await appendConversationMessage(conversationState.sessionId, mappedRole, message.text)
+  conversationState.lastUpdatedAt = savedMessage.timestamp
+  conversationState.unreadCount = 0
+  persistRuntime()
+
+  if (mappedRole === 'assistant') {
+    displayedMessages.value.push({
+      id: savedMessage.id,
+      role: mappedRole,
+      text: '',
+    })
+    await scrollToBottom('auto')
+    await streamRevealAssistantText(savedMessage.id, message.text, token)
+    return
+  }
+
   displayedMessages.value.push({
     id: savedMessage.id,
     role: mappedRole,
     text: message.text,
   })
-  conversationState.lastUpdatedAt = savedMessage.timestamp
-  conversationState.unreadCount = 0
-  persistRuntime()
-
   await scrollToBottom('auto')
 }
 
@@ -903,27 +992,15 @@ async function playBranchMessages(
         nextIndex += 1
       }
 
-      // If only one inline message, auto-select it (not a real choice)
+      // Skip a single inline reply that merely echoes the option just clicked.
       if (inlineMessages.length === 1) {
-        // Branches often repeat the clicked option as their first "me" message.
         if ((index === 0 && options.skipLeadingUserMessage) || isLastDisplayedUserReply(inlineMessages[0].text)) {
           index = nextIndex - 1
           continue
         }
-
-        const savedMsg = await appendConversationMessage(state.sessionId!, 'user', inlineMessages[0].text)
-        displayedMessages.value.push({
-          id: savedMsg.id,
-          role: 'user',
-          text: inlineMessages[0].text,
-        })
-        state.lastUpdatedAt = savedMsg.timestamp
-        persistRuntime()
-        await scrollToBottom('auto')
-        index = nextIndex - 1
-        continue
       }
 
+      // Always require the user to tap the option — even when there is only one.
       pendingInlineBranchReply.value = {
         conversationId: conversation.id,
         options: buildInlineReplyOptions(inlineMessages, seed),
@@ -946,7 +1023,7 @@ async function playBranchMessages(
     }
 
     isTyping.value = false
-    await appendVisibleStoryMessage(branchMessage, conversation.id)
+    await appendVisibleStoryMessage(branchMessage, conversation.id, token)
 
     if (runtimeState.value.states[conversation.id]?.status === 'dead') {
       isBusy.value = false
@@ -985,7 +1062,7 @@ async function runMessageSegment(conversation: StoryConversationDefinition, toke
     }
 
     isTyping.value = false
-    await appendVisibleStoryMessage(message, conversation.id)
+    await appendVisibleStoryMessage(message, conversation.id, token)
     state.messageIndex = index + 1
     persistRuntime()
 
@@ -1330,8 +1407,16 @@ function onPuzzleExit() {
   }
 }
 
-function closeMomentsCard() {
-  showMomentsCard.value = false
+async function acceptFriendRequest() {
+  const name = pendingFriendRequestName.value
+  if (!name) return
+  characterStore.toggleFriend(ECHO_STORY_CHARACTER_ID)
+  friendRequestStore.acceptRequest(ECHO_STORY_CHARACTER_ID)
+  pendingFriendRequestName.value = ''
+  if (activeConversationState.value?.sessionId) {
+    const savedMsg = await appendConversationMessage(activeConversationState.value.sessionId, 'user', '通过')
+    displayedMessages.value.push({ id: savedMsg.id, role: 'user', text: savedMsg.content })
+  }
 }
 
 async function findLegacyResetStartIndex() {
@@ -1720,31 +1805,6 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.dialogue-tts-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 27px;
-  height: 27px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.16s;
-}
-
-.dialogue-tts-btn:hover,
-.dialogue-tts-btn.speaking {
-  border-color: rgba(52, 211, 153, 0.3);
-  background: rgba(52, 211, 153, 0.12);
-  color: #9ff3d3;
-}
-
-.dialogue-tts-btn:active {
-  transform: scale(0.94);
-}
-
 .typing-bubble {
   display: inline-flex;
   align-items: center;
@@ -2050,129 +2110,8 @@ onUnmounted(() => {
   background: #050a0f;
 }
 
-// Moments card popup
-.moments-card-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 40000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 16px;
-}
-
-.moments-popup {
-  width: min(400px, 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(18, 18, 20, 0.98), rgba(10, 10, 12, 0.98));
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-
-.moments-popup-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-
-  strong {
-    color: var(--text-primary);
-    font-size: 15px;
-  }
-}
-
-.moments-popup-close {
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.moments-post-card {
-  padding: 14px 16px;
-}
-
-.mp-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.mp-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.mp-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mp-name {
-  color: #7dd3fc;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.mp-visibility {
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.mp-image-block {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 10px;
-  background: #000;
-  margin-bottom: 10px;
-}
-
-.mp-text {
-  margin: 0 0 10px;
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.mp-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.mp-time {
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.mp-reactions {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(248, 113, 113, 0.06);
-}
-
-.mp-liker {
-  color: var(--text-secondary);
-  font-size: 12px;
+.friend-accept-btn {
+  background: rgba(56, 189, 248, 0.25);
+  color: #e0f2fe;
 }
 </style>

@@ -32,6 +32,9 @@ interface NativeSpeechPlugin {
   startRecognition(options: { language?: string; preferOffline?: boolean }): Promise<{ started: boolean }>
   stopRecognition(): Promise<{ text: string }>
   cancelRecognition(): Promise<void>
+  startAudioRecording(options: { sampleRate?: number; numberOfChannels?: number; format?: string }): Promise<{ started: boolean }>
+  stopAudioRecording(): Promise<{ base64: string; mimeType: string; filename: string }>
+  cancelAudioRecording(): Promise<void>
   speak(options: {
     text: string
     rate?: number

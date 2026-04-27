@@ -14,48 +14,67 @@
       </button>
     </div>
 
-    <div class="game-list">
-      <div class="game-card" @click="router.push('/game/play/chess')">
-        <div class="game-icon chess-icon">&#9818;</div>
-        <div class="game-info">
-          <h3 class="game-name">国际象棋</h3>
-          <p class="game-desc">邀请AI好友对弈，或挑战内置引擎。支持难度选择。</p>
-        </div>
-        <div class="play-btn">
-          <span>进入</span>
-          <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
-        </div>
-      </div>
+    <nav class="category-strip" aria-label="游戏玩法分类">
+      <button
+        v-for="category in playCategoryOptions"
+        :key="category.key"
+        type="button"
+        class="category-chip"
+        :class="{ active: activePlayCategory === category.key }"
+        @click="activePlayCategory = category.key"
+      >
+        {{ category.label }}
+      </button>
+    </nav>
 
-      <div class="game-card" @click="router.push('/game/play/gomoku')">
-        <div class="game-icon gomoku-icon">
-          <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
-            <path
-              d="M8.5 11.5H31.5M8.5 20H31.5M8.5 28.5H31.5M11.5 8.5V31.5M20 8.5V31.5M28.5 8.5V31.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              opacity="0.48"
-            />
-            <circle cx="13" cy="13" r="4.4" fill="#ffffff" />
-            <circle cx="20" cy="20" r="4.4" fill="#ffffff" />
-            <circle cx="27" cy="27" r="4.4" fill="#ffffff" />
-            <circle cx="11.6" cy="11.5" r="1.25" fill="#ffffff" opacity="0.95" />
-            <circle cx="18.6" cy="18.5" r="1.25" fill="#ffffff" opacity="0.95" />
-            <circle cx="25.6" cy="25.5" r="1.25" fill="#ffffff" opacity="0.95" />
-          </svg>
+    <section class="game-browser">
+      <div class="game-list">
+        <div
+          v-for="game in filteredGames"
+          :key="game.id"
+          class="game-card"
+          @click="router.push(game.route)"
+        >
+          <div class="game-icon" :class="game.iconClass">
+            <template v-if="game.iconKind === 'gomoku'">
+              <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
+                <path
+                  d="M8.5 11.5H31.5M8.5 20H31.5M8.5 28.5H31.5M11.5 8.5V31.5M20 8.5V31.5M28.5 8.5V31.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  opacity="0.48"
+                />
+                <circle cx="13" cy="13" r="4.4" fill="#ffffff" />
+                <circle cx="20" cy="20" r="4.4" fill="#ffffff" />
+                <circle cx="27" cy="27" r="4.4" fill="#ffffff" />
+                <circle cx="11.6" cy="11.5" r="1.25" fill="#ffffff" opacity="0.95" />
+                <circle cx="18.6" cy="18.5" r="1.25" fill="#ffffff" opacity="0.95" />
+                <circle cx="25.6" cy="25.5" r="1.25" fill="#ffffff" opacity="0.95" />
+              </svg>
+            </template>
+            <template v-else>{{ game.icon }}</template>
+          </div>
+          <div class="game-info">
+            <div class="game-tags">
+              <span>{{ game.primarySubcategory }}</span>
+            </div>
+            <h3 class="game-name">{{ game.name }}</h3>
+            <p class="game-desc">{{ game.description }}</p>
+          </div>
+          <div class="play-btn">
+            <span>进入</span>
+            <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+          </div>
         </div>
-        <div class="game-info">
-          <h3 class="game-name">五子棋</h3>
-          <p class="game-desc">经典五子连珠，先连成五子获胜。可邀请好友或挑战引擎。</p>
-        </div>
-        <div class="play-btn">
-          <span>进入</span>
-          <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+
+        <div v-if="filteredGames.length === 0" class="empty-games">
+          <strong>当前分类暂无内置游戏</strong>
+          <p>可以点击右上角导入按钮，通过规则或完整文件创建新的小游戏。</p>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- Import modal: choose method -->
     <Teleport to="body">
@@ -153,6 +172,28 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showCreateWaiting" class="modal-overlay">
+        <div class="modal-card waiting-modal">
+          <div class="waiting-spinner" aria-hidden="true"></div>
+          <h3 class="modal-title">{{ createGameDone ? '游戏创建请求已发送' : '正在请求 AI 创建游戏' }}</h3>
+          <p class="waiting-copy">
+            {{ createGameDone ? 'AI 已根据规则返回设计草案。' : '正在把规则、玩法和上传内容发送给当前大模型，请稍候。' }}
+          </p>
+          <pre v-if="createGameResult" class="create-result">{{ createGameResult }}</pre>
+          <p v-if="createGameError" class="create-error">{{ createGameError }}</p>
+          <button
+            v-if="createGameDone || createGameError"
+            type="button"
+            class="submit-btn"
+            @click="closeCreateWaiting"
+          >
+            知道了
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -161,12 +202,99 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { uni } from '@/utils/uni-polyfill'
 import { requestPermission } from '@/services/permissions'
+import { apiConfigService } from '@/services/api-config'
+import { LLMAPIService } from '@/services/llm-api'
 
 const router = useRouter()
+
+interface PlayCategoryOption {
+  key: string
+  label: string
+}
+
+interface GameCatalogItem {
+  id: string
+  name: string
+  description: string
+  route: string
+  icon: string
+  iconKind?: 'text' | 'gomoku'
+  iconClass: string
+  primarySubcategory: string
+  playCategories: string[]
+}
+
+const ALL_CATEGORY = { key: 'all' as const, label: '全部' }
+
+const playCategoryOptions: PlayCategoryOption[] = [
+  ALL_CATEGORY,
+  { key: 'role-playing', label: '角色扮演' },
+  { key: 'card-rpg', label: '卡牌RPG' },
+  { key: 'tactical-rpg', label: '战术RPG' },
+  { key: 'roguelike-rpg', label: '地牢肉鸽' },
+  { key: 'xianxia-rpg', label: '传奇仙侠' },
+  { key: 'strategy-action', label: '策略竞技' },
+  { key: 'slg', label: '战争SLG' },
+  { key: 'tower-shooter', label: '塔防射击' },
+  { key: 'simulation', label: '模拟经营' },
+  { key: 'cultivation', label: '养成' },
+  { key: 'puzzle-casual', label: '益智休闲' },
+  { key: 'merge-match', label: '消除合成' },
+  { key: 'micro-puzzle', label: '副玩法解谜' },
+  { key: 'board-strategy', label: '棋类竞技' },
+]
+
+const gameCatalog: GameCatalogItem[] = [
+  {
+    id: 'chess',
+    name: '国际象棋',
+    description: '邀请AI好友对弈，或挑战内置引擎。支持难度选择。',
+    route: '/game/play/chess',
+    icon: '♛',
+    iconKind: 'text',
+    iconClass: 'chess-icon',
+    primarySubcategory: '棋类竞技',
+    playCategories: ['strategy-action', 'board-strategy'],
+  },
+  {
+    id: 'gomoku',
+    name: '五子棋',
+    description: '经典五子连珠，先连成五子获胜。可邀请好友或挑战引擎。',
+    route: '/game/play/gomoku',
+    icon: '',
+    iconKind: 'gomoku',
+    iconClass: 'gomoku-icon',
+    primarySubcategory: '棋类竞技',
+    playCategories: ['strategy-action', 'board-strategy'],
+  },
+  {
+    id: 'match3',
+    name: '星糖消消乐',
+    description: '交换相邻星糖，形成三连或以上即可消除。包含目标分、步数、连锁与重排。',
+    route: '/game/play/match3',
+    icon: '◆',
+    iconKind: 'text',
+    iconClass: 'match3-icon',
+    primarySubcategory: '消除合成',
+    playCategories: ['puzzle-casual', 'merge-match'],
+  },
+  {
+    id: 'cut-rope',
+    name: '糖果绳索',
+    description: '切断绳子，让糖果借助摆动、重力和碰撞落进口袋。包含星星收集和关卡计分。',
+    route: '/game/play/cut-rope',
+    icon: '✂',
+    iconKind: 'text',
+    iconClass: 'cut-rope-icon',
+    primarySubcategory: '益智休闲',
+    playCategories: ['puzzle-casual', 'micro-puzzle'],
+  },
+]
 
 const showImportModal = ref(false)
 const showUploadModal = ref(false)
 const importMethod = ref<'rules' | 'full'>('rules')
+const activePlayCategory = ref('all')
 
 const rulesText = ref('')
 const uploadInput = ref<HTMLInputElement | null>(null)
@@ -174,6 +302,15 @@ const folderInput = ref<HTMLInputElement | null>(null)
 const uploadFileData = ref('')
 const uploadFileNames = ref<string[]>([])
 const uploadFileSize = ref('')
+const showCreateWaiting = ref(false)
+const createGameDone = ref(false)
+const createGameResult = ref('')
+const createGameError = ref('')
+
+const filteredGames = computed(() => {
+  if (activePlayCategory.value === 'all') return gameCatalog
+  return gameCatalog.filter(game => game.playCategories.includes(activePlayCategory.value))
+})
 
 async function openFilePicker(refName: 'uploadInput' | 'folderInput') {
   const perm = await requestPermission('storage')
@@ -276,8 +413,55 @@ const canSubmit = computed(() => rulesText.value.trim().length > 0 || uploadFile
 
 const submitLabel = computed(() => importMethod.value === 'rules' ? '创建游戏' : '导入游戏')
 
-function submitImport() {
-  uni.showToast({ title: submitLabel.value + '成功', icon: 'success' })
+async function submitImport() {
+  const payload = [
+    rulesText.value.trim() ? `用户填写的说明：\n${rulesText.value.trim()}` : '',
+    uploadFileData.value ? `上传内容：\n${uploadFileData.value}` : '',
+  ].filter(Boolean).join('\n\n')
+
+  if (!payload.trim()) return
+
+  showUploadModal.value = false
+  showCreateWaiting.value = true
+  createGameDone.value = false
+  createGameResult.value = ''
+  createGameError.value = ''
+
+  try {
+    const config =
+      (await apiConfigService.getDefaultConfig('text')) ||
+      (await apiConfigService.getDefaultConfig('chat')) ||
+      (await apiConfigService.getDefaultConfig('voice'))
+
+    if (!config) {
+      throw new Error('请先在设置里配置可用的大模型 API')
+    }
+
+    const service = new LLMAPIService(config)
+    const content = await service.chat({
+      systemPrompt: [
+        '你是一个 H5 小游戏设计与实现助手。',
+        '请根据用户给出的规则、玩法或文件内容，输出一个可落地的游戏创建方案。',
+        '返回内容必须包含：游戏名称、核心规则、玩家操作、胜负/结束条件、状态字段、实现建议。',
+        '不要只说已收到，必须真正分析并生成设计草案。',
+      ].join('\n'),
+      messages: [
+        {
+          role: 'user',
+          content: `请创建/设计这个游戏：\n\n${payload}`,
+        },
+      ],
+    })
+
+    createGameResult.value = content || 'AI 已返回空结果，请补充更明确的规则后重试。'
+    createGameDone.value = true
+  } catch (error) {
+    createGameError.value = (error as Error).message || '创建游戏请求失败'
+  }
+}
+
+function closeCreateWaiting() {
+  showCreateWaiting.value = false
   closeUploadModal()
 }
 
@@ -360,9 +544,59 @@ function formatFileSize(bytes: number): string {
   &:active { transform: scale(0.95); }
 }
 
-.game-list {
+.category-strip {
+  display: flex;
+  gap: 10px;
   width: min(1080px, calc(100% - 32px));
-  margin: 18px auto 0;
+  margin: 14px auto 0;
+  padding: 2px 2px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.category-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color var(--transition-base), border-color var(--transition-base), background var(--transition-base), transform var(--transition-base);
+}
+
+.category-chip:hover {
+  color: var(--text-primary);
+  border-color: rgba(125, 211, 252, 0.34);
+}
+
+.category-chip.active {
+  color: #fff;
+  border-color: rgba(125, 211, 252, 0.48);
+  background: var(--interactive-gradient);
+  box-shadow: 0 14px 30px rgba(56, 189, 248, 0.16);
+}
+
+.category-chip:active {
+  transform: scale(0.96);
+}
+
+.game-browser {
+  width: min(1080px, calc(100% - 32px));
+  margin: 10px auto 0;
+}
+
+.game-list {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
 }
 
 .game-card {
@@ -400,6 +634,16 @@ function formatFileSize(bytes: number): string {
 }
 
 .chess-icon { font-size: 36px; color: #f0d060; }
+.match3-icon {
+  color: #fef3c7;
+  background: linear-gradient(135deg, #ec4899, #38bdf8 52%, #22c55e);
+}
+
+.cut-rope-icon {
+  color: #ecfeff;
+  background: linear-gradient(135deg, #14b8a6, #38bdf8 54%, #f43f5e);
+}
+
 .gomoku-icon {
   color: #ffffff;
 
@@ -412,6 +656,26 @@ function formatFileSize(bytes: number): string {
 }
 
 .game-info { flex: 1; }
+
+.game-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.game-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.08);
+  color: rgba(186, 230, 253, 0.88);
+  font-size: 11px;
+  line-height: 1;
+}
 
 .game-name {
   margin-bottom: 6px;
@@ -445,6 +709,28 @@ function formatFileSize(bytes: number): string {
   overflow: visible;
 }
 
+.empty-games {
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.empty-games strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.empty-games p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 /* --- Modal --- */
 .modal-overlay {
   position: fixed;
@@ -464,6 +750,56 @@ function formatFileSize(bytes: number): string {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.waiting-modal {
+  align-items: center;
+  text-align: center;
+}
+
+.waiting-spinner {
+  width: 42px;
+  height: 42px;
+  margin: 4px auto 12px;
+  border: 3px solid rgba(125, 211, 252, 0.18);
+  border-top-color: rgba(125, 211, 252, 0.95);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.waiting-copy {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.create-result {
+  width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.create-error {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.18);
+  border-radius: 12px;
+  background: rgba(248, 113, 113, 0.08);
+  color: #fecaca;
+  text-align: left;
+  line-height: 1.6;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .modal-header {
@@ -647,8 +983,36 @@ function formatFileSize(bytes: number): string {
   .header { padding-left: 16px; padding-right: 16px; }
   .menu-btn { left: 16px; }
   .import-btn { right: 16px; }
-  .game-list { width: calc(100% - 20px); }
-  .game-card { align-items: flex-start; flex-direction: column; }
+
+  .category-strip {
+    width: calc(100% - 20px);
+    margin-top: 10px;
+  }
+
+  .category-chip {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  .game-browser {
+    width: calc(100% - 20px);
+  }
+
+  .game-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .game-icon {
+    width: 58px;
+    height: 58px;
+    font-size: 28px;
+  }
+
   .play-btn { align-self: flex-start; }
 }
 </style>
