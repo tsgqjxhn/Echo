@@ -5,7 +5,6 @@ import type {
   AdapterImageRequest,
   AdapterSTTRequest,
   AdapterTTSRequest,
-  AdapterVideoRequest,
   ChatCompletionResult,
   ProviderAdapter,
   ProviderCapabilities,
@@ -15,7 +14,6 @@ import type {
 import { extractMessageText, normalizeUsage, parseOpenAIStreamLine } from './stream-parser'
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1'
-const DEFAULT_MODEL = 'gpt-4o-mini'
 const DEFAULT_SPEECH_MODEL = 'gpt-4o-mini-tts'
 const DEFAULT_SPEECH_VOICE = 'alloy'
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe'
@@ -81,7 +79,7 @@ export const openaiAdapter: ProviderAdapter = {
   parseChatResponse(raw: unknown): ChatCompletionResult {
     const data = raw as Record<string, unknown>
     const choices = data.choices as Array<Record<string, unknown>> | undefined
-    const message = choices?.[0]?.message
+    const message = choices?.[0]?.message as Record<string, unknown> | undefined
     const content = extractMessageText(message?.content)
     const usage = normalizeUsage(data.usage) as TokenUsage | undefined
 

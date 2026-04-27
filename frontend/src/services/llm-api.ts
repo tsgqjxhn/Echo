@@ -1,5 +1,5 @@
 import type { APIConfig, TestResult } from '@/types/api-config'
-import type { ChatChunk, ChatContentPart, ChatContext, ChatMessage, TokenUsage } from '@/types/chat'
+import type { ChatChunk, ChatContentPart, ChatContext, ChatMessage } from '@/types/chat'
 import { APIError, NetworkError } from './errors'
 import { requireAPIKey } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
@@ -399,7 +399,7 @@ export class LLMAPIService {
         url: testReq.url,
         method: testReq.method,
         headers: testReq.headers,
-        body: testReq.body,
+        body: testReq.body as BodyInit | Record<string, unknown> | null | undefined,
         responseType: 'json',
       })
 

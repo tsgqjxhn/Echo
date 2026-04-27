@@ -263,9 +263,16 @@ export class STTService {
         } catch (nativeError) {
           this.useLocal = false
           this.useNativeLocal = false
-          throw new Error(
-            `${(nativeError as Error).message || '系统语音识别启动失败'}。如设备未安装语音模型，请改用云端 STT 提供商。`
-          )
+          const message = (nativeError as Error).message || '系统语音识别启动失败'
+          if (/语音模型|语言|model|language/i.test(message)) {
+            try {
+              await NativeSpeech.downloadRecognitionModel({ language: this.config.language })
+              throw new Error('系统正在下载离线语音模型，请稍后重试。如长时间未完成，请在「系统设置 > 语言和输入 > 语音输入」中手动下载离线包')
+            } catch (downloadError) {
+              throw new Error(`${message}。提示：${(downloadError as Error).message || '请在系统设置中下载离线语音包，或改用云端 STT'}`)
+            }
+          }
+          throw new Error(message)
         }
       }
       if (getSpeechRecognitionCtor()) {

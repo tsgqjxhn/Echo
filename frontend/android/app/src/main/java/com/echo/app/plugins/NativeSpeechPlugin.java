@@ -1,7 +1,10 @@
 package com.echo.app.plugins;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -12,6 +15,8 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
+
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.Bridge;
 import com.getcapacitor.JSObject;
@@ -64,15 +69,21 @@ public class NativeSpeechPlugin extends Plugin {
         JSObject result = new JSObject();
         result.put("sttAvailable", SpeechRecognizer.isRecognitionAvailable(getContext()));
         result.put("ttsAvailable", textToSpeech != null || ttsReady || ttsInitializing);
+        result.put("recordPermission", hasRecordPermission());
         call.resolve(result);
     }
 
     @PluginMethod
     public void startRecognition(PluginCall call) {
         final String language = call.getString("language", "zh-CN");
-        final boolean preferOffline = Boolean.TRUE.equals(call.getBoolean("preferOffline", true));
+        final boolean preferOffline = Boolean.TRUE.equals(call.getBoolean("preferOffline", false));
 
         runOnMainThread(() -> {
+            if (!hasRecordPermission()) {
+                call.reject("缺少麦克风权限 (RECORD_AUDIO)");
+                return;
+            }
+
             if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
                 call.reject("当前设备不支持系统语音识别");
                 return;
@@ -94,6 +105,13 @@ public class NativeSpeechPlugin extends Plugin {
                 intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline);
                 intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
 
+                if (preferOffline && Build.VERSION.SDK_INT >= 33) {
+                    try {
+                        speechRecognizer.triggerModelDownload(intent);
+                    } catch (Throwable ignored) {
+                    }
+                }
+
                 isListening = true;
                 emitState(STT_STATE_EVENT, "listening", null);
                 speechRecognizer.startListening(intent);
@@ -104,6 +122,33 @@ public class NativeSpeechPlugin extends Plugin {
             } catch (Exception error) {
                 releaseSpeechRecognizer();
                 call.reject(error.getMessage() != null ? error.getMessage() : "启动系统语音识别失败");
+            }
+        });
+    }
+
+    @PluginMethod
+    public void downloadRecognitionModel(PluginCall call) {
+        final String language = call.getString("language", "zh-CN");
+
+        runOnMainThread(() -> {
+            if (Build.VERSION.SDK_INT < 33) {
+                call.reject("系统版本不支持触发离线语音模型下载 (需要 Android 13+)");
+                return;
+            }
+            if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
+                call.reject("当前设备不支持系统语音识别");
+                return;
+            }
+            try {
+                SpeechRecognizer downloader = SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
+                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+                downloader.triggerModelDownload(intent);
+                downloader.destroy();
+                call.resolve(new JSObject().put("triggered", true));
+            } catch (Throwable error) {
+                call.reject(error.getMessage() != null ? error.getMessage() : "触发模型下载失败");
             }
         });
     }
@@ -146,6 +191,10 @@ public class NativeSpeechPlugin extends Plugin {
     @PluginMethod
     public void startAudioRecording(PluginCall call) {
         runOnMainThread(() -> {
+            if (!hasRecordPermission()) {
+                call.reject("缺少麦克风权限 (RECORD_AUDIO)");
+                return;
+            }
             cancelAudioRecordingInternal();
 
             try {
@@ -154,8 +203,9 @@ public class NativeSpeechPlugin extends Plugin {
                 audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
                 audioRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
                 audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                audioRecorder.setAudioChannels(Math.max(1, call.getInt("numberOfChannels", 1)));
+                audioRecorder.setAudioChannels(1);
                 audioRecorder.setAudioSamplingRate(Math.max(8000, call.getInt("sampleRate", 16000)));
+                audioRecorder.setAudioEncodingBitRate(64000);
                 audioRecorder.setOutputFile(audioRecordFile.getAbsolutePath());
                 audioRecorder.prepare();
                 audioRecorder.start();
@@ -245,6 +295,20 @@ public class NativeSpeechPlugin extends Plugin {
             }
             emitState(TTS_STATE_EVENT, "stopped", null);
             call.resolve();
+        });
+    }
+
+    @PluginMethod
+    public void installTtsData(PluginCall call) {
+        runOnMainThread(() -> {
+            try {
+                Intent installIntent = new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
+                installIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(installIntent);
+                call.resolve(new JSObject().put("launched", true));
+            } catch (Exception error) {
+                call.reject(error.getMessage() != null ? error.getMessage() : "无法启动语音包安装界面");
+            }
         });
     }
 
@@ -386,7 +450,13 @@ public class NativeSpeechPlugin extends Plugin {
         Locale locale = resolveLocale(language);
         int languageStatus = textToSpeech.setLanguage(locale);
         if (languageStatus == TextToSpeech.LANG_MISSING_DATA || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
-            textToSpeech.setLanguage(Locale.SIMPLIFIED_CHINESE);
+            int fallbackStatus = textToSpeech.setLanguage(Locale.SIMPLIFIED_CHINESE);
+            if (fallbackStatus == TextToSpeech.LANG_MISSING_DATA || fallbackStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
+                call.reject(languageStatus == TextToSpeech.LANG_MISSING_DATA
+                    ? "系统语音包未安装，请调用 installTtsData 引导用户下载"
+                    : "系统语音不支持当前语言");
+                return;
+            }
         }
 
         if (voiceName != null && !voiceName.trim().isEmpty() && textToSpeech.getVoices() != null) {
@@ -692,5 +762,10 @@ public class NativeSpeechPlugin extends Plugin {
         }
 
         bridge.executeOnMainThread(action);
+    }
+
+    private boolean hasRecordPermission() {
+        return ContextCompat.checkSelfPermission(getContext(), Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED;
     }
 }

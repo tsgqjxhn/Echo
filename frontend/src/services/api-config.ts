@@ -105,7 +105,7 @@ class APIConfigService {
         url: testReq.url,
         method: testReq.method,
         headers: testReq.headers,
-        body: testReq.body,
+        body: testReq.body as BodyInit | Record<string, unknown> | null | undefined,
         responseType: 'json',
         connectTimeout: 30_000,
         readTimeout: 30_000,

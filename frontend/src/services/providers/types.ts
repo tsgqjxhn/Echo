@@ -1,6 +1,6 @@
-import type { APIConfig, APIProvider } from '@/types/api-config'
+import type { APIConfig, APIProvider, TestResult } from '@/types/api-config'
 import type { ChatMessage, TokenUsage } from '@/types/chat'
-import type { TestResult } from '@/types/api-config'
+export type { TestResult } from '@/types/api-config'
 
 export interface ProviderCapabilities {
   chat: boolean

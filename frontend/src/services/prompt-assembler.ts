@@ -5,7 +5,6 @@
 
 import {
   EntryPosition,
-  type PromptEntry,
   type PromptTemplate,
   type TemplateVariableContext,
   type EntryConditionGroup,

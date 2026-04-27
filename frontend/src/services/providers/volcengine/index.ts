@@ -63,7 +63,7 @@ export const volcengineAdapter: ProviderAdapter = {
   parseChatResponse(raw: unknown): ChatCompletionResult {
     const data = raw as Record<string, unknown>
     const choices = data.choices as Array<Record<string, unknown>> | undefined
-    const message = choices?.[0]?.message
+    const message = choices?.[0]?.message as Record<string, unknown> | undefined
     const content = extractMessageText(message?.content)
 
     return {

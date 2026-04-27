@@ -68,7 +68,8 @@ export async function pollGeminiVideoTask(
     }
 
     if (status === 'failed') {
-      const message = String(data.error?.message || data.message || '视频生成任务失败')
+      const err = data.error as Record<string, unknown> | undefined
+      const message = String(err?.message || data.message || '视频生成任务失败')
       return { taskId, status: 'failed', resultUrls: [], error: message }
     }
 

@@ -23,8 +23,8 @@ import {
 } from './lorebook'
 import { searchMemories, addMemory, type MemorySearchResult } from './semantic-memory'
 import { touchMemory } from './memory-lifecycle'
-import { buildContextWindow, trimMessagesToTokenLimit } from './context-manager'
-import { loadSessionSummary, shouldSummarize, summarizeSession } from './summarizer'
+import { buildContextWindow } from './context-manager'
+import { loadSessionSummary } from './summarizer'
 import { getCharacterAISummary } from './character-profile-json'
 
 const MAX_SYSTEM_PROMPT_LENGTH = 6000

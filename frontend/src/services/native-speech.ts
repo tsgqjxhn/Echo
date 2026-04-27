@@ -4,6 +4,7 @@ import type { PluginListenerHandle } from '@capacitor/core'
 export interface NativeSpeechAvailability {
   sttAvailable: boolean
   ttsAvailable: boolean
+  recordPermission?: boolean
 }
 
 export interface NativeSpeechSTTResultEvent {
@@ -45,6 +46,8 @@ interface NativeSpeechPlugin {
   }): Promise<{ utteranceId: string }>
   stopSpeaking(): Promise<void>
   getVoices(): Promise<{ voices: NativeSpeechVoiceOption[] }>
+  downloadRecognitionModel(options: { language?: string }): Promise<{ triggered: boolean }>
+  installTtsData(): Promise<{ launched: boolean }>
   addListener(
     eventName: 'sttResult',
     listenerFunc: (event: NativeSpeechSTTResultEvent) => void

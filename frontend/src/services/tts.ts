@@ -248,6 +248,14 @@ export class TTSService {
         this.usingNativeLocal = false
         this.activeResolve = null
         await this.detachNativeListeners()
+        const message = (error as Error).message || '系统语音朗读失败'
+        if (/语音包|语言|tts.?data|missing.?data|not.?supported/i.test(message)) {
+          NativeSpeech.installTtsData().catch(() => undefined)
+          const wrapped = new Error(`${message}。已尝试启动语音包安装界面，请完成下载后重试。`)
+          this.onErrorCallback?.(wrapped)
+          reject(wrapped)
+          return
+        }
         this.onErrorCallback?.(error as Error)
         reject(error)
       }
