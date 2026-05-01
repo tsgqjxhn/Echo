@@ -102,14 +102,9 @@ const UI = {
     if (!bar) return;
     const p = gameState.player;
     const active = this.currentScreen || 'city';
+    // 5 nav tabs are now hosted in the outer Vue top-bar (play.vue) so they
+    // remain visible even when this in-iframe top-bar is hidden during battle.
     bar.innerHTML = `
-      <div class="top-bar-tabs">
-        <button class="top-tab-btn ${active === 'city' ? 'active' : ''}" onclick="UI.renderScreen('city')">${navIcon('city', 16)}<span>城市</span></button>
-        <button class="top-tab-btn ${active === 'hero' ? 'active' : ''}" onclick="UI.renderScreen('hero')">${navIcon('hero', 16)}<span>英雄</span></button>
-        <button class="top-tab-btn ${active === 'research' ? 'active' : ''}" onclick="UI.renderScreen('research')">${navIcon('research', 16)}<span>研究</span></button>
-        <button class="top-tab-btn ${active === 'shop' ? 'active' : ''}" onclick="UI.renderScreen('shop')">${navIcon('shop', 16)}<span>商店</span></button>
-        <button class="top-tab-btn ${active === 'menu' ? 'active' : ''}" onclick="UI.renderScreen('menu')">${navIcon('menu', 16)}<span>菜单</span></button>
-      </div>
       <div class="top-bar-resources">
         <div class="resource-item">${resIcon('wood')}<span class="amount">${Math.floor(p.wood)}</span></div>
         <div class="resource-item">${resIcon('food')}<span class="amount">${Math.floor(p.food)}</span></div>
@@ -119,9 +114,22 @@ const UI = {
         <div class="energy-bar">
           ${resIcon('energy')}<span>${p.energy}/${p.maxEnergy}</span>
           <div class="energy-fill-mini"><div style="width:${(p.energy / p.maxEnergy) * 100}%"></div></div>
+          <button class="energy-buy-btn" onclick="UI.buyEnergyWithGold()" ${p.energy >= p.maxEnergy ? 'disabled' : ''} title="花费 100 金币立即回满体力">
+            ${resIcon('gold')}100
+          </button>
         </div>
       </div>
     `;
+    // Tell the outer wrapper which tab is active so it can highlight it.
+    this._notifyOuterScreen(active);
+  },
+
+  _notifyOuterScreen(screen) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'hero-game', type: 'screen', screen }, '*');
+      }
+    } catch (_) { /* cross-origin guard */ }
   },
 
   renderScreen(screen) {
@@ -525,4 +533,19 @@ const UI = {
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
   UI.init();
+});
+
+// Accept screen-switch commands from the outer Vue wrapper (play.vue).
+// Allowed screens mirror the original 5-tab nav.
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.source !== 'hero-host') return;
+  if (data.type === 'switch-screen') {
+    const allowed = ['city', 'hero', 'research', 'shop', 'menu'];
+    if (allowed.includes(data.screen)) {
+      try { UI.renderScreen(data.screen); } catch (_) {}
+    }
+  } else if (data.type === 'request-state') {
+    UI._notifyOuterScreen(UI.currentScreen || 'city');
+  }
 });
