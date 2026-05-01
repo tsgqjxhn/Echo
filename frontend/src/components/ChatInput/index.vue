@@ -164,7 +164,14 @@ function handlePress(tab: TabItem) {
   left: 0;
   right: 0;
   z-index: 9999;
-  background: #000;
+  border-top: 1px solid rgba(125, 211, 252, 0.08);
+  background: var(
+    --app-bottom-nav-surface,
+    linear-gradient(180deg, rgba(15, 23, 42, 0.84) 0%, rgba(8, 13, 24, 0.94) 100%)
+  );
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(22px) saturate(1.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.18);
 }
 
 .nav-inner {
@@ -225,7 +232,7 @@ function handlePress(tab: TabItem) {
   height: 8px;
   border-radius: 999px;
   background: #ef4444;
-  box-shadow: 0 0 0 2px #000, 0 0 10px rgba(239, 68, 68, 0.72);
+  box-shadow: 0 0 0 2px var(--app-bottom-nav-badge-ring, rgba(8, 13, 24, 0.96)), 0 0 10px rgba(239, 68, 68, 0.72);
 }
 
 .icon-wrap--active {

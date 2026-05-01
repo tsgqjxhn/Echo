@@ -47,12 +47,12 @@ class Game {
     // Start game tick (1 second)
     this.tickInterval = setInterval(() => this.tick(), 1000);
 
-    // Auto-save every 30 seconds
+    // Auto-save every 60 seconds
     this.saveInterval = setInterval(() => {
-      this.saveSystem.save(this.player);
+      this.saveSystem.save(this.player, { force: true });
       document.getElementById('sidebar-footer').textContent =
         `已保存 ${new Date().toLocaleTimeString()}`;
-    }, 30000);
+    }, 60000);
 
     // Initial render
     this.ui.updateStatusBar();
@@ -61,10 +61,6 @@ class Game {
     // First-time players: profession → talents → birthplace
     this.ui.continueNewGameFlow();
 
-    // Save on page unload
-    window.addEventListener('beforeunload', () => {
-      this.saveSystem.save(this.player);
-    });
   }
 
   initNewGame() {
@@ -204,4 +200,29 @@ class Game {
 // Start game when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   window.game = new Game();
+});
+
+// Accept screen-switch commands from the outer Vue wrapper (play.vue).
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.source !== 'xiuxian-host') return;
+  if (data.type === 'switch-screen') {
+    const allowed = ['cultivation', 'world', 'cave', 'exploration', 'inventory', 'shop', 'sect', 'favor', 'auction', 'settings'];
+    if (allowed.includes(data.screen)) {
+      try { window.game && window.game.ui && window.game.ui.switchPanel(data.screen); } catch (_) {}
+    }
+  } else if (data.type === 'request-state') {
+    try {
+      const cur = (window.game && window.game.ui && window.game.ui.currentPanel) || 'cultivation';
+      window.game.ui._notifyOuterScreen(cur);
+    } catch (_) {}
+  } else if (data.type === 'save-now') {
+    let ok = false;
+    try {
+      ok = Boolean(window.game && window.game.saveSystem && window.game.saveSystem.save(window.game.player, { force: true }));
+    } catch (_) {}
+    try {
+      window.parent.postMessage({ source: 'xiuxian-game', type: 'save-complete', requestId: data.requestId, ok }, '*');
+    } catch (_) {}
+  }
 });

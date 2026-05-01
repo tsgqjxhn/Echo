@@ -2,24 +2,6 @@
    Cultivation Idle — Ink-wash theme styles
    ============================================================ */
 
-@font-face {
-  font-family: 'WDC Noto Serif SC';
-  src: url('../assets/fonts/NotoSerifSC-subset.woff2') format('woff2');
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'WDC Noto Sans SC';
-  src: url('../assets/fonts/NotoSansSC-subset.woff2') format('woff2');
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'WDC Xingkai';
-  src: url('../assets/fonts/STXingkai-subset.woff2') format('woff2');
-  font-display: swap;
-}
-
 :root {
   --bg-primary: #0a0a12;
   --bg-secondary: #12121e;
@@ -41,9 +23,9 @@
   --rarity-epic: #9b59b6;
   --rarity-legendary: #d4a853;
   --rarity-mythic: #e74c3c;
-  --font-title: 'WDC Noto Serif SC', 'Noto Serif SC', 'SimSun', serif;
-  --font-body: 'WDC Noto Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
-  --font-logo: 'WDC Xingkai', 'WDC Noto Serif SC', serif;
+  --font-title: 'Noto Serif SC', 'SimSun', serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-logo: var(--font-title);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -67,16 +49,9 @@ body {
   height: 100vh;
 }
 
-/* Sidebar */
+/* Sidebar — nav now hosted in outer Vue top-bar (play.vue), so hide here */
 #sidebar {
-  width: 200px;
-  background:
-    linear-gradient(rgba(18, 18, 30, 0.92), rgba(18, 18, 30, 0.96)),
-    url('../assets/ui/jade_tile.webp') repeat;
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+  display: none !important;
 }
 
 .sidebar-header {
@@ -275,6 +250,20 @@ body {
 
 .panel.active {
   display: block;
+}
+
+/* Cultivation panel: pure black background (full bleed inside #main) */
+#panel-cultivation {
+  background: #000;
+}
+#panel-cultivation.active {
+  /* Break out of #main's 24px padding to fill the visible area */
+  margin: -24px;
+  padding: 24px;
+  min-height: calc(100vh - 0px);
+}
+body:has(#panel-cultivation.active) {
+  background: #000 !important;
 }
 
 .panel-title {
@@ -1840,7 +1829,7 @@ body {
   overflow-y: auto;
 }
 .prof-title {
-  font-family: 'WDC Xingkai', serif;
+  font-family: serif;
   font-size: 28px;
   text-align: center;
   color: var(--accent-gold);
@@ -1973,7 +1962,7 @@ body {
   overflow-y: auto;
 }
 .talent-title {
-  font-family: 'WDC Xingkai', serif;
+  font-family: serif;
   font-size: 28px;
   text-align: center;
   color: var(--accent-gold);

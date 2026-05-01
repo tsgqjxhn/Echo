@@ -1,16 +1,4 @@
 /* Vertical Farm Empire - Main Styles */
-@font-face {
-  font-family: 'EmpireBody';
-  src: url('assets/fonts/EmpireBody.woff2') format('woff2');
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'EmpireTitle';
-  src: url('assets/fonts/EmpireTitle.woff2') format('woff2');
-  font-display: swap;
-}
-
 :root {
   --bg-dark: #0f1923;
   --bg-card: #1a2a3a;
@@ -31,8 +19,8 @@
   --shadow: rgba(0,0,0,0.3);
   --radius: 8px;
   --radius-lg: 12px;
-  --font-body: 'EmpireBody', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-title: 'EmpireTitle', 'EmpireBody', 'Microsoft YaHei', sans-serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-title: var(--font-body);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

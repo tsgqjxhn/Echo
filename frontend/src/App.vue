@@ -60,6 +60,10 @@ const switchingConversation = ref(false)
 const hasHistoryBadge = ref(false)
 
 function shouldHideTabBar() {
+  if (route.path.startsWith('/game/play/')) {
+    return true
+  }
+
   return (
     (route.path.includes('/chat') || route.path.includes('/dialogue')) &&
     route.query.from === 'history'
@@ -379,6 +383,24 @@ const showTabBar = computed(() => !shouldHideTabBar())
 const isHistoryChat = computed(() => route.path.includes('/chat') && route.query.from === 'history')
 const isHistoryDialogue = computed(() => route.path.includes('/dialogue') && route.query.from === 'history')
 const isDialogueRoute = computed(() => route.path.includes('/dialogue'))
+const isSelfManagedTabPage = computed(() => ['/character', '/history', '/settings'].includes(route.path))
+const appShellThemeClass = computed(() => {
+  const path = route.path
+
+  if (path.includes('/history') || path.includes('/moments')) {
+    return 'app-shell--history'
+  }
+
+  if (path.includes('/character') || path.includes('/settings') || path.includes('/profile')) {
+    return 'app-shell--deep'
+  }
+
+  if (path.includes('/game')) {
+    return 'app-shell--game'
+  }
+
+  return 'app-shell--soft'
+})
 const dialoguePopoverPlacement = computed<'top' | 'bottom'>(() => {
   const anchor = dialogueAnchorRect.value
   if (!anchor) {
@@ -492,14 +514,15 @@ watch(
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="appShellThemeClass">
     <div
       class="app-container"
       :class="{
         'app-container--immersive': shouldHideTabBar(),
         'app-container--history-chat': isHistoryChat,
         'app-container--history-dialogue': isHistoryDialogue,
-        'app-container--dialogue': isDialogueRoute
+        'app-container--dialogue': isDialogueRoute,
+        'app-container--self-managed-tab': isSelfManagedTabPage
       }"
     >
       <router-view v-slot="{ Component }">
@@ -579,6 +602,7 @@ body,
 #app {
   width: 100%;
   min-height: 100%;
+  background: var(--page-backdrop-soft);
 }
 
 body {
@@ -586,16 +610,44 @@ body {
 }
 
 .app-shell {
+  --app-page-backdrop: var(--page-backdrop-soft);
+  --app-bottom-nav-surface:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.48) 0%, rgba(8, 13, 24, 0.68) 100%),
+    var(--app-page-backdrop);
+  --app-bottom-nav-badge-ring: rgba(8, 13, 24, 0.96);
   min-height: 100vh;
   position: relative;
-  background: var(--page-backdrop);
+  background: var(--app-page-backdrop);
+}
+
+.app-shell--deep {
+  --app-page-backdrop:
+    radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
+    radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.18) 0%, transparent 40%),
+    linear-gradient(180deg, #050d14 0%, #071520 52%, #0a1e2c 100%);
+  --app-bottom-nav-surface:
+    linear-gradient(180deg, rgba(5, 13, 20, 0.38) 0%, rgba(10, 30, 44, 0.62) 100%),
+    var(--app-page-backdrop);
+  --app-bottom-nav-badge-ring: rgba(5, 13, 20, 0.96);
+}
+
+.app-shell--history {
+  --app-page-backdrop:
+    radial-gradient(ellipse at 15% 10%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
+    radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.20) 0%, transparent 44%),
+    radial-gradient(ellipse at 58% 44%, rgba(103, 232, 249, 0.10) 0%, transparent 52%),
+    linear-gradient(160deg, #0a0f1a 0%, #0f1626 32%, #141d32 68%, #0d121f 100%);
+  --app-bottom-nav-surface:
+    linear-gradient(180deg, rgba(10, 15, 26, 0.42) 0%, rgba(13, 18, 31, 0.64) 100%),
+    var(--app-page-backdrop);
+  --app-bottom-nav-badge-ring: rgba(10, 15, 26, 0.96);
 }
 
 .app-container {
   min-height: 100vh;
   padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   position: relative;
-  background: var(--page-backdrop);
+  background: var(--app-page-backdrop);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
@@ -608,6 +660,10 @@ body {
 }
 
 .app-container--dialogue {
+  padding-bottom: 0;
+}
+
+.app-container--self-managed-tab {
   padding-bottom: 0;
 }
 

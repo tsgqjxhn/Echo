@@ -140,7 +140,10 @@ export function hasInventory(state, item, amount) {
   return (state.inventory[item] || 0) >= amount;
 }
 
-export function saveGame(state) {
+export function saveGame(state, options = {}) {
+  const force = options === true || options.force === true;
+  if (!force) return true;
+
   state.lastSaveTime = Date.now();
   try {
     const data = JSON.stringify(state);

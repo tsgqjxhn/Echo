@@ -42,7 +42,6 @@ export function renderHeader(state) {
       <div class="header-right">
         ${state.prestigeCount > 0 ? `<span class="prestige-badge" title="转生加成">🌟 x${prestigeMult.toFixed(2)}</span>` : ''}
         <span class="time-display">⏱ ${formatTime(state.gameTime)}</span>
-        <button class="btn-icon" onclick="window.game.save()" title="保存">💾</button>
         <button class="btn-icon" onclick="window.game.showSettings()" title="设置">⚙️</button>
       </div>
     </div>
@@ -50,23 +49,8 @@ export function renderHeader(state) {
 }
 
 export function renderTabBar(state) {
-  const tabs = [
-    { id: 'farm', name: '农场', icon: '🌾' },
-    { id: 'factory', name: '工厂', icon: '🏭', locked: !state.factoryUnlocked },
-    { id: 'shop', name: '商店', icon: '🏪', locked: !state.shopUnlocked },
-    { id: 'logistics', name: '物流', icon: '🚛', locked: !state.logisticsUnlocked },
-    { id: 'upgrades', name: '升级', icon: '⬆️' },
-    { id: 'buffs', name: '增益', icon: '✨' },
-    { id: 'overview', name: '总览', icon: '📊' },
-  ];
-
-  return `<div class="tab-bar">
-    ${tabs.map(t => `<button class="tab ${state.currentTab === t.id ? 'active' : ''} ${t.locked ? 'locked' : ''}"
-      onclick="window.game.switchTab('${t.id}')" title="${t.locked ? '未解锁' : t.name}">
-      <span class="tab-icon">${t.icon}</span>
-      <span class="tab-name">${t.name}</span>
-    </button>`).join('')}
-  </div>`;
+  void state;
+  return '';
 }
 
 export function renderUpgrades(state) {
@@ -295,7 +279,6 @@ export function renderSettingsModal(state) {
       <div class="modal" onclick="event.stopPropagation()">
         <h3>设置</h3>
         <div class="modal-actions">
-          <button class="btn-action" onclick="window.game.save()">保存游戏</button>
           <button class="btn-action" onclick="window.game.hardReset()">重置存档</button>
           <button class="btn-action" onclick="window.game.closeModal()">关闭</button>
         </div>

@@ -18,20 +18,44 @@
     })();
   </script>
   <script defer src="./assets/app.js"></script>
+  <script>
+    (function () {
+      var SAVE_KEY = 'dark_dorm_save_v1';
+
+      function persistDarkDorm() {
+        try {
+          var game = window.darkDormGame;
+          if (game && game.mode === 'endless' && game.phase !== 'menu' && game.phase !== 'game_over' && typeof game._saveEndlessSnapshot === 'function') {
+            game._saveEndlessSnapshot();
+            return true;
+          }
+
+          var raw = localStorage.getItem(SAVE_KEY);
+          var data = raw ? JSON.parse(raw) : {};
+          data.lastSaveTime = Date.now();
+          localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      window.addEventListener('message', function (event) {
+        var data = event.data;
+        if (!data || data.source !== 'dark-dorm-host' || data.type !== 'save-now') return;
+        var ok = persistDarkDorm();
+        try {
+          window.parent.postMessage({ source: 'dark-dorm-game', type: 'save-complete', requestId: data.requestId, ok: ok }, '*');
+        } catch (_) {}
+      });
+
+      window.setInterval(persistDarkDorm, 60000);
+    })();
+  </script>
   <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
 <div id="app">
-  <div id="top-exit-bar">
-    <button id="top-exit-btn" type="button" aria-label="返回主菜单" title="返回主菜单">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-        <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
-      </svg>
-      <span>返回菜单</span>
-    </button>
-    <span id="top-level-badge" class="hidden"></span>
-    <div id="top-prestige-badge" title="声望点">声望 <span id="top-prestige-val">0</span></div>
-  </div>
   <div id="player-info" class="hidden">
     <div id="door-hp-bar">
       <div id="door-hp-fill"></div>

@@ -1813,7 +1813,7 @@ class RoguelikeGame {
           ctx.restore();
         }
         ctx.fillStyle = '#fff';
-        ctx.font = "bold 12px 'HeroDisplay', 'HeroUI', sans-serif";
+        ctx.font = "bold 12px sans-serif";
         ctx.textAlign = 'center';
         ctx.fillText(b.name, sx, by - 4);
       }
@@ -1910,7 +1910,7 @@ class RoguelikeGame {
       // Pop effect: damage numbers start larger and shrink to normal size
       const popScale = 1 + Math.max(0, (dn.life - 0.5)) * 0.8;
       const fontSize = Math.floor(14 * popScale);
-      ctx.font = `bold ${fontSize}px 'HeroDisplay', 'HeroUI', sans-serif`;
+      ctx.font = `bold ${fontSize}px sans-serif`;
       ctx.textAlign = 'center';
       // Dark outline for readability against any background
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -2038,7 +2038,7 @@ class RoguelikeGame {
 
     // Level + hero name + weapon
     ctx.fillStyle = '#fff';
-    ctx.font = "bold 11px 'HeroUI', sans-serif";
+    ctx.font = "bold 11px sans-serif";
     ctx.textAlign = 'left';
     const weapon = WEAPONS[p.weapon] || WEAPONS.sword;
     ctx.fillText(`Lv.${p.level} ${p.heroName || ''} ${weapon.icon}`, 10, 42);
@@ -2060,7 +2060,7 @@ class RoguelikeGame {
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
     ctx.fillRect(w / 2 - 15, 34, 30, 14);
     ctx.fillStyle = '#fff';
-    ctx.font = "10px 'HeroUI', sans-serif";
+    ctx.font = "10px sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('暂停', w / 2, 44);
 
@@ -2069,7 +2069,7 @@ class RoguelikeGame {
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#ffd740';
-      ctx.font = "bold 28px 'HeroDisplay', 'HeroUI', sans-serif";
+      ctx.font = "bold 28px sans-serif";
       ctx.textAlign = 'center';
       ctx.fillText('暂停', w / 2, h / 2 - 30);
       // Resume button
@@ -2077,7 +2077,7 @@ class RoguelikeGame {
       ctx.fillStyle = 'rgba(76,175,80,0.85)';
       this.roundRect(ctx, rbx, rby, rbw, rbh, 10, true, false);
       ctx.fillStyle = '#fff';
-      ctx.font = "bold 16px 'HeroUI', sans-serif";
+      ctx.font = "bold 16px sans-serif";
       ctx.fillText('继续', w / 2, rby + 26);
       this._resumeBtn = { x: rbx, y: rby, w: rbw, h: rbh };
       // Quit button
@@ -2101,7 +2101,7 @@ class RoguelikeGame {
       ctx.fill();
 
       ctx.fillStyle = '#fff';
-      ctx.font = "bold 12px 'HeroUI', sans-serif";
+      ctx.font = "bold 12px sans-serif";
       ctx.textAlign = 'center';
       ctx.fillText(this.skillReady ? '技能' : `${Math.ceil(this.skillCooldown)}s`, sx, sy + 4);
     }
@@ -2123,12 +2123,12 @@ class RoguelikeGame {
       ctx.drawImage(this.backpackImg.img, bx + 5, by + 5, size - 10, size - 10);
     } else {
       ctx.fillStyle = '#fff';
-      ctx.font = "bold 12px 'HeroUI', sans-serif";
+      ctx.font = "bold 12px sans-serif";
       ctx.textAlign = 'center';
       ctx.fillText('背包', bx + size / 2, by + 29);
     }
     ctx.fillStyle = '#fff';
-    ctx.font = "9px 'HeroUI', sans-serif";
+    ctx.font = "9px sans-serif";
     ctx.textAlign = 'center';
     ctx.fillText('背包', bx + size / 2, by + size + 10);
     ctx.restore();
@@ -2160,7 +2160,7 @@ class RoguelikeGame {
       const img = this.itemImg[id];
       if (img && img.ready) ctx.drawImage(img.img, x + (slotW - 36) / 2, y + 4, 32, 32);
       ctx.fillStyle = '#fff';
-      ctx.font = "8px 'HeroUI', sans-serif";
+      ctx.font = "8px sans-serif";
       ctx.textAlign = 'center';
       ctx.fillText(BATTLE_ITEMS[id].shortName, x + (slotW - 4) / 2, y + 45);
       ctx.fillStyle = count > 0 ? '#ffd740' : '#8a8f98';
@@ -2180,7 +2180,7 @@ class RoguelikeGame {
       ctx.fillStyle = 'rgba(0,0,0,0.45)';
       this.roundRect(ctx, 10, 52, Math.min(w - 20, 76 * tags.length), 22, 8, true, false);
       ctx.fillStyle = '#ffd740';
-      ctx.font = "10px 'HeroUI', sans-serif";
+      ctx.font = "10px sans-serif";
       ctx.textAlign = 'left';
       ctx.fillText(tags.join('  '), 18, 67);
     }
@@ -2188,7 +2188,7 @@ class RoguelikeGame {
     if (this.itemToast) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, this.itemToast.timer);
-      ctx.font = "bold 12px 'HeroUI', sans-serif";
+      ctx.font = "bold 12px sans-serif";
       ctx.fillStyle = 'rgba(0,0,0,0.72)';
       const tw = Math.min(w - 40, Math.max(130, ctx.measureText(this.itemToast.text).width + 34));
       this.roundRect(ctx, (w - tw) / 2, h * 0.22, tw, 28, 14, true, false);
@@ -2244,7 +2244,7 @@ class RoguelikeGame {
     const titleY = Math.max(28, h * 0.08);
     ctx.fillStyle = '#ffd740';
     const titleSize = Math.min(22, Math.max(14, Math.floor(h * 0.045)));
-    ctx.font = `bold ${titleSize}px 'HeroDisplay', 'HeroUI', sans-serif`;
+    ctx.font = `bold ${titleSize}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('升级！选择一项强化', w / 2, titleY);
 
@@ -2281,24 +2281,24 @@ class RoguelikeGame {
 
       if (horizontal) {
         const iconSize = Math.min(36, Math.floor(cardH * 0.22));
-        ctx.font = `${iconSize}px 'HeroUI', sans-serif`;
+        ctx.font = `${iconSize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
         ctx.fillText(choice.icon, cx + cardW / 2, cy + iconSize + 12);
 
         const nameSize = Math.min(14, Math.max(11, Math.floor(cardH * 0.075)));
-        ctx.font = `bold ${nameSize}px 'HeroDisplay', 'HeroUI', sans-serif`;
+        ctx.font = `bold ${nameSize}px sans-serif`;
         ctx.fillStyle = '#ffd740';
         ctx.fillText(choice.name, cx + cardW / 2, cy + iconSize + 36);
 
-        ctx.font = "11px 'HeroUI', sans-serif";
+        ctx.font = "11px sans-serif";
         ctx.fillStyle = '#bbb';
         this.wrapText(ctx, choice.desc, cx + cardW / 2, cy + iconSize + 56, cardW - 16, 14);
       } else {
         // Vertical: icon left, text right — fits in short cards on narrow screens
         const padX = 14;
         const iconSize = Math.min(28, Math.floor(cardH * 0.55));
-        ctx.font = `${iconSize}px 'HeroUI', sans-serif`;
+        ctx.font = `${iconSize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
         ctx.fillText(choice.icon, cx + padX + iconSize / 2, cy + cardH / 2 + iconSize / 3);
@@ -2307,11 +2307,11 @@ class RoguelikeGame {
         const textW = cardW - (padX * 3 + iconSize);
         ctx.textAlign = 'left';
         const nameSize = Math.min(14, Math.max(12, Math.floor(cardH * 0.22)));
-        ctx.font = `bold ${nameSize}px 'HeroDisplay', 'HeroUI', sans-serif`;
+        ctx.font = `bold ${nameSize}px sans-serif`;
         ctx.fillStyle = '#ffd740';
         ctx.fillText(choice.name, textX, cy + nameSize + 8);
 
-        ctx.font = "11px 'HeroUI', sans-serif";
+        ctx.font = "11px sans-serif";
         ctx.fillStyle = '#bbb';
         this.wrapText(ctx, choice.desc, textX, cy + nameSize + 24, textW, 13);
         ctx.textAlign = 'center';

@@ -61,7 +61,10 @@ function createDefaultState() {
   };
 }
 
-function saveGame() {
+function saveGame(options = {}) {
+  const force = options === true || options.force === true;
+  if (!force) return true;
+
   try {
     if (typeof window !== 'undefined' && window.__heroResetting) return true;
     if (!gameState) return false;

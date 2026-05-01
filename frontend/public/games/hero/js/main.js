@@ -506,8 +506,8 @@ const UI = {
     if (this._autoSaveInterval) clearInterval(this._autoSaveInterval);
     this._autoSaveInterval = setInterval(() => {
       if (!gameState || window.__heroResetting) return;
-      saveGame();
-    }, 30000);
+      saveGame({ force: true });
+    }, 60000);
   },
 
   startTimerUpdates() {
@@ -547,5 +547,11 @@ window.addEventListener('message', (event) => {
     }
   } else if (data.type === 'request-state') {
     UI._notifyOuterScreen(UI.currentScreen || 'city');
+  } else if (data.type === 'save-now') {
+    let ok = false;
+    try { ok = Boolean(saveGame({ force: true })); } catch (_) {}
+    try {
+      window.parent.postMessage({ source: 'hero-game', type: 'save-complete', requestId: data.requestId, ok }, '*');
+    } catch (_) {}
   }
 });

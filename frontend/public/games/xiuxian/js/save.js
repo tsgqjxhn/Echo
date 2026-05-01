@@ -32,7 +32,10 @@ class SaveSystem {
     }
   }
 
-  save(player) {
+  save(player, options = {}) {
+    const force = options === true || options.force === true;
+    if (!force) return true;
+
     try {
       const data = player.serialize();
       // Add checksum

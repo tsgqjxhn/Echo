@@ -181,7 +181,10 @@ function getInv(s, item) { return s.inventory[item] || 0; }
 function addInv(s, item, a) { if (!s.inventory[item]) s.inventory[item] = 0; s.inventory[item] += a; if (s.inventory[item] <= 0) delete s.inventory[item]; }
 function hasInv(s, item, a) { return (s.inventory[item] || 0) >= a; }
 
-function saveGame(s) {
+function saveGame(s, options) {
+  const force = options === true || (options && options.force === true);
+  if (!force) return true;
+
   s.lastSaveTime = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); return true; } catch { return false; }
 }
@@ -566,7 +569,7 @@ function formatTime(sec) { const h = Math.floor(sec / 3600), m = Math.floor((sec
 
 function renderHeader(s) {
   const xp = Math.floor(getXPProgress(s) * 100), pm = getPrestigeMultiplier(s);
-  return '<div class="header"><div class="header-left"><span class="game-title">' + EmpireAssets.icon('factory', 'header-icon', '圣王国') + '圣王国</span><span class="gold-display">' + EmpireAssets.icon('gold', 'header-icon', '金币') + formatNumber(s.gold) + ' G</span></div><div class="header-center"><div class="level-display"><span class="level-badge">Lv.' + s.level + '</span><div class="xp-bar"><div class="xp-fill" style="width:' + xp + '%"></div></div><span class="xp-text">' + xp + '%</span></div></div><div class="header-right">' + (s.prestigeCount > 0 ? '<span class="prestige-badge" title="转生加成">' + EmpireAssets.icon('prestige', 'tiny-icon', '转生') + 'x' + pm.toFixed(2) + '</span>' : '') + '<span class="time-display">' + EmpireAssets.icon('time', 'tiny-icon', '时间') + formatTime(s.gameTime) + '</span><button class="btn-icon" onclick="window.game.save()" title="保存">' + EmpireAssets.icon('save', 'asset-icon', '保存') + '</button><button class="btn-icon" onclick="window.game.showSettings()" title="设置">' + EmpireAssets.icon('settings', 'asset-icon', '设置') + '</button></div></div>';
+  return '<div class="header"><div class="header-left"><span class="game-title">' + EmpireAssets.icon('factory', 'header-icon', '圣王国') + '圣王国</span><span class="gold-display">' + EmpireAssets.icon('gold', 'header-icon', '金币') + formatNumber(s.gold) + ' G</span></div><div class="header-center"><div class="level-display"><span class="level-badge">Lv.' + s.level + '</span><div class="xp-bar"><div class="xp-fill" style="width:' + xp + '%"></div></div><span class="xp-text">' + xp + '%</span></div></div><div class="header-right">' + (s.prestigeCount > 0 ? '<span class="prestige-badge" title="转生加成">' + EmpireAssets.icon('prestige', 'tiny-icon', '转生') + 'x' + pm.toFixed(2) + '</span>' : '') + '<span class="time-display">' + EmpireAssets.icon('time', 'tiny-icon', '时间') + formatTime(s.gameTime) + '</span><button class="btn-icon" onclick="window.game.showSettings()" title="设置">' + EmpireAssets.icon('settings', 'asset-icon', '设置') + '</button></div></div>';
 }
 
 function renderTabBar(s) {
@@ -615,8 +618,16 @@ function renderNotifications(s) {
   return s.notifications.filter(n => Date.now() - n.time < 4000).slice(-5).map(n => '<div class="notification ' + n.type + '">' + n.message + '</div>').join('');
 }
 
+function notifyOuterScreen(screen) {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ source: 'empire-game', type: 'screen', screen: screen }, '*');
+    }
+  } catch (_) {}
+}
+
 function renderSettingsModal(s) {
-  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()"><h3>设置</h3><div class="modal-actions"><button class="btn-action" onclick="window.game.save()">保存游戏</button><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div><div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p></div></div></div>';
+  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()"><h3>设置</h3><div class="modal-actions"><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div><div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p></div></div></div>';
 }
 
 function renderOfflineModal(e) {
@@ -650,7 +661,7 @@ var game;
     var now = performance.now(), dt = Math.min((now - lastTick) / 1000, 0.5);
     lastTick = now;
     update(dt);
-    if (Date.now() - lastSave >= 30000) { saveGame(state); lastSave = Date.now(); }
+    if (Date.now() - lastSave >= 60000) { saveGame(state, { force: true }); lastSave = Date.now(); }
     if (now - lastUI >= 250) { render(); lastUI = now; }
   }
 
@@ -676,7 +687,8 @@ var game;
       case 'overview': c = renderOverview(state); break;
       default: c = renderFarm(state);
     }
-    app.innerHTML = renderHeader(state) + renderTabBar(state) + '<div class="main-content">' + c + '</div><div class="notification-area">' + renderNotifications(state) + '</div>' + modalHTML;
+    app.innerHTML = renderHeader(state) + '<div class="main-content">' + c + '</div><div class="notification-area">' + renderNotifications(state) + '</div>' + modalHTML;
+    notifyOuterScreen(state.currentTab);
   }
 
   game = {
@@ -730,12 +742,29 @@ var game;
     buyUpgrade: function(k) { var c = getUpgradeCost(k, state.upgrades[k] || 0); if (hasGold(state, c)) { addGold(state, -c); state.upgrades[k]++; notify(state, '升级了 ' + k.replace(/_/g, ' ') + '！', 'success'); render(); } },
     activateBuff: function(k) { if (activateBuff(state, k)) render(); },
     doPrestige: function() { var r = doPrestige(state); if (r) { modalHTML = '<div class="modal-overlay"><div class="modal"><h3>转生成功！</h3><p>获得 ' + r.newPoints + ' 转生点数</p><p>当前总点数: ' + r.totalPoints + '</p><button class="btn-action btn-large" onclick="window.game.closeModal()">继续</button></div></div>'; render(); } },
-    save: function() { if (saveGame(state)) { notify(state, '游戏已保存！', 'success'); render(); } },
+    save: function() { if (saveGame(state, { force: true })) { notify(state, '游戏已保存！', 'success'); render(); } },
     showSettings: function() { modalHTML = renderSettingsModal(state); render(); },
     closeModal: function() { modalHTML = ''; render(); },
     hardReset: function() { if (confirm('确定要重置所有进度吗？此操作不可撤销！')) { if (confirm('真的确定吗？所有数据将永久删除！')) { deleteSave(); state = createInitialState(); modalHTML = ''; render(); } } },
     dismissOffline: function() { if (offlineEarnings) { applyOfflineEarnings(state, offlineEarnings); offlineEarnings = null; } modalHTML = ''; render(); },
   };
+
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || data.source !== 'empire-host') return;
+    if (data.type === 'switch-screen') {
+      var allowed = ['farm', 'factory', 'shop', 'logistics', 'upgrades', 'buffs', 'overview'];
+      if (allowed.indexOf(data.screen) !== -1) {
+        try { game.switchTab(data.screen); } catch (_) {}
+      }
+    } else if (data.type === 'request-state') {
+      try { notifyOuterScreen(state.currentTab || 'farm'); } catch (_) {}
+    } else if (data.type === 'save-now') {
+      var ok = false;
+      try { ok = !!saveGame(state, { force: true }); } catch (_) {}
+      try { window.parent.postMessage({ source: 'empire-game', type: 'save-complete', requestId: data.requestId, ok: ok }, '*'); } catch (_) {}
+    }
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

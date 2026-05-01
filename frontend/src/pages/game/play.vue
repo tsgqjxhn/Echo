@@ -1,18 +1,18 @@
 <template>
   <div class="play-page">
-    <div class="play-header" :class="{ 'play-header-hero': gameId === 'hero' }">
-      <button class="back-btn" @click="router.back()" aria-label="返回">
+    <div class="play-header" :class="{ 'play-header-tabs': hasOuterTabs }">
+      <button class="back-btn" :disabled="isSavingBeforeLeave" @click="router.back()" aria-label="返回">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
       </button>
 
-      <nav v-if="gameId === 'hero'" class="hero-nav-tabs" aria-label="勇士导航">
+      <nav v-if="hasOuterTabs" class="game-nav-tabs" :aria-label="`${gameTitle}导航`">
         <button
-          v-for="tab in heroTabs"
+          v-for="tab in activeTabs"
           :key="tab.key"
           type="button"
-          class="hero-nav-tab"
-          :class="{ active: heroActiveScreen === tab.key }"
-          @click="switchHeroScreen(tab.key)"
+          class="game-nav-tab"
+          :class="{ active: activeScreen === tab.key }"
+          @click="switchGameScreen(tab.key)"
         >
           {{ tab.label }}
         </button>
@@ -38,12 +38,18 @@
         <p>游戏加载中…</p>
       </div>
     </div>
+    <div v-if="isSavingBeforeLeave" class="saving-overlay" role="status" aria-live="polite">
+      <div class="saving-card">
+        <span class="saving-spinner" aria-hidden="true"></span>
+        <span>保存当前进度</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import ChessGame from './mini/chess.vue'
 import GomokuGame from './mini/gomoku.vue'
 import Match3Game from './mini/match3.vue'
@@ -77,56 +83,191 @@ const h5GamePaths: Record<string, string> = {
 const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
 const h5Src = computed(() => h5GamePaths[gameId.value] || '')
 
-// ── Hero game: 5-tab nav hosted in this outer header ──
-type HeroScreen = 'city' | 'hero' | 'research' | 'shop' | 'menu'
-interface HeroTab { key: HeroScreen; label: string }
-const heroTabs: HeroTab[] = [
-  { key: 'city', label: '城市' },
-  { key: 'hero', label: '英雄' },
-  { key: 'research', label: '研究' },
-  { key: 'shop', label: '商店' },
-  { key: 'menu', label: '菜单' },
-]
-const heroActiveScreen = ref<HeroScreen>('city')
-const iframeRef = ref<HTMLIFrameElement | null>(null)
+// ── Outer top-bar tab integration for hero / empire / xiuxian ──
+interface NavTab { key: string; label: string }
+interface BridgeConfig { hostSource: string; gameSource: string }
 
-function postToHero(payload: Record<string, unknown>) {
-  const win = iframeRef.value?.contentWindow
-  if (!win) return
-  win.postMessage({ source: 'hero-host', ...payload }, '*')
+const tabConfigs: Record<string, { tabs: NavTab[]; hostSource: string; gameSource: string; defaultKey: string }> = {
+  hero: {
+    tabs: [
+      { key: 'city', label: '城市' },
+      { key: 'hero', label: '英雄' },
+      { key: 'research', label: '研究' },
+      { key: 'shop', label: '商店' },
+      { key: 'menu', label: '菜单' },
+    ],
+    hostSource: 'hero-host',
+    gameSource: 'hero-game',
+    defaultKey: 'city',
+  },
+  empire: {
+    tabs: [
+      { key: 'farm', label: '农场' },
+      { key: 'factory', label: '工厂' },
+      { key: 'shop', label: '商店' },
+      { key: 'logistics', label: '物流' },
+      { key: 'upgrades', label: '升级' },
+      { key: 'buffs', label: '增益' },
+      { key: 'overview', label: '总览' },
+    ],
+    hostSource: 'empire-host',
+    gameSource: 'empire-game',
+    defaultKey: 'farm',
+  },
+  xiuxian: {
+    tabs: [
+      { key: 'cultivation', label: '修炼' },
+      { key: 'world', label: '世界' },
+      { key: 'cave', label: '洞府' },
+      { key: 'exploration', label: '探险' },
+      { key: 'inventory', label: '背包' },
+      { key: 'shop', label: '商店' },
+      { key: 'sect', label: '宗门' },
+      { key: 'favor', label: '人脉' },
+      { key: 'auction', label: '拍卖' },
+      { key: 'settings', label: '设置' },
+    ],
+    hostSource: 'xiuxian-host',
+    gameSource: 'xiuxian-game',
+    defaultKey: 'cultivation',
+  },
 }
 
-function switchHeroScreen(screen: HeroScreen) {
-  heroActiveScreen.value = screen
-  postToHero({ type: 'switch-screen', screen })
+const saveBridgeConfigs: Record<string, BridgeConfig> = {
+  xiuxian: { hostSource: 'xiuxian-host', gameSource: 'xiuxian-game' },
+  empire: { hostSource: 'empire-host', gameSource: 'empire-game' },
+  hero: { hostSource: 'hero-host', gameSource: 'hero-game' },
+  'dark-dorm': { hostSource: 'dark-dorm-host', gameSource: 'dark-dorm-game' },
+}
+
+const hasOuterTabs = computed(() => Boolean(tabConfigs[gameId.value]))
+const activeTabs = computed<NavTab[]>(() => tabConfigs[gameId.value]?.tabs ?? [])
+const activeScreen = ref<string>('')
+const iframeRef = ref<HTMLIFrameElement | null>(null)
+const isSavingBeforeLeave = ref(false)
+
+let pendingSaveRequest: {
+  id: string
+  source: string
+  timer: number
+  resolve: (ok: boolean) => void
+} | null = null
+
+const SAVE_BEFORE_LEAVE_TIMEOUT = 1200
+const SAVE_BEFORE_LEAVE_MIN_VISIBLE = 520
+
+function postToGame(payload: Record<string, unknown>) {
+  const win = iframeRef.value?.contentWindow
+  const cfg = tabConfigs[gameId.value]
+  if (!win || !cfg) return
+  win.postMessage({ source: cfg.hostSource, ...payload }, '*')
+}
+
+function switchGameScreen(screen: string) {
+  activeScreen.value = screen
+  postToGame({ type: 'switch-screen', screen })
 }
 
 function onIframeLoad() {
-  // Ask hero for its current screen so we render the right active highlight.
-  if (gameId.value === 'hero') {
-    setTimeout(() => postToHero({ type: 'request-state' }), 100)
+  const cfg = tabConfigs[gameId.value]
+  if (!cfg) return
+  if (!activeScreen.value) activeScreen.value = cfg.defaultKey
+  setTimeout(() => postToGame({ type: 'request-state' }), 100)
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms))
+}
+
+function requestH5Save() {
+  const cfg = saveBridgeConfigs[gameId.value]
+  const win = iframeRef.value?.contentWindow
+  if (!cfg || !win) return Promise.resolve(false)
+
+  if (pendingSaveRequest) {
+    window.clearTimeout(pendingSaveRequest.timer)
+    pendingSaveRequest.resolve(false)
+    pendingSaveRequest = null
+  }
+
+  const requestId = `${gameId.value}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return new Promise<boolean>(resolve => {
+    const timer = window.setTimeout(() => {
+      if (pendingSaveRequest?.id === requestId) {
+        pendingSaveRequest = null
+        resolve(false)
+      }
+    }, SAVE_BEFORE_LEAVE_TIMEOUT)
+
+    pendingSaveRequest = {
+      id: requestId,
+      source: cfg.gameSource,
+      timer,
+      resolve,
+    }
+
+    win.postMessage({ source: cfg.hostSource, type: 'save-now', requestId }, '*')
+  })
+}
+
+async function saveCurrentGameBeforeLeave() {
+  if (isSavingBeforeLeave.value) return
+  isSavingBeforeLeave.value = true
+  try {
+    await Promise.all([
+      requestH5Save(),
+      wait(SAVE_BEFORE_LEAVE_MIN_VISIBLE),
+    ])
+  } finally {
+    isSavingBeforeLeave.value = false
   }
 }
 
 function handleMessage(event: MessageEvent) {
-  const data = event.data as { source?: string; type?: string; screen?: HeroScreen } | null
-  if (!data || data.source !== 'hero-game') return
+  const data = event.data as { source?: string; type?: string; screen?: string } | null
+  if (!data) return
+  if (data.type === 'save-complete' && pendingSaveRequest && data.source === pendingSaveRequest.source) {
+    const requestId = (data as { requestId?: string }).requestId
+    if (requestId === pendingSaveRequest.id) {
+      window.clearTimeout(pendingSaveRequest.timer)
+      const resolve = pendingSaveRequest.resolve
+      pendingSaveRequest = null
+      resolve((data as { ok?: boolean }).ok !== false)
+    }
+    return
+  }
+
+  const cfg = tabConfigs[gameId.value]
+  if (!cfg || data.source !== cfg.gameSource) return
   if (data.type === 'screen' && data.screen) {
-    heroActiveScreen.value = data.screen
+    activeScreen.value = data.screen
   }
 }
 
 onMounted(() => window.addEventListener('message', handleMessage))
-onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
+onBeforeUnmount(() => {
+  if (pendingSaveRequest) {
+    window.clearTimeout(pendingSaveRequest.timer)
+    pendingSaveRequest.resolve(false)
+    pendingSaveRequest = null
+  }
+  window.removeEventListener('message', handleMessage)
+})
+onBeforeRouteLeave(async () => {
+  await saveCurrentGameBeforeLeave()
+  return true
+})
 </script>
 
 <style lang="scss" scoped>
 .play-page {
+  --play-header-shell-height: calc(env(safe-area-inset-top, 0px) + 72px);
   height: 100vh;
   height: 100dvh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   background: var(--page-backdrop-soft);
   overflow: hidden;
 }
@@ -136,14 +277,16 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
   top: 0;
   z-index: 20;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 12px;
-  min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
+  min-height: var(--play-header-shell-height);
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
   border-bottom: 1px solid var(--top-bar-border);
   background: var(--top-bar-surface);
   backdrop-filter: blur(28px) saturate(1.45);
   -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  transform: translateZ(0);
 }
 
 .back-btn {
@@ -155,6 +298,10 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
   &:active { transform: scale(0.95); }
 }
 
@@ -165,23 +312,34 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
   color: var(--text-primary);
 }
 
-.play-header-hero {
+.play-header-tabs {
   gap: 8px;
   padding-right: 12px;
 }
 
-.hero-nav-tabs {
+.game-nav-tabs {
   flex: 1;
   min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-left: 4px;
+  padding: 4px 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.hero-nav-tab {
-  min-height: 36px;
-  padding: 0 6px;
+.game-nav-tab {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
@@ -190,7 +348,9 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   cursor: pointer;
+  scroll-snap-align: start;
   -webkit-tap-highlight-color: transparent;
   transition: background var(--transition-base), color var(--transition-base), border-color var(--transition-base);
 
@@ -206,8 +366,9 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
 }
 
 .play-body {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  height: auto;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -224,5 +385,45 @@ onBeforeUnmount(() => window.removeEventListener('message', handleMessage))
   border: none;
   border-radius: 0;
   display: block;
+}
+
+.saving-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.44);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.saving-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(125, 211, 252, 0.26);
+  border-radius: 14px;
+  background: rgba(8, 13, 24, 0.90);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.saving-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(125, 211, 252, 0.24);
+  border-top-color: #7dd3fc;
+  border-radius: 999px;
+  animation: saving-spin 0.75s linear infinite;
+}
+
+@keyframes saving-spin {
+  to { transform: rotate(360deg); }
 }
 </style>

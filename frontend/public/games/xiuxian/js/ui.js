@@ -34,6 +34,15 @@ class UIManager {
     );
     this._updateStatusVisibility(name);
     this.renderPanel(name);
+    this._notifyOuterScreen(name);
+  }
+
+  _notifyOuterScreen(screen) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'xiuxian-game', type: 'screen', screen }, '*');
+      }
+    } catch (_) { /* cross-origin guard */ }
   }
 
   _updateStatusVisibility(panel) {
@@ -1314,18 +1323,12 @@ class UIManager {
         <div class="card-row"><span>炼丹成功/失败</span><span>${s.pillsRefined} / ${s.pillsFailed}</span></div>
       </div>
       <div class="btn-group" style="margin-top:16px">
-        <button class="btn" id="btn-save">手动保存</button>
         <button class="btn" id="btn-export">导出存档</button>
         <button class="btn" id="btn-import">导入存档</button>
         <button class="btn btn-danger" id="btn-reset">重置存档</button>
       </div>
       <input type="file" id="file-import" style="display:none" accept=".txt,.sav">
     `;
-
-    this._bindClick('btn-save', () => {
-      this.game.saveSystem.save(p);
-      this.showToast('保存成功', 'success');
-    });
 
     this._bindClick('btn-export', () => {
       const data = this.game.saveSystem.exportSave(p);

@@ -16,24 +16,10 @@
   --border: #333;
 }
 
-@font-face {
-  font-family: 'HeroUI';
-  src: url('../assets/fonts/NotoSansSC-VF.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'HeroDisplay';
-  src: url('../assets/fonts/NotoSerifSC-VF.woff2') format('woff2');
-  font-weight: 100 900;
-  font-display: swap;
-}
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'HeroUI', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background: var(--bg-dark);
   color: var(--text);
   overflow: hidden;
@@ -1267,7 +1253,7 @@ button:active { transform: scale(0.97); opacity: 0.9; }
 }
 
 .civ-panel h1 {
-  font-family: 'HeroDisplay', 'HeroUI', serif;
+  font-family: , serif;
   color: var(--gold);
   font-size: 20px;
   margin-bottom: 6px;
@@ -1413,7 +1399,7 @@ button:active { transform: scale(0.97); opacity: 0.9; }
 }
 
 .welcome-screen h1 {
-  font-family: 'HeroDisplay', 'HeroUI', serif;
+  font-family: , serif;
   font-size: 26px;
   color: var(--gold);
   margin-bottom: 8px;

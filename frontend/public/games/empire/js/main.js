@@ -12,7 +12,7 @@ import {
 import { getUpgradeCost } from './data.js';
 
 const TICK_RATE = 100; // ms per tick
-const SAVE_INTERVAL = 30000; // auto-save every 30s
+const SAVE_INTERVAL = 60000; // auto-save every 60s
 const UI_UPDATE_INTERVAL = 250; // update UI every 250ms
 
 class Game {
@@ -70,7 +70,7 @@ class Game {
 
     // Auto-save
     if (Date.now() - this.lastSave >= SAVE_INTERVAL) {
-      saveGame(this.state);
+      saveGame(this.state, { force: true });
       this.lastSave = Date.now();
     }
 
@@ -95,7 +95,6 @@ class Game {
     if (!app) return;
 
     const header = renderHeader(this.state);
-    const tabBar = renderTabBar(this.state);
 
     let content = '';
     switch (this.state.currentTab) {
@@ -112,13 +111,22 @@ class Game {
     const notifs = renderNotifications(this.state);
     const modal = this.modalHTML;
 
+    // Tab bar is hosted in the outer Vue wrapper (play.vue) — skip rendering it here.
     app.innerHTML = `
       ${header}
-      ${tabBar}
       <div class="main-content">${content}</div>
       <div class="notification-area">${notifs}</div>
       ${modal}
     `;
+    this._notifyOuterScreen(this.state.currentTab);
+  }
+
+  _notifyOuterScreen(screen) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'empire-game', type: 'screen', screen }, '*');
+      }
+    } catch (_) { /* cross-origin guard */ }
   }
 
   // Actions
@@ -300,7 +308,7 @@ class Game {
 
   // Save/Load
   save() {
-    if (saveGame(this.state)) {
+    if (saveGame(this.state, { force: true })) {
       notify(this.state, '游戏已保存！', 'success');
       this.render();
     }
@@ -345,5 +353,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (game.offlineEarnings) {
     game.modalHTML = renderOfflineModal(game.offlineEarnings);
     game.render();
+  }
+});
+
+// Accept screen-switch commands from the outer Vue wrapper (play.vue).
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.source !== 'empire-host') return;
+  if (data.type === 'switch-screen') {
+    const allowed = ['farm', 'factory', 'shop', 'logistics', 'upgrades', 'buffs', 'overview'];
+    if (allowed.includes(data.screen)) {
+      try { game.switchTab(data.screen); } catch (_) {}
+    }
+  } else if (data.type === 'request-state') {
+    try { game._notifyOuterScreen(game.state?.currentTab || 'farm'); } catch (_) {}
+  } else if (data.type === 'save-now') {
+    let ok = false;
+    try { ok = Boolean(saveGame(game.state, { force: true })); } catch (_) {}
+    try {
+      window.parent.postMessage({ source: 'empire-game', type: 'save-complete', requestId: data.requestId, ok }, '*');
+    } catch (_) {}
   }
 });

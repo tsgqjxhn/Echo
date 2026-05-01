@@ -555,7 +555,7 @@ function formatFileSize(bytes: number): string {
 <style lang="scss" scoped>
 .game-panel-page {
   min-height: 100vh;
-  padding: 0 0 120px;
+  padding: 0;
   background: var(--page-backdrop-soft);
 }
 
@@ -1124,7 +1124,7 @@ function formatFileSize(bytes: number): string {
 }
 
 @media (max-width: 720px) {
-  .game-panel-page { padding: 0 0 118px; }
+  .game-panel-page { padding-bottom: 0; }
   .header { padding-left: 16px; padding-right: 16px; }
   .create-game-btn { left: 16px; }
   .menu-btn { right: 16px; }
