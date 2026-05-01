@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 48" width="300" height="48" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="bnFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a0a0a"/>
+      <stop offset="0.5" stop-color="#7a1414"/>
+      <stop offset="1" stop-color="#2a0606"/>
+    </linearGradient>
+    <linearGradient id="bnEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd070"/>
+      <stop offset="0.5" stop-color="#c98a2a"/>
+      <stop offset="1" stop-color="#7a4810"/>
+    </linearGradient>
+    <linearGradient id="bnSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <polygon points="14,4 286,4 296,24 286,44 14,44 4,24"
+           fill="url(#bnFill)" stroke="url(#bnEdge)" stroke-width="2"/>
+  <polygon points="14,4 286,4 296,24 286,44 14,44 4,24"
+           fill="url(#bnSheen)"/>
+  <polyline points="22,10 278,10" stroke="#ffd070" stroke-width="0.6" opacity="0.55" fill="none"/>
+  <polyline points="22,38 278,38" stroke="#7a1414" stroke-width="0.8" opacity="0.6" fill="none"/>
+
+  <g fill="#ffd070" opacity="0.85">
+    <polygon points="10,24 18,20 18,28"/>
+    <polygon points="290,24 282,20 282,28"/>
+  </g>
+</svg>

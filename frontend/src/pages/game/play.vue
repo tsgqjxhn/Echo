@@ -12,6 +12,13 @@
       <Match3Game v-else-if="gameId === 'match3'" />
       <CutRopeGame v-else-if="gameId === 'cut-rope'" />
       <PuzzleGame v-else-if="gameId === 'puzzle'" :standalone="true" @exit="router.back()" />
+      <iframe
+        v-else-if="h5Src"
+        :src="h5Src"
+        class="h5-iframe"
+        allow="autoplay; fullscreen"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
+      />
       <div v-else class="placeholder">
         <p>游戏加载中…</p>
       </div>
@@ -39,17 +46,32 @@ const gameTitles: Record<string, string> = {
   match3: '星糖消消乐',
   'cut-rope': '糖果绳索',
   puzzle: '残缺的逻辑',
+  xiuxian: '问道长生',
+  empire: '圣王国',
+  hero: '勇士',
+  'dark-dorm': '暗黑宿舍',
+}
+
+const h5GamePaths: Record<string, string> = {
+  xiuxian: '/games/xiuxian/index.html',
+  empire: '/games/empire/index.html',
+  hero: '/games/hero/index.html',
+  'dark-dorm': '/games/dark-dorm/index.html',
 }
 
 const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
+const h5Src = computed(() => h5GamePaths[gameId.value] || '')
 </script>
 
 <style lang="scss" scoped>
 .play-page {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--page-backdrop-soft);
+  overflow: hidden;
 }
 
 .play-header {
@@ -88,11 +110,22 @@ const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
 
 .play-body {
   flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
-  padding: 16px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .placeholder { color: var(--text-tertiary); font-size: 14px; }
+
+.h5-iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  display: block;
+}
 </style>

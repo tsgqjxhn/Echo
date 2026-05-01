@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>勇士 - 王国远征</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Prevent pull-to-refresh */
+    html, body { overscroll-behavior: none; }
+    body { touch-action: manipulation; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Loading -->
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ffd740;font-size:18px;">
+      Loading...
+    </div>
+  </div>
+
+  <!-- Scripts in dependency order -->
+  <script src="js/assets.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/research.js"></script>
+  <script src="js/roguelike.js"></script>
+  <script src="js/city.js"></script>
+  <script src="js/hero.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

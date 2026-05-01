@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <title>暗夜宿舍 - 异步塔防</title>
+  <script>
+    // Fall back to the built bundle when not running under the Vite dev server.
+    // main.ts sets window.__appLoaded__ on init; if missing, redirect to dist/.
+    // Skip when already inside dist/ to avoid recursion.
+    (function () {
+      if (location.pathname.indexOf('/dist/') !== -1) return;
+      var target = 'dist/index.html';
+      if (location.protocol === 'file:') return location.replace(target);
+      setTimeout(function () {
+        if (!window.__appLoaded__) location.replace(target);
+      }, 1500);
+    })();
+  </script>
+  <script defer src="./assets/app.js"></script>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+<div id="app">
+  <div id="top-exit-bar">
+    <button id="top-exit-btn" type="button" aria-label="返回主菜单" title="返回主菜单">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"/>
+      </svg>
+      <span>返回菜单</span>
+    </button>
+    <span id="top-level-badge" class="hidden"></span>
+    <div id="top-prestige-badge" title="声望点">声望 <span id="top-prestige-val">0</span></div>
+  </div>
+  <div id="player-info" class="hidden">
+    <div id="door-hp-bar">
+      <div id="door-hp-fill"></div>
+      <span id="door-hp-text">150/150</span>
+    </div>
+    <span id="gold-display">0</span>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="wave-info" class="hidden">
+    <span id="wave-info-text">准备中...</span>
+  </div>
+
+  <div id="build-menu" class="hidden">
+    <button class="build-btn" data-type="bed">
+      <div class="btn-icon bed-icon"></div>
+      <div class="btn-label">床铺</div>
+      <div class="btn-cost">50</div>
+    </button>
+    <button class="build-btn" data-type="tower">
+      <div class="btn-icon tower-icon"></div>
+      <div class="btn-label">防御塔</div>
+      <div class="btn-cost">100</div>
+    </button>
+    <button class="build-btn" data-type="generator">
+      <div class="btn-icon gen-icon"></div>
+      <div class="btn-label">发电机</div>
+      <div class="btn-cost">150</div>
+    </button>
+    <button class="build-btn" data-type="repairman">
+      <div class="btn-icon repairman-icon"></div>
+      <div class="btn-label">修理工</div>
+      <div class="btn-cost">120</div>
+    </button>
+    <button class="build-btn" data-type="ice_mage">
+      <div class="btn-icon ice-icon"></div>
+      <div class="btn-label">冰冻师</div>
+      <div class="btn-cost">150</div>
+    </button>
+    <button id="upgrade-door-btn" class="build-btn">
+      <div class="btn-icon door-icon"></div>
+      <div class="btn-label">加固门</div>
+      <div class="btn-cost">80</div>
+    </button>
+  </div>
+
+  <div id="info-panel" class="hidden">
+    <button id="info-close" class="close-btn">×</button>
+    <div id="info-name"></div>
+    <pre id="info-stats"></pre>
+    <div id="info-actions">
+      <button id="upgrade-btn" class="action-btn">升级</button>
+      <button id="sell-btn" class="action-btn danger">出售</button>
+    </div>
+  </div>
+
+  <div id="wave-banner" class="hidden">
+    <div id="wave-banner-text"></div>
+  </div>
+
+  <div id="wave-complete-popup" class="hidden">
+    <div id="wave-complete-content">
+      <h2 id="wc-title">Level 完成!</h2>
+      <div id="wc-stats">
+        <div>奖励金币：<span id="wc-bonus">0</span></div>
+        <div>门耐久：<span id="wc-door-hp">0/0</span></div>
+        <div>当前金币：<span id="wc-gold">0</span></div>
+      </div>
+      <button id="wc-continue-btn" class="menu-btn">下一夜</button>
+    </div>
+  </div>
+
+  <div id="menu-screen">
+    <div id="menu-content">
+      <button id="start-levels-btn" class="menu-btn">闯关模式</button>
+      <button id="start-endless-btn" class="menu-btn secondary">无尽模式</button>
+      <button id="resume-endless-btn" class="menu-btn secondary hidden">继续无尽（第 <span id="resume-wave-val">1</span> 波）</button>
+      <button id="prestige-btn" class="menu-btn secondary">声望升级</button>
+      <div id="menu-prestige">声望点：<span id="menu-prestige-val">0</span></div>
+    </div>
+    <div id="level-select-screen" class="hidden">
+      <h2 id="level-select-title">选择关卡</h2>
+      <div id="level-grid"></div>
+      <button id="level-select-back-btn" class="menu-btn secondary">返回</button>
+    </div>
+  </div>
+
+  <div id="gameover-screen" class="hidden">
+    <div id="gameover-content">
+      <h2 id="gameover-title">门被攻破了</h2>
+      <div id="gameover-stats">
+        <div>坚持波次：<span id="go-waves">0</span></div>
+        <div>最高金币：<span id="go-maxgold">0</span></div>
+        <div>获得声望：<span id="go-prestige">0</span></div>
+      </div>
+      <button id="restart-btn" class="menu-btn">重新开始</button>
+      <button id="go-menu-btn" class="menu-btn secondary">返回菜单</button>
+    </div>
+  </div>
+
+  <div id="prestige-shop" class="hidden">
+    <div id="shop-content">
+      <h2>声望升级</h2>
+      <div id="shop-points">可用声望：<span id="shop-points-val">0</span></div>
+      <div id="shop-items">
+        <div class="shop-item" data-upgrade="goldMult">
+          <span>金币收益 +10%</span>
+          <button class="buy-btn">5</button>
+        </div>
+        <div class="shop-item" data-upgrade="doorHp">
+          <span>门耐久 +20%</span>
+          <button class="buy-btn">3</button>
+        </div>
+        <div class="shop-item" data-upgrade="towerDmg">
+          <span>塔伤害 +15%</span>
+          <button class="buy-btn">4</button>
+        </div>
+      </div>
+      <button id="shop-close" class="menu-btn secondary">关闭</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

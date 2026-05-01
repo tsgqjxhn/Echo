@@ -1,15 +1,26 @@
 <template>
   <div class="game-panel-page">
     <div class="header">
-      <button class="menu-btn" @click="goToSettings" aria-label="设置">
-        <svg viewBox="0 0 1024 1024" width="24" height="24" aria-hidden="true">
-          <path d="M170.666667 213.333333h682.666666v85.333334H170.666667V213.333333z m0 512h682.666666v85.333334H170.666667v-85.333334z m0-256h682.666666v85.333334H170.666667v-85.333334z" fill="currentColor"/>
+      <button
+        class="create-game-btn"
+        type="button"
+        aria-label="创建游戏"
+        @click="openCreateGame"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
         </svg>
+        <span>创建游戏</span>
       </button>
       <h1 class="title">游戏中心</h1>
-      <button class="import-btn" @click="showImportModal = true" aria-label="导入">
+      <button
+        class="menu-btn"
+        type="button"
+        aria-label="菜单"
+        @click="goToGameMenu"
+      >
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
         </svg>
       </button>
     </div>
@@ -33,10 +44,15 @@
           v-for="game in filteredGames"
           :key="game.id"
           class="game-card"
-          @click="router.push(game.route)"
         >
           <div class="game-icon" :class="game.iconClass">
-            <template v-if="game.iconKind === 'gomoku'">
+            <img
+              v-if="game.iconSrc"
+              :src="game.iconSrc"
+              :alt="`${game.name}头像`"
+              class="game-icon-img"
+            />
+            <template v-else-if="game.iconKind === 'gomoku'">
               <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
                 <path
                   d="M8.5 11.5H31.5M8.5 20H31.5M8.5 28.5H31.5M11.5 8.5V31.5M20 8.5V31.5M28.5 8.5V31.5"
@@ -57,15 +73,17 @@
             <template v-else>{{ game.icon }}</template>
           </div>
           <div class="game-info">
-            <div class="game-tags">
-              <span>{{ game.primarySubcategory }}</span>
-            </div>
             <h3 class="game-name">{{ game.name }}</h3>
             <p class="game-desc">{{ game.description }}</p>
-          </div>
-          <div class="play-btn">
-            <span>进入</span>
-            <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+            <div class="game-card-actions">
+              <div class="game-tags">
+                <span>{{ game.primarySubcategory }}</span>
+              </div>
+              <button type="button" class="play-btn" @click.stop="router.push(game.route)">
+                <span>进入</span>
+                <svg class="play-arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -204,6 +222,10 @@ import { uni } from '@/utils/uni-polyfill'
 import { requestPermission } from '@/services/permissions'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
+import xiuxianGameAvatar from '@/static/images/game-center/game-center-xiuxian.webp'
+import empireGameAvatar from '@/static/images/game-center/game-center-empire.webp'
+import heroGameAvatar from '@/static/images/game-center/game-center-hero.webp'
+import darkDormGameAvatar from '@/static/images/game-center/game-center-dark-dorm.webp'
 
 const router = useRouter()
 
@@ -218,6 +240,7 @@ interface GameCatalogItem {
   description: string
   route: string
   icon: string
+  iconSrc?: string
   iconKind?: 'text' | 'gomoku'
   iconClass: string
   primarySubcategory: string
@@ -235,7 +258,7 @@ const playCategoryOptions: PlayCategoryOption[] = [
   { key: 'xianxia-rpg', label: '传奇仙侠' },
   { key: 'strategy-action', label: '策略竞技' },
   { key: 'slg', label: '战争SLG' },
-  { key: 'tower-shooter', label: '塔防射击' },
+  { key: 'tower-shooter', label: '塔防设计' },
   { key: 'simulation', label: '模拟经营' },
   { key: 'cultivation', label: '养成' },
   { key: 'puzzle-casual', label: '益智休闲' },
@@ -245,6 +268,54 @@ const playCategoryOptions: PlayCategoryOption[] = [
 ]
 
 const gameCatalog: GameCatalogItem[] = [
+  {
+    id: 'xiuxian',
+    name: '问道长生',
+    description: '修仙放置游戏，修炼功法、探索洞府、炼丹炼器，踏上长生之路。',
+    route: '/game/play/xiuxian',
+    icon: '道',
+    iconSrc: xiuxianGameAvatar,
+    iconKind: 'text',
+    iconClass: 'xiuxian-icon',
+    primarySubcategory: '传奇仙侠',
+    playCategories: ['xianxia-rpg', 'cultivation', 'simulation'],
+  },
+  {
+    id: 'empire',
+    name: '圣王国',
+    description: '王国经营策略游戏，建设产业、养成城邦、调度资源，扩张你的圣王国。',
+    route: '/game/play/empire',
+    icon: '圣',
+    iconSrc: empireGameAvatar,
+    iconKind: 'text',
+    iconClass: 'empire-icon',
+    primarySubcategory: '战术RPG',
+    playCategories: ['tactical-rpg', 'slg', 'cultivation', 'simulation', 'strategy-action'],
+  },
+  {
+    id: 'hero',
+    name: '勇士',
+    description: '勇士冒险游戏，召唤伙伴、收集装备、挑战副本，开启你的远征旅程。',
+    route: '/game/play/hero',
+    icon: '勇',
+    iconSrc: heroGameAvatar,
+    iconKind: 'text',
+    iconClass: 'hero-icon',
+    primarySubcategory: '卡牌RPG',
+    playCategories: ['role-playing', 'card-rpg'],
+  },
+  {
+    id: 'dark-dorm',
+    name: '暗黑宿舍',
+    description: '暗黑宿舍塔防挑战，布置防线、收集道具、抵御入侵，守住恐怖夜晚。',
+    route: '/game/play/dark-dorm',
+    icon: '暗',
+    iconSrc: darkDormGameAvatar,
+    iconKind: 'text',
+    iconClass: 'darkdorm-icon',
+    primarySubcategory: '塔防设计',
+    playCategories: ['tower-shooter', 'roguelike-rpg', 'tactical-rpg'],
+  },
   {
     id: 'chess',
     name: '国际象棋',
@@ -321,6 +392,15 @@ async function openFilePicker(refName: 'uploadInput' | 'folderInput') {
 
 function goToSettings() {
   router.push('/game/settings')
+}
+
+function goToGameMenu() {
+  router.push('/game/settings')
+}
+
+function openCreateGame() {
+  // Skip the picker and jump straight into the rules-based create flow.
+  selectImportMethod('rules')
 }
 
 function selectImportMethod(method: 'rules' | 'full') {
@@ -504,20 +584,27 @@ function formatFileSize(bytes: number): string {
   pointer-events: none;
 }
 
-.menu-btn {
+.create-game-btn {
   position: absolute;
   left: 18px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 42px; height: 42px;
-  border: none; border-radius: 14px;
-  background: transparent;
+  gap: 4px;
+  height: 36px;
+  padding: 0 12px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(52, 211, 153, 0.22));
   color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   cursor: pointer;
-  transition: opacity var(--transition-base), transform var(--transition-base);
-  &:hover { opacity: 0.78; }
-  &:active { transform: scale(0.95); }
+  transition: opacity var(--transition-base), transform var(--transition-base), background var(--transition-base);
+  -webkit-tap-highlight-color: transparent;
+  &:hover { opacity: 0.86; }
+  &:active { transform: scale(0.96); }
 }
 
 .title {
@@ -528,7 +615,7 @@ function formatFileSize(bytes: number): string {
   color: var(--text-primary);
 }
 
-.import-btn {
+.menu-btn {
   position: absolute;
   right: 18px;
   display: flex;
@@ -602,35 +689,43 @@ function formatFileSize(bytes: number): string {
 .game-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 24px;
-  margin-bottom: 14px;
-  cursor: pointer;
+  gap: 12px;
+  min-height: 96px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  margin-bottom: 10px;
   border: 1px solid var(--border-color);
   background: var(--surface-gradient);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
   -webkit-backdrop-filter: blur(var(--backdrop-blur)) saturate(1.2);
-  transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .game-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent-strong);
-  box-shadow: var(--shadow-xl);
+  border-color: rgba(125, 211, 252, 0.28);
+  box-shadow: var(--shadow-lg);
 }
 
 .game-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px; height: 72px;
-  border-radius: 14px;
+  width: 64px; height: 64px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #1a1a2e, #16213e);
   color: #e0e0e0;
-  font-size: 32px;
+  font-size: 28px;
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  flex: 0 0 64px;
+}
+
+.game-icon-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .chess-icon { font-size: 36px; color: #f0d060; }
@@ -644,6 +739,26 @@ function formatFileSize(bytes: number): string {
   background: linear-gradient(135deg, #14b8a6, #38bdf8 54%, #f43f5e);
 }
 
+.xiuxian-icon {
+  color: #fef3c7;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa 50%, #f59e0b);
+}
+
+.empire-icon {
+  color: #fef9c3;
+  background: linear-gradient(135deg, #b91c1c, #dc2626 50%, #f59e0b);
+}
+
+.hero-icon {
+  color: #dbeafe;
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6 50%, #60a5fa);
+}
+
+.darkdorm-icon {
+  color: #f87171;
+  background: linear-gradient(135deg, #1a1a2e, #312e81 50%, #4c1d95);
+}
+
 .gomoku-icon {
   color: #ffffff;
 
@@ -655,13 +770,24 @@ function formatFileSize(bytes: number): string {
   }
 }
 
-.game-info { flex: 1; }
+.game-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
 
 .game-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 6px;
+  min-width: 0;
 }
 
 .game-tags span {
@@ -678,29 +804,48 @@ function formatFileSize(bytes: number): string {
 }
 
 .game-name {
-  margin-bottom: 6px;
-  font-size: 18px;
+  margin: 0 0 4px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.25;
 }
 
 .game-desc {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.7;
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .play-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 999px;
+  min-width: 74px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 12px;
   background: var(--interactive-gradient);
   color: #fff;
-  font-size: 14px;
-  box-shadow: 0 20px 44px rgba(113, 129, 146, 0.24);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 14px 30px rgba(56, 189, 248, 0.18);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base);
+}
+
+.play-btn:hover {
+  box-shadow: 0 18px 36px rgba(56, 189, 248, 0.24);
+}
+
+.play-btn:active {
+  transform: scale(0.96);
 }
 
 .play-arrow-icon {
@@ -981,8 +1126,8 @@ function formatFileSize(bytes: number): string {
 @media (max-width: 720px) {
   .game-panel-page { padding: 0 0 118px; }
   .header { padding-left: 16px; padding-right: 16px; }
-  .menu-btn { left: 16px; }
-  .import-btn { right: 16px; }
+  .create-game-btn { left: 16px; }
+  .menu-btn { right: 16px; }
 
   .category-strip {
     width: calc(100% - 20px);
@@ -1000,19 +1145,27 @@ function formatFileSize(bytes: number): string {
   }
 
   .game-card {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 18px;
+    align-items: center;
+    gap: 10px;
+    min-height: 92px;
+    padding: 12px;
+    border-radius: 16px;
   }
 
   .game-icon {
     width: 58px;
     height: 58px;
+    flex-basis: 58px;
     font-size: 28px;
   }
 
-  .play-btn { align-self: flex-start; }
+  .game-card-actions {
+    gap: 8px;
+  }
+
+  .play-btn {
+    min-width: 66px;
+    padding: 0 10px;
+  }
 }
 </style>

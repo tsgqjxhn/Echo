@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32" width="160" height="32" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="wvFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101a30"/>
+      <stop offset="0.5" stop-color="#1f3260"/>
+      <stop offset="1" stop-color="#0a1224"/>
+    </linearGradient>
+    <linearGradient id="wvEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9bd6ff"/>
+      <stop offset="0.5" stop-color="#3e7fc7"/>
+      <stop offset="1" stop-color="#1a3d6e"/>
+    </linearGradient>
+    <linearGradient id="wvSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <polygon points="8,3 152,3 158,16 152,29 8,29 2,16"
+           fill="url(#wvFill)" stroke="url(#wvEdge)" stroke-width="1.5"/>
+  <polygon points="8,3 152,3 158,16 152,29 8,29 2,16"
+           fill="url(#wvSheen)"/>
+  <polyline points="14,7 146,7" stroke="#9bd6ff" stroke-width="0.5" opacity="0.5" fill="none"/>
+
+  <g fill="#9bd6ff" opacity="0.85">
+    <polygon points="6,16 11,13 11,19"/>
+    <polygon points="154,16 149,13 149,19"/>
+  </g>
+</svg>

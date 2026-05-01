@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff7c2" stop-opacity="0.95"/>
+      <stop offset="0.4" stop-color="#ffcc33" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff8a00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="haze" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#9b6cff" stop-opacity="0.0"/>
+      <stop offset="0.7" stop-color="#5b8dff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#1d2a7a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="128" cy="128" r="124" fill="url(#haze)"/>
+
+  <g transform="translate(128 128)">
+    <g>
+      <circle r="118" fill="none" stroke="#ffd86b" stroke-width="1.5" opacity="0.55"/>
+      <circle r="110" fill="none" stroke="#ffd86b" stroke-width="0.8" opacity="0.35" stroke-dasharray="2 6"/>
+      <g stroke="#ffe9a0" stroke-width="2" fill="none" opacity="0.85">
+        <path d="M0 -114 L4 -104 L-4 -104 Z" fill="#ffe9a0"/>
+        <path d="M114 0 L104 4 L104 -4 Z" fill="#ffe9a0"/>
+        <path d="M0 114 L-4 104 L4 104 Z" fill="#ffe9a0"/>
+        <path d="M-114 0 L-104 -4 L-104 4 Z" fill="#ffe9a0"/>
+        <circle cx="80.6" cy="-80.6" r="3" fill="#ffe9a0"/>
+        <circle cx="80.6" cy="80.6" r="3" fill="#ffe9a0"/>
+        <circle cx="-80.6" cy="80.6" r="3" fill="#ffe9a0"/>
+        <circle cx="-80.6" cy="-80.6" r="3" fill="#ffe9a0"/>
+      </g>
+      <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="6s" repeatCount="indefinite"/>
+    </g>
+
+    <g>
+      <circle r="86" fill="none" stroke="#9bd6ff" stroke-width="1.2" opacity="0.55" stroke-dasharray="6 4"/>
+      <polygon points="0,-86 81.8,-26.6 50.5,69.6 -50.5,69.6 -81.8,-26.6"
+               fill="none" stroke="#9bd6ff" stroke-width="1.5" opacity="0.7"/>
+      <polygon points="0,86 81.8,26.6 50.5,-69.6 -50.5,-69.6 -81.8,26.6"
+               fill="none" stroke="#c7a8ff" stroke-width="1.2" opacity="0.55"/>
+      <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="9s" repeatCount="indefinite"/>
+    </g>
+
+    <g>
+      <circle r="58" fill="none" stroke="#ffe9a0" stroke-width="1" opacity="0.7" stroke-dasharray="3 3"/>
+      <circle r="44" fill="none" stroke="#fff" stroke-width="0.6" opacity="0.5"/>
+      <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="4s" repeatCount="indefinite"/>
+    </g>
+
+    <circle r="46" fill="url(#core)">
+      <animate attributeName="r" values="40;52;40" dur="1.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.85;1;0.85" dur="1.6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

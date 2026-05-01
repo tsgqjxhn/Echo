@@ -397,11 +397,6 @@ function ensureStoryMomentPost(momentAsset: StoryMomentAsset | null = null) {
 }
 
 function extractMomentContent(text: string): string | null {
-  const legacyMatch = text.match(/朋友圈动态插入[:：]\s*(.+)$/)
-  if (legacyMatch?.[1]) {
-    return legacyMatch[1].trim()
-  }
-
   const momentId = extractMomentId(text)
   if (!momentId) {
     return null
@@ -417,8 +412,7 @@ function extractMomentId(text: string): string | null {
 
 function resolveImageTrigger(text: string): StoryImageAsset | null {
   const bracketMatch = text.match(/\[图片插入[:：]\s*([^\]]+)\]/)
-  const legacyMatch = text.match(/\[图片插入[：:]\s*(.+?)[——\-–—]/)
-  const payload = (bracketMatch?.[1] || legacyMatch?.[1] || '').trim()
+  const payload = (bracketMatch?.[1] || '').trim()
 
   if (!payload) {
     return null

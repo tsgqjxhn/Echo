@@ -1,4 +1,4 @@
-import type { APIConfig } from '@/types/api-config'
+import type { APIConfig, TestResult } from '@/types/api-config'
 import type { ChatMessage, TokenUsage } from '@/types/chat'
 import type {
   AdapterChatRequest,
@@ -9,7 +9,6 @@ import type {
   ProviderAdapter,
   ProviderCapabilities,
   StreamChunkResult,
-  TestResult,
 } from '../types'
 import { extractMessageText, normalizeUsage, parseOpenAIStreamLine } from './stream-parser'
 

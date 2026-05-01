@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#e1bee7" stop-opacity="0.95"/>
+      <stop offset="0.5" stop-color="#9c27b0" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#9c27b0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(64 64)">
+    <circle r="58" fill="url(#rg)">
+      <animate attributeName="opacity" values="0.55;1;0.65;1;0.55" keyTimes="0;0.25;0.5;0.75;1" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="52;60;54;62;52" keyTimes="0;0.25;0.5;0.75;1" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <g fill="none" stroke="#9c27b0" stroke-width="1.5" opacity="0.8">
+      <circle r="40">
+        <animate attributeName="r" values="36;44;40;46;36" keyTimes="0;0.25;0.5;0.75;1" dur="1.5s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <g stroke="#e3b8ff" stroke-width="1.4" stroke-linecap="round" opacity="0.8">
+      <line x1="0" y1="-54" x2="0" y2="-42"/>
+      <line x1="0" y1="54" x2="0" y2="42"/>
+      <line x1="-54" y1="0" x2="-42" y2="0"/>
+      <line x1="54" y1="0" x2="42" y2="0"/>
+      <line x1="-38" y1="-38" x2="-30" y2="-30"/>
+      <line x1="38" y1="38" x2="30" y2="30"/>
+      <line x1="-38" y1="38" x2="-30" y2="30"/>
+      <line x1="38" y1="-38" x2="30" y2="-30"/>
+      <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.4;0.95;0.5;1;0.4" keyTimes="0;0.25;0.5;0.75;1" dur="1.5s" repeatCount="indefinite"/>
+    </g>
+  </g>
+</svg>

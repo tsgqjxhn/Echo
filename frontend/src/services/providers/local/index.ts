@@ -1,5 +1,5 @@
-import type { APIConfig } from '@/types/api-config'
-import type { ProviderAdapter, ProviderCapabilities, TestResult } from '../types'
+import type { APIConfig, TestResult } from '@/types/api-config'
+import type { ProviderAdapter, ProviderCapabilities } from '../types'
 
 const localCapabilities: ProviderCapabilities = {
   chat: false,

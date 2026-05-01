@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>问道长生 — 修仙放置</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+<div id="toast-container"></div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<div id="app">
+  <!-- Sidebar Navigation -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <img class="game-logo" src="assets/ui/game_logo.webp" alt="问道长生">
+      <h1 class="visually-hidden">问道长生</h1>
+      <div class="subtitle">修仙放置</div>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-item active" data-panel="cultivation">
+        <span class="nav-icon"><img src="assets/icons/nav/cultivation.svg" alt=""></span>修炼
+      </li>
+      <li class="nav-item" data-panel="world">
+        <span class="nav-icon"><img src="assets/icons/nav/exploration.svg" alt=""></span>世界
+      </li>
+      <li class="nav-item" data-panel="cave">
+        <span class="nav-icon"><img src="assets/icons/nav/cave.svg" alt=""></span>洞府
+      </li>
+      <li class="nav-item" data-panel="exploration">
+        <span class="nav-icon"><img src="assets/icons/nav/exploration.svg" alt=""></span>探险
+      </li>
+      <li class="nav-item" data-panel="inventory">
+        <span class="nav-icon"><img src="assets/icons/nav/inventory.svg" alt=""></span>背包
+      </li>
+      <li class="nav-item" data-panel="shop">
+        <span class="nav-icon"><img src="assets/icons/nav/shop.svg" alt=""></span>商店
+      </li>
+      <li class="nav-item" data-panel="sect">
+        <span class="nav-icon"><img src="assets/icons/nav/sect.svg" alt=""></span>宗门
+      </li>
+      <li class="nav-item" data-panel="favor">
+        <span class="nav-icon"><img src="assets/icons/nav/sect.svg" alt=""></span>人脉
+      </li>
+      <li class="nav-item" data-panel="auction">
+        <span class="nav-icon"><img src="assets/icons/nav/auction.svg" alt=""></span>拍卖会
+      </li>
+      <li class="nav-item" data-panel="settings">
+        <span class="nav-icon"><img src="assets/icons/nav/settings.svg" alt=""></span>设置
+      </li>
+    </ul>
+    <div class="sidebar-game-links" aria-label="其他游戏">
+      <div class="sidebar-game-title">其他游戏</div>
+      <a class="sidebar-game-link" href="../hero/index.html">
+        <span>勇</span>勇士
+      </a>
+      <a class="sidebar-game-link" href="../dark-dorm/index.html">
+        <span>暗</span>暗黑宿舍
+      </a>
+    </div>
+    <div class="sidebar-footer" id="sidebar-footer">自动保存中...</div>
+  </nav>
+
+  <!-- Main Content -->
+  <main id="main">
+    <!-- Status Bar -->
+    <div id="status-bar">
+      <div class="status-item stat-realm">
+        <span class="status-label"><img src="assets/icons/status/realm.svg" alt="">境界</span>
+        <span class="status-value" id="sb-realm">炼气一层</span>
+      </div>
+      <div class="status-item stat-cultivation">
+        <span class="status-label"><img src="assets/icons/status/cultivation.svg" alt="">修为</span>
+        <span class="status-value" id="sb-cultivation">0</span>
+      </div>
+      <div class="status-item stat-rate">
+        <span class="status-label"><img src="assets/icons/status/rate.svg" alt="">修炼速度</span>
+        <span class="status-value rate" id="sb-rate">0/s</span>
+      </div>
+      <div class="status-item stat-stones">
+        <span class="status-label"><img src="assets/icons/status/stones.svg" alt="">灵石</span>
+        <span class="status-value stones" id="sb-stones">0</span>
+      </div>
+      <div class="status-item stat-spirit">
+        <span class="status-label"><img src="assets/icons/status/spirit.svg" alt="">神识</span>
+        <span class="status-value spirit" id="sb-spirit">100/100</span>
+      </div>
+    </div>
+
+    <!-- Cultivation Panel -->
+    <section class="panel active" id="panel-cultivation"></section>
+
+    <!-- World Panel -->
+    <section class="panel" id="panel-world"></section>
+
+    <!-- Cave Panel -->
+    <section class="panel" id="panel-cave"></section>
+
+    <!-- Techniques Panel -->
+    <section class="panel" id="panel-techniques"></section>
+
+    <!-- Exploration Panel -->
+    <section class="panel" id="panel-exploration"></section>
+
+    <!-- Inventory Panel -->
+    <section class="panel" id="panel-inventory"></section>
+
+    <!-- Shop Panel -->
+    <section class="panel" id="panel-shop"></section>
+
+    <!-- Sect Panel -->
+    <section class="panel" id="panel-sect"></section>
+
+    <!-- Favor (人脉) Panel -->
+    <section class="panel" id="panel-favor"></section>
+
+    <!-- Auction Panel -->
+    <section class="panel" id="panel-auction"></section>
+
+    <!-- Settings Panel -->
+    <section class="panel" id="panel-settings"></section>
+  </main>
+</div>
+
+<!-- Scripts -->
+<script src="js/data.js"></script>
+<script src="js/data-expansion.js"></script>
+<script src="js/bigint.js"></script>
+<script src="js/player.js"></script>
+<script src="js/cultivation.js"></script>
+<script src="js/techniques.js"></script>
+<script src="js/alchemy.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/exploration.js"></script>
+<script src="js/save.js"></script>
+<script src="js/sect.js"></script>
+<script src="js/world.js"></script>
+<script src="js/forge.js"></script>
+<script src="js/auction.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/generated-resource-assets.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

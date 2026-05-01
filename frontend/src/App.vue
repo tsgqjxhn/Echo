@@ -782,31 +782,6 @@ body {
   transform: none;
 }
 
-.app-container::before,
-.app-container::after {
-  content: '';
-  position: fixed;
-  width: 38vw;
-  height: 38vw;
-  border-radius: 999px;
-  pointer-events: none;
-  filter: blur(80px);
-  opacity: 0.35;
-  z-index: -1;
-}
-
-.app-container::before {
-  top: -14vw;
-  left: -12vw;
-  background: radial-gradient(circle, rgba(52, 211, 153, 0.22) 0%, rgba(5, 150, 105, 0.12) 50%, transparent 70%);
-}
-
-.app-container::after {
-  right: -14vw;
-  bottom: -18vw;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.18) 0%, rgba(2, 132, 199, 0.08) 50%, transparent 70%);
-}
-
 @media (max-width: 640px) {
   .app-container--history-chat .chat-page {
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;

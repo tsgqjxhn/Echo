@@ -20,7 +20,7 @@ export default defineConfig({
   },
   build: {
     minify: 'terser',
-    sourcemap: true,
+    sourcemap: false,
   },
   css: {
     preprocessorOptions: {

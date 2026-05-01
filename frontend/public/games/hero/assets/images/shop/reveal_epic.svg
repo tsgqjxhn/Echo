@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#f3e0ff" stop-opacity="1"/>
+      <stop offset="0.4" stop-color="#9c27b0" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#3a0d52" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g transform="translate(64 64)">
+    <g>
+      <g stroke="#d6a8ff" stroke-width="2" stroke-linecap="round" opacity="0.9">
+        <line x1="0" y1="-60" x2="0" y2="-30"/>
+        <line x1="0" y1="60" x2="0" y2="30"/>
+        <line x1="-60" y1="0" x2="-30" y2="0"/>
+        <line x1="60" y1="0" x2="30" y2="0"/>
+        <line x1="-42" y1="-42" x2="-21" y2="-21"/>
+        <line x1="42" y1="42" x2="21" y2="21"/>
+        <line x1="-42" y1="42" x2="-21" y2="21"/>
+        <line x1="42" y1="-42" x2="21" y2="-21"/>
+      </g>
+      <animateTransform attributeName="transform" type="rotate" from="0" to="90" dur="1.1s" repeatCount="indefinite"/>
+    </g>
+    <g>
+      <g stroke="#ffd1ff" stroke-width="1.4" stroke-linecap="round" opacity="0.7">
+        <line x1="0" y1="-52" x2="0" y2="-34"/>
+        <line x1="0" y1="52" x2="0" y2="34"/>
+        <line x1="-52" y1="0" x2="-34" y2="0"/>
+        <line x1="52" y1="0" x2="34" y2="0"/>
+      </g>
+      <animateTransform attributeName="transform" type="rotate" from="45" to="-45" dur="1.1s" repeatCount="indefinite"/>
+    </g>
+    <circle r="38" fill="url(#g)">
+      <animate attributeName="r" values="6;46;60;48;54" keyTimes="0;0.2;0.5;0.8;1" dur="1.1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.2;1;0.85;0.95;0.6" keyTimes="0;0.2;0.5;0.8;1" dur="1.1s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="14" fill="none" stroke="#e3b8ff" stroke-width="1.6" opacity="0.7">
+      <animate attributeName="r" values="3;26;48;62" keyTimes="0;0.33;0.66;1" dur="1.1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0.9;0.4;0" keyTimes="0;0.33;0.66;1" dur="1.1s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="8" fill="#fff0ff" opacity="0.9">
+      <animate attributeName="opacity" values="1;0.4;1;0.5;1" keyTimes="0;0.25;0.5;0.75;1" dur="1.1s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>
