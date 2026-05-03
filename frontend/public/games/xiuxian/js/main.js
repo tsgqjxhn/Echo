@@ -58,6 +58,13 @@ class Game {
     this.ui.updateStatusBar();
     this.ui.renderPanel(this.ui.currentPanel);
 
+    // Start tutorial for first-time players (after new game flow)
+    setTimeout(() => {
+      if (typeof TutorialSystem !== 'undefined' && TutorialSystem.shouldShow && TutorialSystem.shouldShow()) {
+        TutorialSystem.start();
+      }
+    }, 2000);
+
     // First-time players: profession → talents → birthplace
     this.ui.continueNewGameFlow();
 

@@ -1,161 +1,117 @@
-// Empire asset registry. Paths are relative to index.html.
+// Empire asset registry - SVG/emoji fallback version (no external images)
 (function () {
-  const root = 'assets/';
-  const cropKeys = ['wheat', 'carrot', 'cabbage', 'beet', 'apple', 'orange', 'tomato', 'corn'];
-  const recipeKeys = [
-    'flour', 'carrot_juice', 'sauerkraut', 'cornmeal', 'sugar', 'tomato_sauce',
-    'apple_juice', 'orange_juice', 'apple_pie', 'bread', 'pizza', 'fruit_salad',
-  ];
-  const machineByRecipe = {
-    flour: 'mill',
-    cornmeal: 'mill',
-    bread: 'mill',
-    apple_pie: 'mill',
-    pizza: 'mill',
-    carrot_juice: 'juicer',
-    apple_juice: 'juicer',
-    orange_juice: 'juicer',
-    fruit_salad: 'juicer',
-    sauerkraut: 'packaging',
-    tomato_sauce: 'packaging',
-    sugar: 'boiler',
+  const cropEmojis = {
+    wheat: '🌾', carrot: '🥕', cabbage: '🥬', beet: '🫐', apple: '🍎', orange: '🍊',
+    tomato: '🍅', corn: '🌽', rice: '🌾', soybean: '🫘', strawberry: '🍓', grape: '🍇',
+    cotton: '☁️', tea: '🍃', coffee: '☕', cocoa: '🍫', spice: '🌶️', pumpkin: '🎃',
+    watermelon: '🍉', mushroom: '🍄',
   };
-  const upgradeIconMap = {
-    farm_plot: 'seed',
-    irrigation: 'water',
-    fertilizer: 'fertilizer',
-    greenhouse: 'greenhouse',
-    tractor: 'tractor',
-    factory_machine: 'machine',
-    speed_boost: 'speed',
-    automation: 'automation',
-    shop_shelf: 'shelf',
-    advertising: 'ad',
-    decor: 'decor',
-    truck: 'truck',
-    truck_speed: 'truck_speed',
+  const recipeEmojis = {
+    flour: '🍞', carrot_juice: '🧃', sauerkraut: '🥗', cornmeal: '🫓', sugar: '🍬',
+    tomato_sauce: '🫙', apple_juice: '🧃', orange_juice: '🍹', apple_pie: '🥧',
+    bread: '🍞', pizza: '🍕', fruit_salad: '🥙', rice: '🍚', rice_bowl: '🍚',
+    sushi: '🍣', soy_milk: '🥛', tofu: '🧊', tea_bag: '🍃', milk_tea: '🧋',
+    coffee_powder: '☕', latte: '☕', chocolate: '🍫', chocolate_cake: '🎂',
+    wine: '🍷', jam: '🫙', jam_bread: '🍞', ketchup: '🫙', mushroom_soup: '🍜',
+    sandwich: '🥪', popcorn: '🍿', carrot_cake: '🍰', orange_candy: '🍬',
+    beet_salad: '🥗', apple_cider: '🍺', cotton_cloth: '🧣', spice_blend: '🧂',
+    pumpkin_pie: '🥧', watermelon_juice: '🍹', grilled_mushroom: '🍢',
+  };
+  const iconEmojis = {
+    ad: '📺', arrow: '➡️', automation: '🤖', buffs: '⚡', buy: '🛒', close: '❌',
+    collect: '📦', customer: '👤', customer_frenzy: '👥', decor: '🎨', diamond: '💎',
+    factory: '🏭', factory_unlock: '🔒', farm: '🌱', fertilizer: '🧪', fuel: '⛽',
+    gold: '💰', goods: '📦', greenhouse: '🏡', growth_boost: '🌿', harvest: '✂️',
+    income: '💵', info: 'ℹ️', inventory: '📋', level: '⭐', logistics: '🚛',
+    logistics_unlock: '🔒', machine: '⚙️', offline: '💤', overview: '📊',
+    prestige: '👑', price_surge: '📈', production_boost: '⚡', raw: '🌾',
+    recipe: '📜', route: '🗺️', save: '💾', seed: '🌱', sell: '💵', settings: '⚙️',
+    shelf: '🗄️', shop: '🏪', shop_unlock: '🔒', speed: '⚡', stats: '📈',
+    success: '✅', tag: '🏷️', time: '⏰', tractor: '🚜', truck: '🚛',
+    truck_speed: '🏎️', upgrades: '⬆️', warning: '⚠️', water: '💧', xp: '✨',
+  };
+  const machineEmojis = { mill: '⚙️', juicer: '🥤', packaging: '📦', boiler: '♨️', textile: '🧵', cold_storage: '❄️' };
+  const bgGradients = {
+    farm: 'linear-gradient(180deg,#1a3a1a,#0f1923)',
+    factory: 'linear-gradient(180deg,#1a2a3a,#0f1923)',
+    shop: 'linear-gradient(180deg,#3a2a1a,#0f1923)',
+    loading: 'linear-gradient(180deg,#1a2a3a,#0f1923)',
   };
 
-  function path(file) {
-    return root + file;
+  function span(content, className, alt) {
+    return '<span class="' + (className || 'asset-span') + '" title="' + (alt || '') + '">' + content + '</span>';
   }
 
-  function escapeAttr(value) {
-    return String(value || '').replace(/[&<>"']/g, ch => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }[ch]));
+  function svgDataUri(width, height, content) {
+    const svg = '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"' + width + '\" height=\"' + height + '\">' + content + '</svg>';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
-
-  function img(src, className, alt) {
-    return '<img src="' + escapeAttr(src) + '" class="' + escapeAttr(className || 'asset-img') + '" alt="' + escapeAttr(alt || '') + '" loading="lazy" decoding="async">';
-  }
-
-  const crops = Object.fromEntries(cropKeys.map(key => [
-    key,
-    Array.from({ length: 5 }, (_, i) => path('crops/' + key + '_' + i + '.webp')),
-  ]));
-  const rawItems = Object.fromEntries(cropKeys.map(key => [key, path('items/raw/' + key + '.webp')]));
-  const goods = Object.fromEntries(recipeKeys.map(key => [key, path('items/goods/' + key + '.webp')]));
-  Object.assign(goods, {
-    cloth_roll: path('items/goods/cloth_roll.webp'),
-    empty_bottle: path('items/goods/empty_bottle.webp'),
-    pallet: path('items/goods/pallet.webp'),
-    crate: path('items/goods/crate.webp'),
-  });
-
-  const icons = [
-    'ad', 'arrow', 'automation', 'buffs', 'buy', 'close', 'collect', 'customer',
-    'customer_frenzy', 'decor', 'diamond', 'factory', 'factory_unlock', 'farm',
-    'fertilizer', 'fuel', 'gold', 'goods', 'greenhouse', 'growth_boost', 'harvest',
-    'income', 'info', 'inventory', 'level', 'logistics', 'logistics_unlock', 'machine',
-    'offline', 'overview', 'prestige', 'price_surge', 'production_boost', 'raw',
-    'recipe', 'route', 'save', 'seed', 'sell', 'settings', 'shelf', 'shop',
-    'shop_unlock', 'speed', 'stats', 'success', 'tag', 'time', 'tractor',
-    'truck', 'truck_speed', 'upgrades', 'warning', 'water', 'xp',
-  ].reduce((acc, key) => {
-    acc[key] = path('ui/icons/' + key + '.webp');
-    return acc;
-  }, {});
-
-  const backgrounds = {
-    farm: path('ui/backgrounds/farm.webp'),
-    factory: path('ui/backgrounds/factory.webp'),
-    shop: path('ui/backgrounds/shop.webp'),
-    loading: path('ui/backgrounds/loading.webp'),
-  };
-  const effects = {
-    coin: path('effects/coin_splash.svg'),
-    xp: path('effects/exp_stars.svg'),
-    offline: path('effects/offline_rewards.svg'),
-    steam: path('effects/steam_particle.svg'),
-    upgrade: path('effects/upgrade_aura.svg'),
-  };
 
   const EmpireAssets = {
-    crops,
-    rawItems,
-    goods,
-    icons,
-    backgrounds,
-    effects,
-    routeMap: path('logistics/maps/route_map.webp'),
-    img,
+    cropEmojis, recipeEmojis, iconEmojis,
+
     icon(key, className, alt) {
-      return img(icons[key] || icons.info, className || 'asset-icon', alt || key);
+      return span(iconEmojis[key] || '🔹', className || 'asset-icon', alt || key);
     },
     item(key, className, alt) {
-      return img(rawItems[key] || goods[key] || icons.goods, className || 'asset-icon', alt || key);
-    },
-    cropStage(key, progress) {
-      const stages = crops[key] || crops.wheat;
-      const index = Math.max(0, Math.min(4, Math.floor(Math.max(0, Math.min(0.999, progress || 0)) * 5)));
-      return stages[index];
+      const emoji = cropEmojis[key] || recipeEmojis[key] || iconEmojis[key] || '📦';
+      return span(emoji, className || 'asset-icon', alt || key);
     },
     crop(key, progress, className, alt) {
-      return img(this.cropStage(key, progress), className || 'crop-img', alt || key);
+      const emoji = cropEmojis[key] || '🌱';
+      const pr = Math.max(0, Math.min(1, progress || 0));
+      const scale = 0.6 + pr * 0.4;
+      const opacity = 0.5 + pr * 0.5;
+      return span(emoji, className || 'crop-img', alt || key);
     },
     recipe(key, className, alt) {
-      return img(goods[key] || rawItems[key] || icons.goods, className || 'asset-icon', alt || key);
+      const emoji = recipeEmojis[key] || cropEmojis[key] || '📦';
+      return span(emoji, className || 'asset-icon', alt || key);
     },
     tab(key, className) {
-      return img(icons[key] || icons.overview, className || 'tab-icon-img', key);
+      const map = { farm: '🌱', factory: '🏭', shop: '🏪', logistics: '🚛', upgrades: '⬆️', buffs: '⚡', overview: '📊' };
+      return span(map[key] || '📋', className || 'tab-icon-img', key);
     },
     upgrade(key, className) {
-      return img(icons[upgradeIconMap[key]] || icons.upgrades, className || 'upgrade-icon-img', key);
+      const map = { farm_plot: '🌱', irrigation: '💧', fertilizer: '🧪', greenhouse: '🏡', tractor: '🚜', factory_machine: '⚙️', speed_boost: '⚡', automation: '🤖', shop_shelf: '🗄️', advertising: '📺', decor: '🎨', truck: '🚛', truck_speed: '🏎️' };
+      return span(map[key] || '⬆️', className || 'upgrade-icon-img', key);
     },
     buff(key, className) {
-      return img(icons[key] || icons.buffs, className || 'buff-icon-img', key);
+      const map = { growth_boost: '🌿', production_boost: '⚡', customer_frenzy: '👥', price_surge: '💰', discount_fuel: '⛽' };
+      return span(map[key] || '⚡', className || 'buff-icon-img', key);
     },
     factoryMachine(recipeKey, state, className) {
-      const kind = machineByRecipe[recipeKey] || 'mill';
-      const mode = state || 'idle';
-      return img(path('machines/factory/' + kind + '_' + mode + '.webp'), className || 'machine-art', kind);
+      const map = { flour: '⚙️', cornmeal: '⚙️', bread: '⚙️', apple_pie: '⚙️', pizza: '⚙️', carrot_juice: '🥤', apple_juice: '🥤', orange_juice: '🥤', fruit_salad: '🥤', sauerkraut: '📦', tomato_sauce: '📦', sugar: '♨️', rice_bowl: '♨️', sushi: '🍣', soy_milk: '🥤', tofu: '🧊', tea_bag: '🍃', milk_tea: '🧋', coffee_powder: '☕', latte: '☕', chocolate: '🍫', chocolate_cake: '🎂', wine: '🍷', jam: '🫙', jam_bread: '🍞', ketchup: '🫙', mushroom_soup: '🍜', sandwich: '🥪', popcorn: '🍿', carrot_cake: '🍰', orange_candy: '🍬', beet_salad: '🥗', apple_cider: '🍺', cotton_cloth: '🧣', spice_blend: '🧂', pumpkin_pie: '🥧', watermelon_juice: '🍹', grilled_mushroom: '🍢' };
+      const emoji = map[recipeKey] || '⚙️';
+      const anim = state === 'working' ? ' style="animation:pulse-machine 1s infinite alternate"' : '';
+      return span(emoji, className || 'machine-art') + (anim ? '<style>@keyframes pulse-machine{0%{opacity:0.6}100%{opacity:1}}</style>' : '');
     },
     idleMachine(index, className) {
-      const kinds = ['mill', 'juicer', 'packaging', 'boiler', 'textile', 'cold_storage'];
-      const kind = kinds[Math.abs(index || 0) % kinds.length];
-      return img(path('machines/factory/' + kind + '_idle.webp'), className || 'machine-art', kind);
+      const kinds = ['⚙️', '🥤', '📦', '♨️', '🧵', '❄️'];
+      return span(kinds[(index || 0) % kinds.length], className || 'machine-art');
     },
     shelf(id, quantity, maxQuantity, className) {
-      const styles = ['wood', 'metal', 'display', 'cold'];
-      const style = styles[Math.abs(id || 0) % styles.length];
       const ratio = maxQuantity ? quantity / maxQuantity : 0;
       const state = ratio <= 0 ? 'empty' : (ratio >= 0.67 ? 'full' : 'half');
-      return img(path('shop/shelves/' + style + '_' + state + '.webp'), className || 'shelf-art', style);
+      const emoji = state === 'empty' ? '🗄️' : state === 'full' ? '📦' : '🗄️';
+      return span(emoji, className || 'shelf-art');
     },
     customer(seed, className) {
+      const icons = ['👨', '👩', '👴', '👵', '👦', '👧', '🧑', '👱'];
       let hash = 0;
       for (const ch of String(seed || 'customer')) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
-      const index = Math.abs(hash) % 8 + 1;
-      return img(path('shop/customers/customer_' + String(index).padStart(2, '0') + '.webp'), className || 'customer-img', seed || 'customer');
+      return span(icons[Math.abs(hash) % icons.length], className || 'customer-img');
     },
     vehicle(kind, frame, className) {
-      return img(path('logistics/vehicles/' + (kind || 'truck') + '_' + (frame || 0) + '.webp'), className || 'truck-img', kind || 'truck');
+      return span('🚛', className || 'truck-img');
     },
+    img(src, className, alt) {
+      return span('📷', className || 'asset-icon', alt || '');
+    },
+    backgrounds: bgGradients,
+    effects: { coin: '💰', xp: '✨', offline: '💤', steam: '♨️', upgrade: '👑' },
+    routeMap: '',
+    cropStage(key, progress) { return cropEmojis[key] || '🌱'; },
   };
 
   window.EmpireAssets = EmpireAssets;

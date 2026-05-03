@@ -201,6 +201,7 @@ const CityManager = {
 
   collectSalary() {
     const result = claimSalary();
+    if (typeof HeroAudio !== 'undefined') HeroAudio.playBuildComplete();
     UI.showToast(result.msg);
     UI.updateTopBar();
     this.renderCity();

@@ -35,6 +35,7 @@
     }
   })();
   </script>
+  <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
   <script src="js/state.js"></script>
   <script src="js/research.js"></script>
@@ -43,5 +44,16 @@
   <script src="js/hero.js"></script>
   <script src="js/shop.js"></script>
   <script src="js/main.js"></script>
+<script>
+  // Initialize Web Audio API on first user interaction
+  document.addEventListener('click', function initAudio() {
+    if (typeof HeroAudio !== 'undefined') HeroAudio.init();
+    document.removeEventListener('click', initAudio);
+  }, { once: true });
+  document.addEventListener('touchstart', function initAudioTouch() {
+    if (typeof HeroAudio !== 'undefined') HeroAudio.init();
+    document.removeEventListener('touchstart', initAudioTouch);
+  }, { once: true });
+  </script>
 </body>
 </html>

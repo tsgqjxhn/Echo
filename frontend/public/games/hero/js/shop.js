@@ -52,7 +52,8 @@ const ShopManager = {
     gameState.roguelike.legendPity = (gameState.roguelike.legendPity || 0) + 1;
 
     let rarity;
-    if (gameState.roguelike.legendPity >= PITY_THRESHOLD * 2.5) {
+    // Guaranteed legendary at 50 pulls (PITY_THRESHOLD * 2.5)
+    if (gameState.roguelike.legendPity >= 50) {
       rarity = 'legendary';
       gameState.roguelike.legendPity = 0;
       gameState.roguelike.summonPity = 0;
@@ -78,6 +79,15 @@ const ShopManager = {
     const template = this.pickSummonTemplate(rarity);
     const hero = HeroManager.addHero(template.id);
     const existingHero = hero || gameState.heroes.find(h => h.templateId === template.id) || null;
+    // Record summon history
+    if (!gameState.summonHistory) gameState.summonHistory = [];
+    gameState.summonHistory.unshift({
+      heroName: template.name,
+      rarity: rarity,
+      isNew: !!hero,
+      date: Date.now()
+    });
+    if (gameState.summonHistory.length > 100) gameState.summonHistory = gameState.summonHistory.slice(0, 100);
     return {
       template,
       hero: existingHero,
@@ -196,43 +206,71 @@ const ShopManager = {
     this.showTab(this.currentTab || 'normal');
   },
 
+  renderSummonHistory() {
+    const history = gameState.summonHistory || [];
+    if (history.length === 0) return '';
+    const recent = history.slice(0, 10);
+    const rows = recent.map(h => {
+      const r = HERO_RARITIES[h.rarity];
+      return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;">
+        <span style="color:${r.color};font-weight:bold;">${r.name}</span>
+        <span style="color:var(--text);">${h.heroName}</span>
+        <span style="color:var(--text-dim);font-size:10px;">${h.isNew ? '<span style="color:var(--success);">NEW</span>' : '重复'}</span>
+      </div>`;
+    }).join('');
+    return `<div style="margin-top:12px;padding:10px;background:var(--bg-card);border-radius:8px;">
+      <h4 style="color:var(--gold);font-size:12px;margin-bottom:8px;">最近召唤记录</h4>
+      ${rows}
+    </div>`;
+  },
+
   renderSummonShop(container) {
+    const historyHtml = this.renderSummonHistory();
     let html = `
       <div class="summon-info">
         <h3>英雄召唤</h3>
         <div class="summon-circle-wrap">
-          <img src="${ASSETS.shopItem('summon_circle')}" class="summon-circle-anim" alt="">
+          <img src="${ASSETS.shopItem('summon_circle')}" class="summon-circle-anim" alt="" style="animation: summonGlow 2s ease-in-out infinite, summonSpin 8s linear infinite;">
         </div>
         <div class="summon-rates">
           <p>传说: ${(SUMMON_RATES.legendary * 100).toFixed(1)}% | 史诗: ${(SUMMON_RATES.epic * 100).toFixed(0)}% | 稀有: ${(SUMMON_RATES.rare * 100).toFixed(0)}% | 普通: ${(SUMMON_RATES.normal * 100).toFixed(0)}%</p>
-          <p>史诗保底: ${PITY_THRESHOLD}次 | 传说保底: ${PITY_THRESHOLD * 2.5}次</p>
+          <p>史诗保底: ${PITY_THRESHOLD}次 | 传说保底: 50次</p>
           <p>当前史诗保底: ${gameState.roguelike.summonPity || 0}/${PITY_THRESHOLD}</p>
-          <p>当前传说保底: ${gameState.roguelike.legendPity || 0}/${Math.floor(PITY_THRESHOLD * 2.5)}</p>
+          <p>当前传说保底: ${gameState.roguelike.legendPity || 0}/50</p>
         </div>
         <div class="summon-resources">
           <span>${resIcon('gems')}${gameState.player.gems}</span>
         </div>
       </div>
       <div class="summon-buttons">
-        <button class="btn-primary" onclick="ShopManager.doSummon(false)">
+        <button class="btn-primary" onclick="ShopManager.doSummon(false)" style="min-height:44px;touch-action:manipulation;">
           召唤 1 次 (${resIcon('gems')}${SUMMON_COST.gems})
         </button>
-        <button class="btn-gold" onclick="ShopManager.doSummon(true)">
+        <button class="btn-gold" onclick="ShopManager.doSummon(true)" style="min-height:44px;touch-action:manipulation;">
           十连召唤 (${resIcon('gems')}${SUMMON_COST.tenGems})
         </button>
       </div>
       <div id="summon-result"></div>
+      ${historyHtml}
     `;
     container.innerHTML = html;
   },
 
   doSummon(tenPull) {
+    // Play gacha reveal sound
+    if (typeof HeroAudio !== 'undefined') HeroAudio.playGachaReveal();
+
     const result = tenPull ? this.summonTen() : this.summonHero();
 
     if (!result.ok) {
       this.showSummonResult([{ template: null, msg: result.msg }]);
       return;
     }
+
+    // Check if legendary was pulled
+    const hasLegendary = tenPull
+      ? result.results.some(r => r.rarity === 'legendary')
+      : result.rarity === 'legendary';
 
     if (typeof UI !== 'undefined') UI.updateTopBar();
     this.renderSummonShop(document.getElementById('shop-tab-content'));

@@ -381,6 +381,17 @@ const gameCatalog: GameCatalogItem[] = [
     playCategories: ['tower-shooter', 'roguelike-rpg', 'tactical-rpg'],
   },
   {
+    id: 'survivor-defense',
+    name: '幸存者防线',
+    description: '末日丧尸塔防：放置炮塔、研究科技、抵挡一波波丧尸，守护最后的避难所。',
+    route: '/game/play/survivor-defense',
+    icon: '防',
+    iconKind: 'text',
+    iconClass: 'survivor-icon',
+    primarySubcategory: '塔防设计',
+    playCategories: ['tower-shooter', 'strategy-action'],
+  },
+  {
     id: 'chess',
     name: '国际象棋',
     description: '邀请AI好友对弈，或挑战内置引擎。支持难度选择。',
@@ -866,6 +877,12 @@ function formatFileSize(bytes: number): string {
 .darkdorm-icon {
   color: #f87171;
   background: linear-gradient(135deg, #1a1a2e, #312e81 50%, #4c1d95);
+}
+
+.survivor-icon {
+  color: #fef3c7;
+  background: linear-gradient(135deg, #052e16, #166534 45%, #65a30d);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .gomoku-icon {

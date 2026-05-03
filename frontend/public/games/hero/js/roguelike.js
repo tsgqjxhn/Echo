@@ -4,62 +4,30 @@
 // without needing external audio files.
 // ============================================================
 
+// AudioManager uses HeroAudio engine when available
 class AudioManager {
   constructor() {
-    this.ctx = null;
     this.enabled = true;
-    this.masterVolume = 0.3;
   }
+  _ensure() { return typeof HeroAudio !== 'undefined' && HeroAudio.init(); }
+  get masterVolume() { return typeof HeroAudio !== 'undefined' ? HeroAudio.masterVolume : 0.3; }
 
-  _ensure() {
-    if (!this.ctx) {
-      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
-    }
-    return true;
-  }
-
-  _tone(freq, type, dur, vol, detune) {
-    if (!this.enabled || !this._ensure()) return;
-    const g = this.ctx.createGain();
-    const o = this.ctx.createOscillator();
-    o.type = type || 'sine';
-    o.frequency.value = freq;
-    if (detune) o.detune.value = detune;
-    g.gain.setValueAtTime((vol || 0.15) * this.masterVolume, this.ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (dur || 0.15));
-    o.connect(g); g.connect(this.ctx.destination);
-    o.start(); o.stop(this.ctx.currentTime + (dur || 0.15));
-  }
-
-  _noise(dur, vol) {
-    if (!this.enabled || !this._ensure()) return;
-    const sz = this.ctx.sampleRate * (dur || 0.1);
-    const buf = this.ctx.createBuffer(1, sz, this.ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < sz; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
-    const s = this.ctx.createBufferSource(); s.buffer = buf;
-    const g = this.ctx.createGain();
-    g.gain.setValueAtTime((vol || 0.1) * this.masterVolume, this.ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (dur || 0.1));
-    s.connect(g); g.connect(this.ctx.destination); s.start();
-  }
-
-  shoot()      { this._tone(800, 'square', 0.06, 0.08); }
-  shootBow()   { this._tone(1200, 'sine', 0.08, 0.06); this._noise(0.04, 0.04); }
-  shootMagic() { this._tone(440, 'sine', 0.2, 0.1); this._tone(660, 'sine', 0.15, 0.06, 50); }
-  hit()        { this._tone(200, 'sawtooth', 0.08, 0.1); this._noise(0.05, 0.06); }
-  critHit()    { this._tone(300, 'sawtooth', 0.12, 0.15); this._tone(600, 'square', 0.06, 0.1); this._noise(0.08, 0.1); }
-  playerHurt() { this._tone(150, 'square', 0.15, 0.12); this._noise(0.1, 0.08); }
-  enemyDeath() { this._tone(400, 'square', 0.1, 0.06); this._tone(200, 'sawtooth', 0.15, 0.05); }
-  bossDeath()  { this._tone(100, 'sawtooth', 0.5, 0.15); this._tone(150, 'square', 0.4, 0.1); this._noise(0.4, 0.12); }
-  levelUp()    { this._tone(523, 'sine', 0.1, 0.12); setTimeout(() => this._tone(659, 'sine', 0.1, 0.12), 100); setTimeout(() => this._tone(784, 'sine', 0.2, 0.12), 200); }
-  pickup()     { this._tone(1000, 'sine', 0.06, 0.05); this._tone(1400, 'sine', 0.04, 0.04); }
-  skillUse()   { this._tone(300, 'sine', 0.3, 0.1); this._tone(600, 'sine', 0.2, 0.08, 30); this._noise(0.15, 0.06); }
-  bossSkill()  { this._tone(80, 'sawtooth', 0.3, 0.12); this._noise(0.2, 0.1); }
-  waveStart()  { this._tone(440, 'sine', 0.15, 0.08); setTimeout(() => this._tone(550, 'sine', 0.15, 0.08), 150); }
-  shieldBlock(){ this._tone(1200, 'sine', 0.1, 0.08); this._tone(1800, 'sine', 0.05, 0.06); }
-  gameOver()   { this._tone(400, 'sine', 0.3, 0.12); setTimeout(() => this._tone(300, 'sine', 0.3, 0.12), 300); setTimeout(() => this._tone(200, 'sine', 0.5, 0.12), 600); }
-  victory()    { [523,659,784,1047].forEach((f,i) => setTimeout(() => this._tone(f, 'sine', 0.2, 0.12), i * 150)); }
+  shoot()      { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackSword(); }
+  shootBow()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackBow(); }
+  shootMagic() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackMagic(); }
+  hit()        { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
+  critHit()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playCritHit(); }
+  playerHurt() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playHitPlayer(); }
+  enemyDeath() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
+  bossDeath()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
+  levelUp()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playLevelUp(); }
+  pickup()     { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playPickup(); }
+  skillUse()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playSkillCast(); }
+  bossSkill()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playBossEntrance(); }
+  waveStart()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playWaveStart(); }
+  shieldBlock(){ if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playShieldBlock(); }
+  gameOver()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playGameOver(); }
+  victory()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playVictory(); }
 }
 
 const sfx = new AudioManager();
@@ -124,9 +92,9 @@ class RoguelikeGame {
 
     this.camera = { x: 0, y: 0 };
     this.joystick = { active: false, dx: 0, dy: 0, startX: 0, startY: 0, baseX: 0, baseY: 0 };
-    this.skillButton = { x: 0, y: 0, radius: 35 };
+    this.skillButton = { x: 0, y: 0, radius: 42 };  // +20% larger for mobile
     this.backButton = { x: 0, y: 0, w: 36, h: 36 };
-    this.bagButton = { x: 0, y: 0, w: 48, h: 48 };
+    this.bagButton = { x: 0, y: 0, w: 56, h: 56 };  // +17% larger for mobile
     this.bagOpen = false;
     this.bagItemSlots = [];
     this.skillReady = true;
@@ -311,13 +279,23 @@ class RoguelikeGame {
       : 'sword');
     const heroWeapon = WEAPONS[heroWeaponKey];
 
+    // Apply passive skill bonuses
+    const passiveStats = (typeof HeroPassives !== 'undefined')
+      ? HeroPassives.applyBattlePassives(heroTemplate.heroClass, {
+          hp: (heroTemplate.baseHp || 100) * (1 + (civBonus.troopHp || 0) + researchHp + cityHpBuff),
+          spd: (heroTemplate.baseSpd || 3.0) * (1 + researchSpeed),
+          dodgeRate: 0
+        })
+      : { hp: (heroTemplate.baseHp || 100) * (1 + (civBonus.troopHp || 0) + researchHp + cityHpBuff), spd: (heroTemplate.baseSpd || 3.0) * (1 + researchSpeed), dodgeRate: 0 };
+
     this.player = {
       x: this.mapWidth / 2,
       y: this.mapHeight / 2,
       radius: 16,
-      hp: (heroTemplate.baseHp || 100) * (1 + (civBonus.troopHp || 0) + researchHp + cityHpBuff),
+      hp: passiveStats.hp,
+      maxHp: passiveStats.hp,
       maxHp: (heroTemplate.baseHp || 100) * (1 + (civBonus.troopHp || 0) + researchHp + cityHpBuff),
-      speed: (heroTemplate.baseSpd || 3.0) * (1 + researchSpeed),
+      speed: passiveStats.spd,
       attack: (heroTemplate.baseAtk || 15) * (1 + (civBonus.troopAtk || 0) + researchAtk + cityAtkBuff),
       range: heroWeapon.range,
       attackSpeed: heroWeapon.speed,
@@ -441,9 +419,10 @@ class RoguelikeGame {
         // Spawn animation: boss fades in from large transparent circle
         spawnAnim: 1.0
       };
-      // Boss entrance: screen shake + red flash
+      // Boss entrance: screen shake + red flash + BGM
       this._shake(8, 0.5);
       this._flash('rgba(255,0,0,0.3)', 0.5);
+      if (typeof HeroAudio !== 'undefined') HeroAudio.setBGM('boss');
     }
   }
 
@@ -636,6 +615,12 @@ class RoguelikeGame {
       // Tick down spawn animation timer; enemy is invulnerable while spawning
       if (e.spawnAnim > 0) { e.spawnAnim -= dt; continue; }
 
+      // Berserker: attack doubles when HP < 50%
+      let effectiveAtk = e.atk;
+      if (e.berserkMode && e.hp < e.maxHp * 0.5) {
+        effectiveAtk = Math.floor(e.atk * 2);
+      }
+
       const target = this._getEnemyTarget(e);
       if (!target) {
         this._wanderEntity(e, dt);
@@ -646,6 +631,43 @@ class RoguelikeGame {
       const dy = target.y - e.y;
       const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
 
+      // Necromancer: summon skeletons periodically
+      if (e.summonSkill) {
+        e.summonTimer = (e.summonTimer || 0) - dt;
+        if (e.summonTimer <= 0 && this.enemies.length < 80) {
+          e.summonTimer = 6 + Math.random() * 4;
+          for (let si = 0; si < 2; si++) {
+            const angle = Math.random() * Math.PI * 2;
+            this.enemies.push({
+              ...ENEMY_TYPES.skeleton,
+              hp: 20, maxHp: 20, atk: 4,
+              x: e.x + Math.cos(angle) * 40,
+              y: e.y + Math.sin(angle) * 40,
+              radius: 12, flash: 0, attackTimer: 0,
+              xp: 2, color: '#b0bec5', spawnAnim: 0.3
+            });
+          }
+          this.spawnDamageNumber(e.x, e.y - 20, 'SUMMON', '#9c27b0');
+        }
+        // Also ranged attack
+        if (dist > (e.range || 150) * 0.8) {
+          e.x += (dx / dist) * e.speed * 60 * dt;
+          e.y += (dy / dist) * e.speed * 60 * dt;
+        } else {
+          e.attackTimer -= dt;
+          if (e.attackTimer <= 0) {
+            this.projectiles.push({
+              x: e.x, y: e.y,
+              dx: (dx / dist) * 180, dy: (dy / dist) * 180,
+              damage: effectiveAtk, radius: 5, color: '#880e4f',
+              enemy: true, life: 3, fxKey: 'enemyBolt'
+            });
+            e.attackTimer = 2.0;
+          }
+        }
+        continue;
+      }
+
       if (e.ranged && dist > (e.range || 150) * 0.8) {
         // Move toward target
         e.x += (dx / dist) * e.speed * 60 * dt;
@@ -654,21 +676,29 @@ class RoguelikeGame {
         // Shoot
         e.attackTimer -= dt;
         if (e.attackTimer <= 0) {
+          let projColor = '#ff4444';
+          let projFx = 'enemyBolt';
+          if (e.elementType === 'ice') { projColor = '#80d8ff'; projFx = 'ice'; }
           this.projectiles.push({
             x: e.x, y: e.y,
             dx: (dx / dist) * 200, dy: (dy / dist) * 200,
-            damage: e.atk, radius: 4, color: '#ff4444',
-            enemy: true, life: 3, fxKey: 'enemyBolt'
+            damage: effectiveAtk, radius: 4, color: projColor,
+            enemy: true, life: 3, fxKey: projFx
           });
           e.attackTimer = 1.5;
         }
       } else {
         // Melee: move toward target
-        e.x += (dx / dist) * e.speed * 60 * dt;
-        e.y += (dy / dist) * e.speed * 60 * dt;
+        let moveSpeed = e.speed;
+        // Troll is slow but hits hard
+        if (e.slowAttack) { moveSpeed *= 0.7; }
+        // Shadow assassin is extra fast
+        if (e.dodgeRate) { moveSpeed *= 1.2; }
+        e.x += (dx / dist) * moveSpeed * 60 * dt;
+        e.y += (dy / dist) * moveSpeed * 60 * dt;
 
         if (dist < target.radius + e.radius) {
-          this.damageTarget(target, e.atk);
+          this.damageTarget(target, effectiveAtk);
           // Knockback
           e.x -= (dx / dist) * 20;
           e.y -= (dy / dist) * 20;
@@ -865,8 +895,10 @@ class RoguelikeGame {
     const isCrit = Math.random() < p.critRate;
     const dmg = Math.floor(p.attack * weapon.dmg / 10 * (isCrit ? p.critDmg : 1));
 
-    // Weapon-specific sound: bow twang, magic hum, melee thunk
-    if (weapon.type === 'projectile') {
+    // Weapon-specific sound via HeroAudio
+    if (typeof HeroAudio !== 'undefined') {
+      HeroAudio.playAttack(p.weapon || 'sword');
+    } else if (weapon.type === 'projectile') {
       if (p.weapon === 'bow') sfx.shootBow();
       else sfx.shoot();
     } else if (weapon.type === 'aoe') {
@@ -946,6 +978,11 @@ class RoguelikeGame {
   }
 
   damageEnemy(e, dmg, idx) {
+    // Shadow assassin dodge chance
+    if (e.dodgeRate && Math.random() < e.dodgeRate) {
+      this.spawnDamageNumber(e.x, e.y - 15, 'MISS', '#4caf50');
+      return;
+    }
     e.hp -= dmg;
     e.flash = 0.08;
     this.spawnDamageNumber(e.x, e.y, dmg, '#ffffff');
@@ -954,6 +991,19 @@ class RoguelikeGame {
     if (e.hp <= 0 && idx >= 0) {
       this.kills++;
       sfx.enemyDeath();
+      // Check mana flow passive (support)
+      if (typeof HeroPassives !== 'undefined') {
+        const manaFlow = HeroPassives.checkManaFlow(this.player.heroClass);
+        if (manaFlow) {
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * manaFlow.hpRestore);
+          this.skillCooldown = Math.max(0, this.skillCooldown - manaFlow.cdReduce);
+          this.spawnDamageNumber(this.player.x, this.player.y - 25, 'MANA+' , '#4fc3f7');
+        }
+        // Check headshot passive proc display (ranger crit bonus already applied)
+        if (this.player.heroClass === 'ranger' && dmg >= this.player.attack * 2.5) {
+          this.spawnDamageNumber(e.x, e.y - 35, 'HEADSHOT', '#ff9800');
+        }
+      }
       // Drop XP orb that pulses and drifts slightly
       this.drops.push({ x: e.x, y: e.y, type: 'xp', value: Math.floor(e.xp * this.player.xpMult), life: 15, color: '#00e5ff' });
       if (Math.random() < 0.15 * (1 + (this.player.dropBonus || 0))) {
@@ -1048,6 +1098,15 @@ class RoguelikeGame {
     const p = this.player;
     if (p.invincible > 0) return;
 
+    // Check dodge (ranger agility passive)
+    if (typeof HeroPassives !== 'undefined' && HeroPassives.checkDodge(p.heroClass)) {
+      p.invincible = 0.3;
+      this.spawnDamageNumber(p.x, p.y, 'DODGE', '#4caf50');
+      sfx.shieldBlock();
+      return;
+    }
+
+    // Check shield
     if (p.shieldCount > 0) {
       p.shieldCount--;
       p.invincible = 0.5;
@@ -1057,14 +1116,72 @@ class RoguelikeGame {
       return;
     }
 
-    p.hp -= dmg;
+    // Check fortress mode (commander passive - reduce damage when HP < 30%)
+    let actualDmg = dmg;
+    if (typeof HeroPassives !== 'undefined') {
+      const dmgReduce = HeroPassives.checkFortressMode(p.heroClass, p.hp / p.maxHp);
+      if (dmgReduce > 0) {
+        actualDmg = Math.floor(dmg * (1 - dmgReduce));
+        this.spawnDamageNumber(p.x, p.y - 15, 'RESIST', '#ffd740');
+      }
+      // Check thorns (defender passive - reflect damage)
+      const reflectPct = HeroPassives.checkThorns(p.heroClass);
+      if (reflectPct > 0 && this.enemies.length > 0) {
+        const nearestEnemy = this.enemies.reduce((a, b) => {
+          const da = Math.hypot(a.x - p.x, a.y - p.y);
+          const db = Math.hypot(b.x - p.x, b.y - p.y);
+          return da < db ? a : b;
+        });
+        const reflectDmg = Math.floor(dmg * reflectPct);
+        nearestEnemy.hp -= reflectDmg;
+        this.spawnDamageNumber(nearestEnemy.x, nearestEnemy.y, reflectDmg, '#ff9800');
+        if (nearestEnemy.hp <= 0) {
+          const idx = this.enemies.indexOf(nearestEnemy);
+          if (idx >= 0) {
+            this.kills++;
+            sfx.enemyDeath();
+            this.drops.push({ x: nearestEnemy.x, y: nearestEnemy.y, type: 'xp', value: Math.floor(nearestEnemy.xp * p.xpMult), life: 15, color: '#00e5ff' });
+            this.enemies.splice(idx, 1);
+          }
+        }
+      }
+    }
+
+    p.hp -= actualDmg;
     p.invincible = 0.3;
     p.hurtAnim = 0.2;
-    this.spawnDamageNumber(p.x, p.y, dmg, '#ff1744');
+    this.spawnDamageNumber(p.x, p.y, actualDmg, '#ff1744');
     sfx.playerHurt();
     // Player hit: red edge flash + mild screen shake
     this._flash('rgba(255,23,68,0.25)', 0.3);
     this._shake(4, 0.2);
+
+    // Counter attack (commander passive)
+    if (typeof HeroPassives !== 'undefined') {
+      const counterDmgMult = HeroPassives.checkCounterAttack(p.heroClass);
+      if (counterDmgMult > 0 && this.enemies.length > 0) {
+        const nearest = this.enemies.reduce((a, b) => {
+          const da = Math.hypot(a.x - p.x, a.y - p.y);
+          const db = Math.hypot(b.x - p.x, b.y - p.y);
+          return da < db ? a : b;
+        });
+        if (Math.hypot(nearest.x - p.x, nearest.y - p.y) < 120) {
+          const counterDmg = Math.floor(p.attack * counterDmgMult);
+          nearest.hp -= counterDmg;
+          this.spawnDamageNumber(nearest.x, nearest.y, counterDmg, '#4fc3f7');
+          nearest.flash = 0.1;
+          if (nearest.hp <= 0) {
+            const idx = this.enemies.indexOf(nearest);
+            if (idx >= 0) {
+              this.kills++;
+              sfx.enemyDeath();
+              this.drops.push({ x: nearest.x, y: nearest.y, type: 'xp', value: Math.floor(nearest.xp * p.xpMult), life: 15, color: '#00e5ff' });
+              this.enemies.splice(idx, 1);
+            }
+          }
+        }
+      }
+    }
 
     if (p.hp <= 0) {
       if (this.tryRebirth()) return;
@@ -1269,6 +1386,7 @@ class RoguelikeGame {
     b.animAction = 'death';
     b.animTime = 0;
     sfx.bossDeath();
+    if (typeof HeroAudio !== 'undefined') HeroAudio.setBGM('battle');
     // Boss death: heavy screen shake + slow-motion + golden flash
     this._shake(15, 0.8);
     this._flash('rgba(255,215,64,0.4)', 0.6);

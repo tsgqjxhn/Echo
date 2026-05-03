@@ -144,7 +144,22 @@ class UserSetting(BaseModel):
 class APIConfigPayload(BaseModel):
     id: str
     name: str
-    provider: Literal["openai", "openai-compatible"] = "openai-compatible"
+    provider: Literal[
+        "local",
+        "openai",
+        "openai-compatible",
+        "anthropic",
+        "dashscope",
+        "volcengine",
+        "gemini",
+        "zhipu",
+        "grok",
+        "minimax",
+        "baidu",
+        "bedrock",
+        "azure",
+        "ollama",
+    ] = "openai-compatible"
     apiKey: str = ""
     baseURL: str | None = None
     model: str
@@ -156,7 +171,22 @@ class APIConfigPayload(BaseModel):
 class APIConfigResponse(BaseModel):
     id: str
     name: str
-    provider: Literal["openai", "openai-compatible"] = "openai-compatible"
+    provider: Literal[
+        "local",
+        "openai",
+        "openai-compatible",
+        "anthropic",
+        "dashscope",
+        "volcengine",
+        "gemini",
+        "zhipu",
+        "grok",
+        "minimax",
+        "baidu",
+        "bedrock",
+        "azure",
+        "ollama",
+    ] = "openai-compatible"
     apiKey: str = ""
     baseURL: str | None = None
     model: str
@@ -174,7 +204,22 @@ class ModelListRequest(BaseModel):
 class APIConfigTestRequest(BaseModel):
     id: str | None = None
     name: str | None = None
-    provider: Literal["openai", "openai-compatible"] | None = None
+    provider: Literal[
+        "local",
+        "openai",
+        "openai-compatible",
+        "anthropic",
+        "dashscope",
+        "volcengine",
+        "gemini",
+        "zhipu",
+        "grok",
+        "minimax",
+        "baidu",
+        "bedrock",
+        "azure",
+        "ollama",
+    ] | None = None
     apiKey: str | None = None
     baseURL: str | None = None
     model: str | None = None

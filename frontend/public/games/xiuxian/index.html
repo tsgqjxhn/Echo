@@ -2,9 +2,401 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="问道长生">
+  <meta name="description" content="问道长生 — 一款修仙放置类网页游戏，从凡人开始修炼，追求长生大道">
   <title>问道长生 — 修仙放置</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/ui/game_logo.webp">
+  <style>
+  /* ===== Mobile Optimization & Tutorial Styles ===== */
+
+  /* Touch-friendly improvements */
+  @media (max-width: 768px) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    body {
+      font-size: 14px;
+      overflow-x: hidden;
+    }
+
+    #app {
+      flex-direction: column;
+    }
+
+    /* Collapsible sidebar */
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 220px;
+      height: 100vh;
+      z-index: 1000;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+    }
+
+    #sidebar.open {
+      transform: translateX(0);
+    }
+
+    #sidebar .sidebar-toggle {
+      display: block !important;
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 1001;
+      width: 40px;
+      height: 40px;
+      background: var(--bg-card, #1a1a2e);
+      border: 1px solid var(--border-color, #333);
+      border-radius: 8px;
+      color: var(--text-primary, #e0e0e0);
+      font-size: 20px;
+      text-align: center;
+      line-height: 40px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+    }
+
+    #sidebar.open + #sidebar-backdrop {
+      display: block;
+    }
+
+    #sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 999;
+    }
+
+    #main {
+      margin-left: 0;
+      padding: 48px 8px 8px;
+      width: 100%;
+    }
+
+    /* Status bar adjustments */
+    #status-bar {
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px 6px;
+    }
+
+    .status-item {
+      font-size: 12px;
+      padding: 3px 6px;
+    }
+
+    /* Larger touch targets */
+    .btn {
+      min-height: 40px;
+      min-width: 44px;
+      padding: 10px 16px;
+      font-size: 14px;
+    }
+
+    .btn-sm {
+      min-height: 36px;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .nav-item {
+      padding: 14px 16px;
+      font-size: 15px;
+    }
+
+    /* Panel padding */
+    .panel {
+      padding: 8px;
+    }
+
+    /* Card adjustments */
+    .card {
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    /* Grid adjustments */
+    .grid-2 {
+      grid-template-columns: 1fr;
+    }
+
+    .upgrade-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .zone-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .shop-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .inv-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Combat adjustments */
+    .combat-field {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .combat-vs {
+      transform: rotate(90deg);
+    }
+
+    .combat-actions {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .combat-actions .btn {
+      width: 100%;
+    }
+
+    /* Modal adjustments */
+    .modal {
+      max-width: 95vw;
+      padding: 16px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    /* Choice buttons */
+    .choice-btn {
+      min-height: 44px;
+      font-size: 14px;
+      padding: 12px;
+    }
+
+    /* Alchemy controls */
+    .alchemy-controls {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .alchemy-controls .btn {
+      width: 100%;
+    }
+
+    /* Toggle switches */
+    .queue-toggle {
+      width: 48px;
+      height: 26px;
+    }
+
+    .queue-toggle::after {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* Toast adjustments */
+    .toast {
+      max-width: 90vw;
+      font-size: 13px;
+      padding: 10px 14px;
+    }
+
+    /* Technique items */
+    .tech-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .tech-item .btn-group {
+      width: 100%;
+      justify-content: flex-end;
+    }
+
+    /* Sect trial opponents */
+    .trial-opponent {
+      padding: 8px;
+      font-size: 13px;
+    }
+  }
+
+  /* ===== Tutorial Overlay Styles ===== */
+  #tutorial-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  .tutorial-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(8, 12, 28, 0.42);
+    backdrop-filter: blur(1px);
+    pointer-events: auto;
+  }
+
+  .tutorial-card {
+    position: absolute;
+    left: 50%;
+    bottom: max(env(safe-area-inset-bottom, 0px), 24px);
+    transform: translateX(-50%);
+    background: linear-gradient(140deg, rgba(28, 30, 56, 0.97), rgba(20, 22, 40, 0.97));
+    border: 1px solid rgba(212, 168, 67, 0.55);
+    border-radius: 14px;
+    padding: 16px 18px 14px;
+    width: min(440px, calc(100vw - 32px));
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(212, 168, 67, 0.08);
+    animation: tutorialSlideIn 0.32s cubic-bezier(0.22, 0.9, 0.32, 1.2);
+    pointer-events: auto;
+    box-sizing: border-box;
+  }
+
+  @keyframes tutorialSlideIn {
+    from { opacity: 0; transform: translate(-50%, 28px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  .tutorial-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .tutorial-badge {
+    background: linear-gradient(135deg, var(--accent-gold, #d4a843), #b8942a);
+    color: #1c1305;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+
+  .tutorial-step {
+    font-size: 12px;
+    color: var(--text-muted, #888);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tutorial-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--accent-gold, #d4a843);
+    margin-bottom: 8px;
+  }
+
+  .tutorial-content {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-primary, #e0e0e0);
+    margin-bottom: 10px;
+  }
+
+  .tutorial-action {
+    font-size: 12px;
+    color: var(--accent-cyan, #5bc0de);
+    background: rgba(91, 192, 222, 0.12);
+    padding: 7px 11px;
+    border-radius: 7px;
+    margin-bottom: 14px;
+    border-left: 2px solid rgba(91, 192, 222, 0.7);
+  }
+
+  .tutorial-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tutorial-progress {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .tutorial-progress > i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-gold, #d4a843), var(--accent-cyan, #5bc0de));
+    transition: width 0.35s ease;
+  }
+
+  /* Pulse ring around the highlighted element */
+  @keyframes tutorialPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.85), 0 0 0 4px rgba(212, 168, 67, 0.25); }
+    50%      { box-shadow: 0 0 0 6px rgba(212, 168, 67, 0.0),  0 0 0 12px rgba(212, 168, 67, 0.0); }
+  }
+  .tutorial-highlight {
+    position: relative;
+    z-index: 9998 !important;
+    animation: tutorialPulse 1.6s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* ===== Audio Settings Panel ===== */
+  .audio-settings {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .audio-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .audio-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-gold, #d4a843);
+  }
+
+  /* Beast description in combat */
+  .beast-lore {
+    font-size: 12px;
+    color: var(--text-secondary, #aaa);
+    line-height: 1.6;
+    margin: 8px 0;
+    padding: 8px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border-left: 2px solid var(--accent-purple, #9b59b6);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  </style>
 </head>
 <body>
 
@@ -15,9 +407,13 @@
   <div class="modal" id="modal-content"></div>
 </div>
 
+<!-- Mobile sidebar toggle -->
+<div id="sidebar-backdrop" onclick="document.getElementById('sidebar').classList.remove('open')"></div>
+
 <div id="app">
   <!-- Sidebar Navigation -->
   <nav id="sidebar">
+    <span class="sidebar-toggle" style="display:none" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</span>
     <div class="sidebar-header">
       <img class="game-logo" src="assets/ui/game_logo.webp" alt="问道长生">
       <h1 class="visually-hidden">问道长生</h1>
@@ -143,8 +539,12 @@
   }
 })();
 </script>
+<script src="js/audio.js"></script>
 <script src="js/data.js"></script>
 <script src="js/data-expansion.js"></script>
+<script src="js/data-encounters.js"></script>
+<script src="js/data-beasts.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/bigint.js"></script>
 <script src="js/player.js"></script>
 <script src="js/cultivation.js"></script>
@@ -162,5 +562,48 @@
 <script src="js/generated-resource-assets.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+
+<!-- PWA Service Worker Registration -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./service-worker.js').then(function(registration) {
+      console.log('ServiceWorker registered:', registration.scope);
+    }).catch(function(err) {
+      console.log('ServiceWorker registration failed:', err);
+    });
+  });
+}
+</script>
+
+<!-- Mobile sidebar toggle init -->
+<script>
+(function() {
+  // Show sidebar toggle on mobile
+  if (window.innerWidth <= 768) {
+    var toggle = document.querySelector('.sidebar-toggle');
+    if (toggle) toggle.style.display = 'block';
+  }
+  // Close sidebar when clicking nav items on mobile
+  document.querySelectorAll('.nav-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.remove('open');
+      }
+    });
+  });
+  // Handle resize
+  window.addEventListener('resize', function() {
+    var toggle = document.querySelector('.sidebar-toggle');
+    if (!toggle) return;
+    if (window.innerWidth <= 768) {
+      toggle.style.display = 'block';
+    } else {
+      toggle.style.display = 'none';
+      document.getElementById('sidebar').classList.remove('open');
+    }
+  });
+})();
+</script>
 </body>
 </html>

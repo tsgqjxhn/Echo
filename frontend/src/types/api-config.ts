@@ -1,4 +1,18 @@
-export type APIProvider = 'local' | 'openai' | 'openai-compatible' | 'anthropic' | 'dashscope' | 'volcengine' | 'gemini' | 'zhipu'
+export type APIProvider =
+  | 'local'
+  | 'ollama'
+  | 'openai'
+  | 'openai-compatible'
+  | 'anthropic'
+  | 'gemini'
+  | 'grok'
+  | 'azure'
+  | 'bedrock'
+  | 'dashscope'
+  | 'volcengine'
+  | 'zhipu'
+  | 'baidu'
+  | 'minimax'
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -27,14 +41,20 @@ export interface TestResult {
 }
 
 export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
-  local: '本地 (系统内置)',
-  openai: 'OpenAI',
-  'openai-compatible': 'OpenAI Compatible',
-  anthropic: 'Anthropic',
-  dashscope: 'DashScope',
-  volcengine: '火山方舟 (Volcengine)',
-  gemini: 'Gemini',
-  zhipu: '智谱清言 (GLM)',
+  local: '内置/系统模型',
+  ollama: '本地/Ollama',
+  openai: 'OpenAI/ChatGPT',
+  'openai-compatible': 'OpenAI/兼容协议',
+  anthropic: 'Anthropic/Claude',
+  gemini: 'Google/Gemini',
+  grok: 'xAI/Grok',
+  azure: 'Microsoft/Azure OpenAI',
+  bedrock: 'AWS/Bedrock',
+  dashscope: '阿里/通义千问',
+  volcengine: '字节/豆包',
+  zhipu: '智谱/GLM',
+  baidu: '百度/文心',
+  minimax: 'MiniMax/海螺',
 }
 
 export const DEFAULT_OPENAI_CONFIG: Partial<APIConfig> = {

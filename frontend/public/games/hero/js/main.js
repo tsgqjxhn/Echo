@@ -24,6 +24,50 @@ const UI = {
     }
   },
 
+
+
+  // ===== Story Display =====
+  showStageStory(stageIndex) {
+    if (!STORY_DATA || !STORY_DATA.levelStories) return;
+    const story = STORY_DATA.levelStories.find(s => s.level === stageIndex);
+    if (!story) return;
+    // Check if we've already shown this story
+    const shownKey = '_story_shown_' + stageIndex;
+    if (gameState[shownKey]) return;
+    gameState[shownKey] = true;
+    saveGame({ force: true });
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeInUp 0.4s ease;';
+    overlay.innerHTML = `
+      <div style="max-width:400px;background:linear-gradient(180deg,#1a1a2e,#16213e);border:1px solid rgba(255,215,64,0.4);border-radius:12px;padding:24px;text-align:center;color:#e0e0e0;">
+        <div style="color:var(--gold);font-size:12px;margin-bottom:8px;letter-spacing:2px;">第 ${story.level} 关</div>
+        <h2 style="color:var(--gold);font-size:20px;margin-bottom:12px;">${story.title}</h2>
+        <p style="font-size:14px;line-height:1.8;color:var(--text);margin-bottom:20px;">${story.text}</p>
+        <button class="btn-gold" onclick="this.closest('.story-overlay').remove();" style="padding:8px 32px;">继续</button>
+      </div>
+    `;
+    overlay.className = 'story-overlay';
+    document.body.appendChild(overlay);
+  },
+
+  showBossStory(bossName) {
+    if (!STORY_DATA || !STORY_DATA.bossStories || !STORY_DATA.bossStories[bossName]) return;
+    const story = STORY_DATA.bossStories[bossName];
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeInUp 0.5s ease;';
+    if (typeof HeroAudio !== 'undefined') HeroAudio.playBossEntrance();
+    overlay.innerHTML = `
+      <div style="max-width:420px;background:linear-gradient(180deg,#1a1a2e,#2e0014);border:2px solid rgba(244,67,54,0.5);border-radius:12px;padding:24px;text-align:center;color:#e0e0e0;">
+        <div style="color:#f44336;font-size:12px;margin-bottom:8px;letter-spacing:3px;font-weight:bold;">BOSS 战</div>
+        <h2 style="color:#f44336;font-size:22px;margin-bottom:12px;text-shadow:0 0 12px rgba(244,67,54,0.5);">${bossName}</h2>
+        <p style="font-size:14px;line-height:1.8;color:var(--text);margin-bottom:20px;">${story}</p>
+        <button class="btn-danger" onclick="this.closest('.boss-overlay').remove();" style="padding:8px 32px;font-size:14px;">迎战</button>
+      </div>
+    `;
+    overlay.className = 'boss-overlay';
+    document.body.appendChild(overlay);
+  },
   showWelcome() {
     const app = document.getElementById('app');
     const hasExisting = typeof hasSave === 'function' && hasSave();
@@ -94,6 +138,7 @@ const UI = {
     this.updateTopBar();
     this.renderScreen('city');
     this.startAutoSave();
+    if (typeof HeroAudio !== 'undefined') HeroAudio.setBGM('city');
     this.startTimerUpdates();
   },
 
@@ -252,7 +297,17 @@ const UI = {
     canvas.width = Math.max(320, window.innerWidth || 360);
     canvas.height = Math.max(320, window.innerHeight || 640);
 
-    roguelikeGame = new RoguelikeGame(canvas);
+    if (typeof HeroAudio !== 'undefined') HeroAudio.setBGM('battle');
+    try {
+      roguelikeGame = new RoguelikeGame(canvas);
+    } catch (err) {
+      console.error('RoguelikeGame init failed:', err);
+      gameState.player.energy += cost;
+      this.showToast('战斗初始化失败，已返还体力');
+      this.renderScreen('city');
+      this.updateTopBar();
+      return;
+    }
     roguelikeGame.onEnd = (win, kills, time, rewards, wave, isPaused) => {
       if (isPaused) {
         roguelikeGame.stop();
@@ -305,7 +360,11 @@ const UI = {
       gameState.dailyTasks.progress.dt1++;
 
       saveGame();
-      this.showBattleResult(win, kills, time, rewards, wave, infiniteMode, promotedRank);
+      if (typeof HeroAudio !== 'undefined') {
+      if (win) HeroAudio.playVictory(); else HeroAudio.playGameOver();
+      setTimeout(() => HeroAudio.setBGM('city'), 2000);
+    }
+    this.showBattleResult(win, kills, time, rewards, wave, infiniteMode, promotedRank);
     };
 
     const battleStats = HeroManager.getBattleStats(hero.id);

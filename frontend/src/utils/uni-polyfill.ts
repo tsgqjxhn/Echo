@@ -82,33 +82,252 @@ export function showToast(options: ToastOptions): void {
 
 /**
  * 显示模态框
+ *
+ * 使用自定义 DOM 弹窗，避免 window.confirm 在原生 WebView 上的不稳定行为。
  */
 export function showModal(options: ShowModalOptions): void {
-  if (typeof window !== 'undefined') {
-    const result = window.confirm(options.content)
-    options.success?.({ confirm: result, cancel: !result })
+  if (typeof window === 'undefined') {
+    options.success?.({ confirm: false, cancel: true })
+    return
   }
+
+  const overlay = document.createElement('div')
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 10090;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  `
+
+  const dialog = document.createElement('div')
+  dialog.style.cssText = `
+    background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(7,13,24,0.98));
+    border: 1px solid rgba(56,189,248,0.18);
+    border-radius: 18px;
+    padding: 24px 22px 20px;
+    width: 100%;
+    max-width: 320px;
+    color: #f8fafc;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.42);
+    font-family: inherit;
+  `
+
+  const showCancel = options.showCancel !== false
+  const cancelText = options.cancelText || '取消'
+  const confirmText = options.confirmText || '确定'
+
+  const titleHtml = options.title
+    ? `<div style="text-align:center;font-size:17px;font-weight:600;margin-bottom:10px;color:#f8fafc;">${options.title}</div>`
+    : ''
+  const contentHtml = options.content
+    ? `<div style="text-align:center;font-size:14px;line-height:1.6;color:rgba(226,232,240,0.82);margin-bottom:18px;">${options.content}</div>`
+    : ''
+
+  dialog.innerHTML = `
+    ${titleHtml}
+    ${contentHtml}
+    <div style="display:flex;gap:10px;">
+      ${
+        showCancel
+          ? `<button type="button" data-action="cancel" style="
+              flex:1;padding:12px 0;border-radius:12px;border:1px solid rgba(255,255,255,0.1);
+              background:rgba(255,255,255,0.04);color:rgba(226,232,240,0.78);
+              font:inherit;font-size:15px;cursor:pointer;
+            ">${cancelText}</button>`
+          : ''
+      }
+      <button type="button" data-action="confirm" style="
+        flex:1;padding:12px 0;border-radius:12px;border:none;
+        background:linear-gradient(135deg,#7dd3fc,#38bdf8,#0284c7);color:#fff;
+        font:inherit;font-size:15px;font-weight:600;cursor:pointer;
+        box-shadow:0 4px 14px rgba(56,189,248,0.3);
+      ">${confirmText}</button>
+    </div>
+  `
+
+  overlay.appendChild(dialog)
+  document.body.appendChild(overlay)
+
+  let resolved = false
+  const finish = (confirm: boolean) => {
+    if (resolved) return
+    resolved = true
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
+    options.success?.({ confirm, cancel: !confirm })
+  }
+
+  dialog.querySelector<HTMLButtonElement>('button[data-action="confirm"]')?.addEventListener(
+    'click',
+    () => finish(true),
+  )
+  dialog
+    .querySelector<HTMLButtonElement>('button[data-action="cancel"]')
+    ?.addEventListener('click', () => finish(false))
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay && showCancel) {
+      finish(false)
+    }
+  })
 }
 
 /**
  * 显示操作菜单
+ *
+ * 在原生 / 非原生环境下使用一致的自定义底部弹层 UI，避免依赖 window.prompt 这种
+ * 在 Android WebView 中体验极差、且某些系统下根本不弹出的方案。
  */
 export function showActionSheet(options: ShowActionSheetOptions): void {
-  if (typeof window !== 'undefined') {
-    const item = window.prompt(
-      (options.title ? options.title + '\n' : '') + options.itemList.map((t, i) => `${i + 1}. ${t}`).join('\n')
-    )
-    if (item === null) {
-      options.fail?.({ errMsg: 'cancel' })
-      return
-    }
-    const idx = parseInt(item, 10) - 1
-    if (idx >= 0 && idx < options.itemList.length) {
-      options.success?.({ tapIndex: idx })
-    } else {
-      options.fail?.({ errMsg: 'invalid index' })
-    }
+  if (typeof window === 'undefined') {
+    options.fail?.({ errMsg: 'no window' })
+    return
   }
+
+  // 过滤掉「取消」选项，单独以底部按钮呈现，符合常见的原生 ActionSheet 体验。
+  const cancelLabels = new Set(['取消', 'cancel', 'Cancel'])
+  const items = options.itemList || []
+  const filtered: { label: string; index: number }[] = []
+  items.forEach((label, index) => {
+    if (cancelLabels.has(label)) return
+    filtered.push({ label, index })
+  })
+
+  const overlay = document.createElement('div')
+  overlay.style.cssText = `
+    position: fixed; inset: 0; z-index: 10100;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: action-sheet-fade 160ms ease forwards;
+  `
+
+  const sheet = document.createElement('div')
+  sheet.style.cssText = `
+    width: 100%;
+    max-width: 480px;
+    margin: 0 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    border-radius: 18px;
+    overflow: hidden;
+    font-family: inherit;
+    color: #f8fafc;
+    transform: translateY(8px);
+    opacity: 0;
+    transition: transform 180ms ease, opacity 180ms ease;
+  `
+
+  const itemColor = options.itemColor || '#38bdf8'
+
+  const titlePart = options.title
+    ? `<div style="
+          padding: 14px 18px;
+          background: linear-gradient(180deg, rgba(15,23,42,0.94), rgba(7,13,24,0.96));
+          color: rgba(226,232,240,0.78);
+          font-size: 13px;
+          text-align: center;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+        ">${options.title}</div>`
+    : ''
+
+  const itemsHtml = filtered
+    .map(
+      (item, position) => `
+        <button
+          type="button"
+          data-index="${item.index}"
+          style="
+            display: block;
+            width: 100%;
+            padding: 16px 18px;
+            border: none;
+            ${position === 0 ? '' : 'border-top: 1px solid rgba(255,255,255,0.06);'}
+            background: linear-gradient(180deg, rgba(15,23,42,0.94), rgba(7,13,24,0.96));
+            color: ${itemColor};
+            font-size: 16px;
+            text-align: center;
+            cursor: pointer;
+          "
+        >${item.label}</button>
+      `,
+    )
+    .join('')
+
+  const cancelBtnHtml = `
+    <button
+      type="button"
+      data-cancel="1"
+      style="
+        display: block;
+        width: 100%;
+        margin-top: 8px;
+        padding: 16px 18px;
+        border: none;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(15,23,42,0.94), rgba(7,13,24,0.96));
+        color: rgba(226,232,240,0.92);
+        font-size: 16px;
+        text-align: center;
+        cursor: pointer;
+      "
+    >取消</button>
+  `
+
+  sheet.innerHTML = `
+    <div style="border-radius: 18px; overflow: hidden;">
+      ${titlePart}
+      ${itemsHtml}
+    </div>
+    ${cancelBtnHtml}
+  `
+
+  overlay.appendChild(sheet)
+  document.body.appendChild(overlay)
+
+  // 入场动画
+  requestAnimationFrame(() => {
+    sheet.style.transform = 'translateY(0)'
+    sheet.style.opacity = '1'
+  })
+
+  let resolved = false
+  const cleanup = () => {
+    if (resolved) return
+    resolved = true
+    sheet.style.transform = 'translateY(12px)'
+    sheet.style.opacity = '0'
+    overlay.style.opacity = '0'
+    overlay.style.transition = 'opacity 140ms ease'
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay)
+      }
+    }, 160)
+  }
+
+  sheet.querySelectorAll('button[data-index]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const index = Number((btn as HTMLElement).dataset.index || '-1')
+      cleanup()
+      if (index >= 0 && index < items.length) {
+        options.success?.({ tapIndex: index, content: items[index] })
+      } else {
+        options.fail?.({ errMsg: 'cancel' })
+      }
+    })
+  })
+
+  sheet.querySelector('button[data-cancel]')?.addEventListener('click', () => {
+    cleanup()
+    options.fail?.({ errMsg: 'cancel' })
+  })
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      cleanup()
+      options.fail?.({ errMsg: 'cancel' })
+    }
+  })
 }
 
 /**
@@ -152,6 +371,7 @@ export function chooseImage(options: ChooseImageOptions): void {
         input.type = 'file'
         input.accept = 'image/*'
         input.multiple = options.count ? options.count > 1 : false
+        input.style.display = 'none'
         if (needsCamera) {
           input.capture = 'environment'
         }
@@ -166,7 +386,9 @@ export function chooseImage(options: ChooseImageOptions): void {
             }))
             options.success?.({ tempFilePaths, tempFiles })
           }
+          document.body.removeChild(input)
         }
+        document.body.appendChild(input)
         input.click()
       }
 

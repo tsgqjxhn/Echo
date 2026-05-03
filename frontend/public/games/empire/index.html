@@ -2,11 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f1923">
   <title>圣王国 - 产业链模拟经营</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#e0e8f0;font-family:system-ui,sans-serif}
+    .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#e0e8f0;font-family:system-ui,sans-serif;touch-action:none}
     .loading-screen h1{font-size:28px;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px}
     .loading-screen p{color:#8899aa;font-size:14px}
     .loading-spinner{width:40px;height:40px;border:3px solid #2a3a4a;border-top-color:#22d3ee;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:16px}
@@ -37,59 +40,363 @@
 })();
 </script>
 <script>
+// ===== Web Audio Engine =====
+const AudioEngine = {
+  ctx: null,
+  bgmNodes: [],
+  isMuted: false,
+  bgmEnabled: true,
+  sfxEnabled: true,
+  currentBgm: null,
+  initialized: false,
+
+  init() {
+    if (this.initialized) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.initialized = true;
+    } catch(e) { console.warn('Web Audio not supported'); }
+  },
+  ensureInit() { if (!this.initialized) this.init(); if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+
+  _osc(freq, type, duration, gain, detune) {
+    if (!this.ctx || this.isMuted) return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    if (detune) o.detune.setValueAtTime(detune, this.ctx.currentTime);
+    g.gain.setValueAtTime(gain || 0.15, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(); o.stop(this.ctx.currentTime + duration);
+    return o;
+  },
+  _noise(duration, gain, freq) {
+    if (!this.ctx || this.isMuted) return;
+    const bufferSize = this.ctx.sampleRate * duration;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const n = this.ctx.createBufferSource(); n.buffer = buffer;
+    const g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.setValueAtTime(freq || 800, this.ctx.currentTime);
+    g.gain.setValueAtTime(gain || 0.1, this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    n.connect(f); f.connect(g); g.connect(this.ctx.destination);
+    n.start(); n.stop(this.ctx.currentTime + duration);
+  },
+
+  playPlant() { if (!this.sfxEnabled) return; this.ensureInit(); this._noise(0.08, 0.12, 200); setTimeout(() => this._osc(1200, 'square', 0.04, 0.06), 40); },
+  playHarvest() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(523, 'sine', 0.1, 0.12); setTimeout(() => this._osc(659, 'sine', 0.1, 0.12), 80); setTimeout(() => this._osc(784, 'sine', 0.15, 0.14), 160); this._noise(0.05, 0.05, 1500); },
+  playCoin() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(880, 'sine', 0.08, 0.1); setTimeout(() => this._osc(1200, 'sine', 0.12, 0.12), 50); setTimeout(() => this._osc(1600, 'sine', 0.08, 0.08), 120); },
+  playUpgrade() { if (!this.sfxEnabled) return; this.ensureInit(); [262, 330, 392, 523].forEach((f, i) => setTimeout(() => this._osc(f, 'triangle', 0.25, 0.1), i * 70)); },
+  playClick() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(1000, 'sine', 0.04, 0.06); },
+  playNotification() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(600, 'sine', 0.1, 0.08); setTimeout(() => this._osc(800, 'sine', 0.12, 0.1), 80); },
+  playDoor() { if (!this.sfxEnabled) return; this.ensureInit(); this._noise(0.08, 0.08, 600); this._osc(300, 'triangle', 0.1, 0.06); },
+  playMachine() { if (!this.sfxEnabled) return; this.ensureInit(); this._noise(0.15, 0.04, 400); this._osc(80, 'sawtooth', 0.1, 0.03); },
+  playCustomer() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(440, 'sine', 0.08, 0.08); setTimeout(() => this._osc(550, 'sine', 0.1, 0.08), 60); },
+  playTruck() { if (!this.sfxEnabled) return; this.ensureInit(); this._noise(0.3, 0.06, 300); this._osc(100, 'sawtooth', 0.2, 0.04); setTimeout(() => this._osc(80, 'sawtooth', 0.2, 0.03), 100); },
+  playEventGood() { if (!this.sfxEnabled) return; this.ensureInit(); [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this._osc(f, 'sine', 0.2, 0.1), i * 60)); },
+  playEventBad() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(300, 'sawtooth', 0.2, 0.08); setTimeout(() => this._osc(250, 'sawtooth', 0.25, 0.08), 100); },
+  playAchievement() { if (!this.sfxEnabled) return; this.ensureInit(); [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => this._osc(f, 'triangle', 0.18, 0.1), i * 80)); },
+  playNpcTalk() { if (!this.sfxEnabled) return; this.ensureInit(); this._osc(600, 'sine', 0.05, 0.05); setTimeout(() => this._osc(700, 'sine', 0.05, 0.05), 60); },
+
+  stopBGM() {
+    this.bgmNodes.forEach(n => { try { n.stop(); n.disconnect(); } catch(e) {} });
+    this.bgmNodes = []; this.currentBgm = null;
+  },
+  _startChordLoop(chords, tempo, style) {
+    if (!this.ctx || this.isMuted || !this.bgmEnabled) return;
+    this.stopBGM();
+    this.currentBgm = style;
+    const beat = 60 / tempo;
+    let chordIdx = 0, noteIdx = 0;
+    const playNext = () => {
+      if (this.currentBgm !== style || this.isMuted || !this.bgmEnabled) return;
+      const chord = chords[chordIdx % chords.length];
+      const freq = chord[noteIdx % chord.length];
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = style === 'farm' ? 'triangle' : style === 'factory' ? 'sawtooth' : style === 'shop' ? 'sine' : 'triangle';
+      o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      g.gain.setValueAtTime(0.04, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + beat * 1.5);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(); o.stop(this.ctx.currentTime + beat * 1.5);
+      this.bgmNodes.push(o);
+      noteIdx++;
+      if (noteIdx >= chord.length) { noteIdx = 0; chordIdx++; }
+      setTimeout(playNext, beat * 250);
+    };
+    playNext();
+  },
+  startFarmBGM() {
+    const chords = [[262,330,392],[294,370,440],[349,440,523],[330,415,494]];
+    this._startChordLoop(chords, 100, 'farm');
+  },
+  startFactoryBGM() {
+    const chords = [[110,165,220],[130,196,262],[146,220,294],[123,185,247]];
+    this._startChordLoop(chords, 130, 'factory');
+  },
+  startShopBGM() {
+    const chords = [[330,415,494],[294,370,440],[349,440,523],[392,494,587]];
+    this._startChordLoop(chords, 90, 'shop');
+  },
+  startMenuBGM() {
+    const chords = [[262,330,392],[294,349,440],[330,415,494],[349,392,523]];
+    this._startChordLoop(chords, 80, 'menu');
+  },
+  playPrestigeBGM() {
+    if (!this.ctx || this.isMuted) return; this.ensureInit();
+    this.stopBGM();
+    [262,330,392,523,659,784,1047].forEach((f,i) => setTimeout(() => this._osc(f,'triangle',0.4,0.08),i*120));
+  },
+  switchBGM(tab) {
+    if (!this.bgmEnabled) return;
+    const map = { farm: 'startFarmBGM', factory: 'startFactoryBGM', shop: 'startShopBGM', logistics: 'startShopBGM', upgrades: 'startMenuBGM', buffs: 'startMenuBGM', overview: 'startMenuBGM' };
+    const fn = map[tab];
+    if (fn && this.currentBgm !== tab) { this[fn](); this.currentBgm = tab; }
+  },
+};
+
 // ===== data.js =====
 const CROP_DATA = {
-  wheat:   { name: '小麦',   icon: '🌾', seedCost: 5,   growTime: 30,  rawSell: 8,   unlockLevel: 1  },
-  carrot:  { name: '胡萝卜', icon: '🥕', seedCost: 12,  growTime: 45,  rawSell: 18,  unlockLevel: 2  },
-  cabbage: { name: '卷心菜', icon: '🥬', seedCost: 25,  growTime: 60,  rawSell: 35,  unlockLevel: 3  },
-  beet:    { name: '甜菜',   icon: '🫐', seedCost: 50,  growTime: 90,  rawSell: 70,  unlockLevel: 5  },
-  apple:   { name: '苹果',   icon: '🍎', seedCost: 120, growTime: 180, rawSell: 160, unlockLevel: 8  },
-  orange:  { name: '柑橘',   icon: '🍊', seedCost: 250, growTime: 240, rawSell: 320, unlockLevel: 12 },
-  tomato:  { name: '番茄',   icon: '🍅', seedCost: 80,  growTime: 75,  rawSell: 110, unlockLevel: 6  },
-  corn:    { name: '玉米',   icon: '🌽', seedCost: 35,  growTime: 55,  rawSell: 50,  unlockLevel: 4  },
+  wheat:      { name: '小麦',   icon: '\u{1F33E}', seedCost: 5,   growTime: 30,  rawSell: 8,   unlockLevel: 1  },
+  carrot:     { name: '胡萝卜', icon: '\u{1F955}', seedCost: 12,  growTime: 45,  rawSell: 18,  unlockLevel: 2  },
+  cabbage:    { name: '卷心菜', icon: '\u{1F96C}', seedCost: 25,  growTime: 60,  rawSell: 35,  unlockLevel: 3  },
+  corn:       { name: '玉米',   icon: '\u{1F33D}', seedCost: 35,  growTime: 55,  rawSell: 50,  unlockLevel: 4  },
+  beet:       { name: '甜菜',   icon: '\u{1FAD0}', seedCost: 50,  growTime: 90,  rawSell: 70,  unlockLevel: 5  },
+  tomato:     { name: '番茄',   icon: '\u{1F345}', seedCost: 80,  growTime: 75,  rawSell: 110, unlockLevel: 6  },
+  apple:      { name: '苹果',   icon: '\u{1F34E}', seedCost: 120, growTime: 180, rawSell: 160, unlockLevel: 8  },
+  orange:     { name: '柑橘',   icon: '\u{1F34A}', seedCost: 250, growTime: 240, rawSell: 320, unlockLevel: 12 },
+  // New crops
+  rice:       { name: '水稻',   icon: '\u{1F33E}', seedCost: 15,  growTime: 60,  rawSell: 25,  unlockLevel: 2  },
+  soybean:    { name: '大豆',   icon: '\u{1FAD8}', seedCost: 20,  growTime: 50,  rawSell: 35,  unlockLevel: 3  },
+  mushroom:   { name: '蘑菇',   icon: '\u{1F344}', seedCost: 45,  growTime: 40,  rawSell: 70,  unlockLevel: 4  },
+  cotton:     { name: '棉花',   icon: '\u{2601}\u{FE0F}', seedCost: 40,  growTime: 70,  rawSell: 60,  unlockLevel: 5  },
+  pumpkin:    { name: '南瓜',   icon: '\u{1F383}', seedCost: 60,  growTime: 80,  rawSell: 95,  unlockLevel: 6  },
+  strawberry: { name: '草莓',   icon: '\u{1F353}', seedCost: 80,  growTime: 90,  rawSell: 120, unlockLevel: 7  },
+  watermelon: { name: '西瓜',   icon: '\u{1F349}', seedCost: 100, growTime: 130, rawSell: 180, unlockLevel: 9  },
+  grape:      { name: '葡萄',   icon: '\u{1F347}', seedCost: 150, growTime: 150, rawSell: 220, unlockLevel: 10 },
+  tea:        { name: '茶叶',   icon: '\u{1F343}', seedCost: 200, growTime: 120, rawSell: 300, unlockLevel: 11 },
+  spice:      { name: '香料',   icon: '\u{1F336}\u{FE0F}', seedCost: 180, growTime: 100, rawSell: 350, unlockLevel: 12 },
+  coffee:     { name: '咖啡豆', icon: '\u{2615}', seedCost: 300, growTime: 200, rawSell: 450, unlockLevel: 13 },
+  cocoa:      { name: '可可豆', icon: '\u{1F36B}', seedCost: 350, growTime: 240, rawSell: 500, unlockLevel: 15 },
 };
 
 const RECIPE_DATA = {
-  flour:        { name: '面粉',     icon: '🍞', inputs: { wheat: 2 },                     processTime: 15, factorySell: 25,  shopSell: 40,  unlockLevel: 1  },
-  carrot_juice: { name: '胡萝卜汁', icon: '🧃', inputs: { carrot: 3 },                    processTime: 20, factorySell: 65,  shopSell: 100, unlockLevel: 2  },
-  sauerkraut:   { name: '酸菜',     icon: '🥗', inputs: { cabbage: 2 },                   processTime: 25, factorySell: 85,  shopSell: 140, unlockLevel: 3  },
-  cornmeal:     { name: '玉米粉',   icon: '🫓', inputs: { corn: 3 },                      processTime: 20, factorySell: 80,  shopSell: 130, unlockLevel: 4  },
-  sugar:        { name: '糖',       icon: '🍬', inputs: { beet: 3 },                      processTime: 30, factorySell: 230, shopSell: 350, unlockLevel: 5  },
-  tomato_sauce: { name: '番茄酱',   icon: '🫙', inputs: { tomato: 3 },                    processTime: 25, factorySell: 200, shopSell: 310, unlockLevel: 6  },
-  apple_juice:  { name: '苹果汁',   icon: '🧃', inputs: { apple: 2 },                     processTime: 30, factorySell: 350, shopSell: 550, unlockLevel: 8  },
-  orange_juice: { name: '橙汁',     icon: '🍹', inputs: { orange: 3, sugar: 1 },          processTime: 35, factorySell: 750, shopSell: 1200, unlockLevel: 12 },
-  apple_pie:    { name: '苹果派',   icon: '🥧', inputs: { flour: 1, apple: 2, sugar: 1 }, processTime: 45, factorySell: 520, shopSell: 800,  unlockLevel: 10 },
-  bread:        { name: '面包',     icon: '🍞', inputs: { flour: 2, sugar: 1 },            processTime: 35, factorySell: 300, shopSell: 480,  unlockLevel: 7  },
-  pizza:        { name: '披萨',     icon: '🍕', inputs: { flour: 1, tomato_sauce: 1, cornmeal: 1 }, processTime: 50, factorySell: 800, shopSell: 1300, unlockLevel: 14 },
-  fruit_salad:  { name: '水果沙拉', icon: '🥙', inputs: { apple: 1, orange: 1, carrot: 1 }, processTime: 20, factorySell: 400, shopSell: 650, unlockLevel: 9  },
+  // Original recipes
+  flour:        { name: '面粉',     icon: '\u{1F35E}', inputs: { wheat: 2 },                     processTime: 15, factorySell: 25,  shopSell: 40,   unlockLevel: 1  },
+  carrot_juice: { name: '胡萝卜汁', icon: '\u{1F9C3}', inputs: { carrot: 3 },                    processTime: 20, factorySell: 65,  shopSell: 100,  unlockLevel: 2  },
+  sauerkraut:   { name: '酸菜',     icon: '\u{1F957}', inputs: { cabbage: 2 },                   processTime: 25, factorySell: 85,  shopSell: 140,  unlockLevel: 3  },
+  cornmeal:     { name: '玉米粉',   icon: '\u{1FAD3}', inputs: { corn: 3 },                      processTime: 20, factorySell: 80,  shopSell: 130,  unlockLevel: 4  },
+  sugar:        { name: '糖',       icon: '\u{1F36C}', inputs: { beet: 3 },                      processTime: 30, factorySell: 230, shopSell: 350,  unlockLevel: 5  },
+  tomato_sauce: { name: '番茄酱',   icon: '\u{1FAD9}', inputs: { tomato: 3 },                    processTime: 25, factorySell: 200, shopSell: 310,  unlockLevel: 6  },
+  apple_juice:  { name: '苹果汁',   icon: '\u{1F9C3}', inputs: { apple: 2 },                     processTime: 30, factorySell: 350, shopSell: 550,  unlockLevel: 8  },
+  orange_juice: { name: '橙汁',     icon: '\u{1F379}', inputs: { orange: 3, sugar: 1 },          processTime: 35, factorySell: 750, shopSell: 1200, unlockLevel: 12 },
+  apple_pie:    { name: '苹果派',   icon: '\u{1F967}', inputs: { flour: 1, apple: 2, sugar: 1 }, processTime: 45, factorySell: 520, shopSell: 800,  unlockLevel: 10 },
+  bread:        { name: '面包',     icon: '\u{1F35E}', inputs: { flour: 2, sugar: 1 },            processTime: 35, factorySell: 300, shopSell: 480,  unlockLevel: 7  },
+  pizza:        { name: '披萨',     icon: '\u{1F355}', inputs: { flour: 1, tomato_sauce: 1, cornmeal: 1 }, processTime: 50, factorySell: 800, shopSell: 1300, unlockLevel: 14 },
+  fruit_salad:  { name: '水果沙拉', icon: '\u{1F957}', inputs: { apple: 1, orange: 1, carrot: 1 }, processTime: 20, factorySell: 400, shopSell: 650,  unlockLevel: 9  },
+  // New multi-tier recipes
+  rice_bowl:         { name: '米饭',       icon: '\u{1F35A}', inputs: { rice: 2 },                            processTime: 20, factorySell: 55,  shopSell: 90,   unlockLevel: 2  },
+  sushi:             { name: '寿司',       icon: '\u{1F363}', inputs: { rice_bowl: 1, carrot: 1 },           processTime: 35, factorySell: 350, shopSell: 550,  unlockLevel: 8  },
+  soy_milk:          { name: '豆浆',       icon: '\u{1F95B}', inputs: { soybean: 3 },                         processTime: 20, factorySell: 80,  shopSell: 130,  unlockLevel: 3  },
+  tofu:              { name: '豆腐',       icon: '\u{1F9C4}', inputs: { soy_milk: 2 },                        processTime: 30, factorySell: 200, shopSell: 320,  unlockLevel: 6  },
+  tea_bag:           { name: '茶包',       icon: '\u{1F343}', inputs: { tea: 2 },                             processTime: 20, factorySell: 400, shopSell: 650,  unlockLevel: 11 },
+  milk_tea:          { name: '奶茶',       icon: '\u{1F9CB}', inputs: { tea_bag: 1, sugar: 1 },               processTime: 30, factorySell: 700, shopSell: 1100, unlockLevel: 13 },
+  coffee_powder:     { name: '咖啡粉',     icon: '\u{2615}',  inputs: { coffee: 3 },                          processTime: 25, factorySell: 600, shopSell: 950,  unlockLevel: 13 },
+  latte:             { name: '拿铁',       icon: '\u{2615}',  inputs: { coffee_powder: 1, sugar: 1 },         processTime: 30, factorySell: 900, shopSell: 1400, unlockLevel: 15 },
+  chocolate:         { name: '巧克力',     icon: '\u{1F36B}', inputs: { cocoa: 3, sugar: 1 },                 processTime: 40, factorySell: 800, shopSell: 1250, unlockLevel: 15 },
+  chocolate_cake:    { name: '巧克力蛋糕', icon: '\u{1F382}', inputs: { chocolate: 1, flour: 1, sugar: 1 },   processTime: 50, factorySell: 1200, shopSell: 1800, unlockLevel: 16 },
+  wine:              { name: '葡萄酒',     icon: '\u{1F377}', inputs: { grape: 4, sugar: 1 },                 processTime: 60, factorySell: 1000, shopSell: 1600, unlockLevel: 16 },
+  jam:               { name: '果酱',       icon: '\u{1FAD9}', inputs: { strawberry: 2, sugar: 1 },            processTime: 30, factorySell: 450, shopSell: 720,  unlockLevel: 10 },
+  jam_bread:         { name: '果酱面包',   icon: '\u{1F35E}', inputs: { jam: 1, bread: 1 },                   processTime: 25, factorySell: 550, shopSell: 850,  unlockLevel: 11 },
+  ketchup:           { name: '番茄酱+',    icon: '\u{1F36D}', inputs: { tomato_sauce: 1, spice: 1 },          processTime: 25, factorySell: 350, shopSell: 550,  unlockLevel: 13 },
+  mushroom_soup:     { name: '蘑菇汤',     icon: '\u{1F372}', inputs: { mushroom: 3, carrot: 1 },             processTime: 30, factorySell: 280, shopSell: 450,  unlockLevel: 8  },
+  sandwich:          { name: '三明治',     icon: '\u{1F96A}', inputs: { bread: 1, cabbage: 1, tomato: 1 },    processTime: 25, factorySell: 400, shopSell: 650,  unlockLevel: 9  },
+  popcorn:           { name: '爆米花',     icon: '\u{1F37F}', inputs: { corn: 2, sugar: 1, cornmeal: 1 },    processTime: 20, factorySell: 180, shopSell: 300,  unlockLevel: 6  },
+  carrot_cake:       { name: '胡萝卜蛋糕', icon: '\u{1F370}', inputs: { flour: 1, carrot: 2, sugar: 1 },      processTime: 40, factorySell: 480, shopSell: 750,  unlockLevel: 10 },
+  orange_candy:      { name: '柑橘糖',     icon: '\u{1F36C}', inputs: { orange: 2, sugar: 2 },                processTime: 30, factorySell: 550, shopSell: 880,  unlockLevel: 13 },
+  beet_salad:        { name: '甜菜沙拉',   icon: '\u{1F957}', inputs: { beet: 2, cabbage: 1 },                processTime: 20, factorySell: 320, shopSell: 520,  unlockLevel: 8  },
+  apple_cider:       { name: '苹果酒',     icon: '\u{1F37A}', inputs: { apple: 3, sugar: 1 },                 processTime: 45, factorySell: 500, shopSell: 800,  unlockLevel: 12 },
+  cotton_cloth:      { name: '棉布',       icon: '\u{1F9F5}', inputs: { cotton: 3 },                          processTime: 25, factorySell: 220, shopSell: 350,  unlockLevel: 9  },
+  spice_blend:       { name: '混合香料',   icon: '\u{1F9C2}', inputs: { spice: 2 },                           processTime: 20, factorySell: 500, shopSell: 800,  unlockLevel: 14 },
+  pumpkin_pie:       { name: '南瓜派',     icon: '\u{1F967}', inputs: { pumpkin: 2, flour: 1, sugar: 1 },     processTime: 40, factorySell: 420, shopSell: 680,  unlockLevel: 10 },
+  watermelon_juice:  { name: '西瓜汁',     icon: '\u{1F379}', inputs: { watermelon: 2, sugar: 1 },            processTime: 25, factorySell: 400, shopSell: 650,  unlockLevel: 11 },
+  grilled_mushroom:  { name: '烤蘑菇',     icon: '\u{1F362}', inputs: { mushroom: 3, spice: 1 },              processTime: 20, factorySell: 300, shopSell: 480,  unlockLevel: 9  },
+  corn_bread:        { name: '玉米面包',   icon: '\u{1F96E}', inputs: { cornmeal: 2, sugar: 1 },              processTime: 25, factorySell: 220, shopSell: 360,  unlockLevel: 7  },
+  veggie_burger:     { name: '蔬菜汉堡',   icon: '\u{1F354}', inputs: { bread: 1, tofu: 1, tomato: 1, cabbage: 1 }, processTime: 35, factorySell: 650, shopSell: 1000, unlockLevel: 14 },
+  spicy_pizza:       { name: '辣味披萨',   icon: '\u{1F355}', inputs: { pizza: 1, spice: 1, ketchup: 1 },     processTime: 45, factorySell: 1100, shopSell: 1700, unlockLevel: 18 },
+  coffee_cake:       { name: '咖啡蛋糕',   icon: '\u{1F370}', inputs: { coffee_powder: 1, flour: 1, sugar: 1, chocolate: 1 }, processTime: 45, factorySell: 1000, shopSell: 1550, unlockLevel: 17 },
+  royal_feast:       { name: '皇家盛宴',   icon: '\u{1F37D}\u{FE0F}', inputs: { sushi: 1, wine: 1, chocolate_cake: 1, latte: 1 }, processTime: 90, factorySell: 3000, shopSell: 5000, unlockLevel: 20 },
 };
 
 const UPGRADE_DATA = {
-  farm_plot:       { name: '农田地块', icon: '🌱', baseCost: 100,  multiplier: 1.5, maxLevel: 20, category: 'farm',     effectDesc: '增加种植地块' },
-  irrigation:      { name: '灌溉系统', icon: '💧', baseCost: 500,  multiplier: 2.0, maxLevel: 5,  category: 'farm',     effectDesc: '生长速度 -10%/级' },
-  fertilizer:      { name: '高效肥料', icon: '🧪', baseCost: 800,  multiplier: 2.0, maxLevel: 5,  category: 'farm',     effectDesc: '生长速度 -8%/级' },
-  greenhouse:      { name: '温室大棚', icon: '🏡', baseCost: 5000, multiplier: 2.5, maxLevel: 3,  category: 'farm',     effectDesc: '生长速度 -15%/级' },
-  tractor:         { name: '拖拉机',   icon: '🚜', baseCost: 2000, multiplier: 2.0, maxLevel: 3,  category: 'farm',     effectDesc: '生长速度 -10%/级' },
-  factory_machine: { name: '加工机器', icon: '⚙️', baseCost: 300,  multiplier: 1.5, maxLevel: 10, category: 'factory',  effectDesc: '增加加工机器' },
-  speed_boost:     { name: '速度提升', icon: '⚡', baseCost: 1000, multiplier: 2.0, maxLevel: 5,  category: 'factory',  effectDesc: '加工速度 -10%/级' },
-  automation:      { name: '自动化',   icon: '🤖', baseCost: 3000, multiplier: 2.5, maxLevel: 3,  category: 'factory',  effectDesc: '加工速度 -15%/级' },
-  shop_shelf:      { name: '货架',     icon: '🗄️', baseCost: 200,  multiplier: 1.4, maxLevel: 15, category: 'shop',     effectDesc: '增加货架数量' },
-  advertising:     { name: '广告投放', icon: '📺', baseCost: 800,  multiplier: 2.0, maxLevel: 5,  category: 'shop',     effectDesc: '客流 +10%/级' },
-  decor:           { name: '店铺装修', icon: '🎨', baseCost: 1200, multiplier: 2.0, maxLevel: 5,  category: 'shop',     effectDesc: '售价 +8%/级' },
-  truck:           { name: '运输卡车', icon: '🚛', baseCost: 400,  multiplier: 1.5, maxLevel: 8,  category: 'logistics', effectDesc: '增加卡车数量' },
-  truck_speed:     { name: '卡车速度', icon: '🏎️', baseCost: 600,  multiplier: 2.0, maxLevel: 5,  category: 'logistics', effectDesc: '运输速度 -10%/级' },
+  farm_plot:       { name: '农田地块', icon: '\u{1F331}', baseCost: 100,  multiplier: 1.5, maxLevel: 20, category: 'farm',      effectDesc: '增加种植地块' },
+  irrigation:      { name: '灌溉系统', icon: '\u{1F4A7}', baseCost: 500,  multiplier: 2.0, maxLevel: 5,  category: 'farm',      effectDesc: '生长速度 -10%/级' },
+  fertilizer:      { name: '高效肥料', icon: '\u{1F9EA}', baseCost: 800,  multiplier: 2.0, maxLevel: 5,  category: 'farm',      effectDesc: '生长速度 -8%/级' },
+  greenhouse:      { name: '温室大棚', icon: '\u{1F3E1}', baseCost: 5000, multiplier: 2.5, maxLevel: 3,  category: 'farm',      effectDesc: '冬季可种植，速度 -15%/级' },
+  tractor:         { name: '拖拉机',   icon: '\u{1F69C}', baseCost: 2000, multiplier: 2.0, maxLevel: 3,  category: 'farm',      effectDesc: '生长速度 -10%/级' },
+  factory_machine: { name: '加工机器', icon: '\u{2699}\u{FE0F}', baseCost: 300,  multiplier: 1.5, maxLevel: 10, category: 'factory',   effectDesc: '增加加工机器' },
+  speed_boost:     { name: '速度提升', icon: '\u{26A1}', baseCost: 1000, multiplier: 2.0, maxLevel: 5,  category: 'factory',   effectDesc: '加工速度 -10%/级' },
+  automation:      { name: '自动化',   icon: '\u{1F916}', baseCost: 3000, multiplier: 2.5, maxLevel: 3,  category: 'factory',   effectDesc: '加工速度 -15%/级' },
+  shop_shelf:      { name: '货架',     icon: '\u{1F5C4}\u{FE0F}', baseCost: 200,  multiplier: 1.4, maxLevel: 15, category: 'shop',      effectDesc: '增加货架数量' },
+  advertising:     { name: '广告投放', icon: '\u{1F4FA}', baseCost: 800,  multiplier: 2.0, maxLevel: 5,  category: 'shop',      effectDesc: '客流 +10%/级' },
+  decor:           { name: '店铺装修', icon: '\u{1F3A8}', baseCost: 1200, multiplier: 2.0, maxLevel: 5,  category: 'shop',      effectDesc: '售价 +8%/级' },
+  truck:           { name: '运输卡车', icon: '\u{1F69B}', baseCost: 400,  multiplier: 1.5, maxLevel: 8,  category: 'logistics', effectDesc: '增加卡车数量' },
+  truck_speed:     { name: '卡车速度', icon: '\u{1F3CE}\u{FE0F}', baseCost: 600,  multiplier: 2.0, maxLevel: 5,  category: 'logistics', effectDesc: '运输速度 -10%/级' },
 };
 
 const LEVEL_XP = [];
 for (let i = 0; i <= 50; i++) LEVEL_XP[i] = Math.floor(100 * Math.pow(1.8, i));
 
 const BUFF_DATA = {
-  growth_boost:     { name: '生长加速', icon: '🌿', duration: 120, effect: 'growth_speed',     value: 0.3,  description: '作物生长速度+30%', cost: 200 },
-  production_boost: { name: '生产加速', icon: '⚡', duration: 120, effect: 'production_speed',  value: 0.3,  description: '工厂加工速度+30%', cost: 300 },
-  customer_frenzy:  { name: '顾客热潮', icon: '👥', duration: 90,  effect: 'customer_rate',     value: 0.5,  description: '顾客进店率+50%',   cost: 250 },
-  price_surge:      { name: '价格飙升', icon: '💰', duration: 60,  effect: 'price_multiplier',  value: 0.5,  description: '商品售价+50%',     cost: 400 },
-  discount_fuel:    { name: '燃油折扣', icon: '⛽', duration: 120, effect: 'logistics_cost',    value: -0.3, description: '物流成本-30%',     cost: 150 },
+  growth_boost:     { name: '生长加速', icon: '\u{1F33F}', duration: 120, effect: 'growth_speed',      value: 0.3,  description: '作物生长速度+30%', cost: 200 },
+  production_boost: { name: '生产加速', icon: '\u{26A1}', duration: 120, effect: 'production_speed',  value: 0.3,  description: '工厂加工速度+30%', cost: 300 },
+  customer_frenzy:  { name: '顾客热潮', icon: '\u{1F465}', duration: 90,  effect: 'customer_rate',     value: 0.5,  description: '顾客进店率+50%',   cost: 250 },
+  price_surge:      { name: '价格飙升', icon: '\u{1F4B0}', duration: 60,  effect: 'price_multiplier',  value: 0.5,  description: '商品售价+50%',     cost: 400 },
+  discount_fuel:    { name: '燃油折扣', icon: '\u{26FD}', duration: 120, effect: 'logistics_cost',    value: -0.3, description: '物流成本-30%',     cost: 150 },
 };
+
+// ===== Season System =====
+const SEASONS = {
+  spring: { name: '春', growthMod: 1.1, color: '#90EE90', icon: '\u{1F338}', desc: '生长速度+10%' },
+  summer: { name: '夏', growthMod: 1.0, color: '#FFD700', icon: '\u{2600}\u{FE0F}', desc: '正常生长，可能干旱' },
+  autumn: { name: '秋', growthMod: 1.05, color: '#FF8C00', icon: '\u{1F341}', desc: '收获产出+20%' },
+  winter: { name: '冬', growthMod: 0.5,  color: '#87CEEB', icon: '\u{2744}\u{FE0F}', desc: '生长速度-50%，需温室' },
+};
+const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter'];
+const SEASON_DURATION = 300; // 300 seconds = 5 minutes per season
+
+// ===== Weather/Disaster Events =====
+const WEATHER_EVENTS = [
+  { id: 'storm',    name: '暴风雨',   icon: '\u{26C8}\u{FE0F}', type: 'bad',  duration: 30,  effect: { growthMod: 0.7 },            desc: '暴风雨来临！生长速度-30%', chance: 0.08 },
+  { id: 'drought',  name: '干旱',     icon: '\u{1F525}',       type: 'bad',  duration: 45,  effect: { growthMod: 0.5 },            desc: '干旱预警！作物生长极慢',   chance: 0.06 },
+  { id: 'pest',     name: '虫害',     icon: '\u{1F41B}',       type: 'bad',  duration: 60,  effect: { pestActive: true },          desc: '虫害爆发！随机作物受损',   chance: 0.05 },
+  { id: 'harvest',  name: '丰收节',   icon: '\u{1F389}',       type: 'good', duration: 60,  effect: { harvestMod: 1.5, priceMod: 1.3 }, desc: '丰收节！产出+50% 售价+30%', chance: 0.06 },
+  { id: 'crash',    name: '市场崩盘', icon: '\u{1F4C9}',       type: 'bad',  duration: 45,  effect: { priceMod: 0.5 },             desc: '市场崩盘！售价减半',       chance: 0.05 },
+  { id: 'demand',   name: '需求激增', icon: '\u{1F4C8}',       type: 'good', duration: 60,  effect: { priceMod: 2.0 },             desc: '需求激增！售价翻倍',       chance: 0.06 },
+  { id: 'power',    name: '节能日',   icon: '\u{1F50C}',       type: 'good', duration: 90,  effect: { prodMod: 1.3 },              desc: '节能日！工厂速度+30%',     chance: 0.06 },
+  { id: 'logistics',name: '物流高峰', icon: '\u{1F69B}',       type: 'good', duration: 60,  effect: { logisticsMod: 1.2 },         desc: '物流高峰！运输收益+20%',   chance: 0.06 },
+];
+
+// ===== Achievement System =====
+const ACHIEVEMENT_DATA = [
+  { id: 'first_harvest', name: '初次收获',    desc: '第一次收获作物',     icon: '\u{1F33E}', check: s => totalCount(s.stats.totalHarvested) >= 1, tier: 'bronze' },
+  { id: 'harvest_100',   name: '百次收获',    desc: '累计收获100次作物',   icon: '\u{1F33F}', check: s => totalCount(s.stats.totalHarvested) >= 100, tier: 'silver' },
+  { id: 'harvest_1000',  name: '千次收获',    desc: '累计收获1000次作物',  icon: '\u{1F340}', check: s => totalCount(s.stats.totalHarvested) >= 1000, tier: 'gold' },
+  { id: 'first_produce', name: '初次加工',    desc: '第一次完成加工',     icon: '\u{2699}\u{FE0F}', check: s => totalCount(s.stats.totalProduced) >= 1, tier: 'bronze' },
+  { id: 'produce_100',   name: '百次加工',    desc: '累计加工100次',      icon: '\u{1F6E0}\u{FE0F}', check: s => totalCount(s.stats.totalProduced) >= 100, tier: 'silver' },
+  { id: 'produce_1000',  name: '千次加工',    desc: '累计加工1000次',     icon: '\u{1F3ED}', check: s => totalCount(s.stats.totalProduced) >= 1000, tier: 'gold' },
+  { id: 'first_sell',    name: '第一桶金',    desc: '第一次售出商品',     icon: '\u{1F4B0}', check: s => totalCount(s.stats.totalSold) >= 1, tier: 'bronze' },
+  { id: 'sell_100',      name: '百次销售',    desc: '累计销售100次',      icon: '\u{1F4B5}', check: s => totalCount(s.stats.totalSold) >= 100, tier: 'silver' },
+  { id: 'sell_1000',     name: '千次销售',    desc: '累计销售1000次',     icon: '\u{1F4B8}', check: s => totalCount(s.stats.totalSold) >= 1000, tier: 'gold' },
+  { id: 'chain_master',  name: '产业链大师',  desc: '同时拥有5块农田、3台机器、3个货架运转', icon: '\u{1F3ED}', check: s => s.farm.plots.filter(p=>p.crop).length>=5 && s.factory.machines.filter(m=>m.recipe).length>=3 && s.shop.shelves.filter(x=>x.quantity>0).length>=3, tier: 'gold' },
+  { id: 'earnings_1k',   name: '日入千金',    desc: '累计收入达到1,000',  icon: '\u{1F4B0}', check: s => s.totalEarnings >= 1000, tier: 'bronze' },
+  { id: 'earnings_10k',  name: '日入万金',    desc: '累计收入达到10,000', icon: '\u{1F4B0}', check: s => s.totalEarnings >= 10000, tier: 'silver' },
+  { id: 'earnings_100k', name: '百万富翁',    desc: '累计收入达到100,000', icon: '\u{1F451}', check: s => s.totalEarnings >= 100000, tier: 'gold' },
+  { id: 'earnings_1m',   name: '千万富翁',    desc: '累计收入达到1,000,000', icon: '\u{1F48E}', check: s => s.totalEarnings >= 1000000, tier: 'gold' },
+  { id: 'all_crops',     name: '作物百科',    desc: '解锁所有作物',       icon: '\u{1F33E}', check: s => Object.keys(CROP_DATA).filter(k=>s.level>=CROP_DATA[k].unlockLevel).length>=Object.keys(CROP_DATA).length, tier: 'gold' },
+  { id: 'prestige_1',    name: '转生新手',    desc: '完成第一次转生',     icon: '\u{1F504}', check: s => s.prestigeCount >= 1, tier: 'bronze' },
+  { id: 'prestige_5',    name: '转生老手',    desc: '完成5次转生',        icon: '\u{1F504}', check: s => s.prestigeCount >= 5, tier: 'silver' },
+  { id: 'prestige_10',   name: '转生大师',    desc: '完成10次转生',       icon: '\u{1F451}', check: s => s.prestigeCount >= 10, tier: 'gold' },
+  { id: 'builder',       name: '建筑大师',    desc: '解锁所有建筑',       icon: '\u{1F3D7}\u{FE0F}', check: s => s.factoryUnlocked && s.shopUnlocked && s.logisticsUnlocked, tier: 'silver' },
+  { id: 'trucker',       name: '运输大亨',    desc: '拥有5辆卡车',        icon: '\u{1F69B}', check: s => s.upgrades.truck >= 5, tier: 'silver' },
+  { id: 'shopkeeper',    name: '店铺老板',    desc: '服务100位顾客',      icon: '\u{1F6CD}\u{FE0F}', check: s => (s.shop.totalCustomersServed||0) >= 100, tier: 'silver' },
+  { id: 'perfectionist', name: '完美经营',    desc: '游戏时间超过1小时',  icon: '\u{23F1}\u{FE0F}', check: s => s.gameTime >= 3600, tier: 'gold' },
+  { id: 'level_10',      name: '初出茅庐',    desc: '达到等级10',         icon: '\u{2B50}', check: s => s.level >= 10, tier: 'bronze' },
+  { id: 'level_25',      name: '经验丰富',    desc: '达到等级25',         icon: '\u{2B50}', check: s => s.level >= 25, tier: 'silver' },
+  { id: 'level_50',      name: '满级大师',    desc: '达到等级50',         icon: '\u{1F31F}', check: s => s.level >= 50, tier: 'gold' },
+  { id: 'recipe_master', name: '配方大师',    desc: '解锁20种配方',       icon: '\u{1F4DC}', check: s => Object.keys(RECIPE_DATA).filter(k=>s.level>=RECIPE_DATA[k].unlockLevel).length>=20, tier: 'gold' },
+  { id: 'winter_survivor',name:'寒冬生存者',  desc: '经历冬季并收获作物', icon: '\u{2744}\u{FE0F}', check: s => (s.stats.seasonStats||{}).winterHarvested>=1, tier: 'silver' },
+  { id: 'rich_farmer',   name: '富裕农场主',  desc: '同时拥有10,000金币', icon: '\u{1F4B5}', check: s => s.gold >= 10000, tier: 'silver' },
+  { id: 'buffer',        name: '增益达人',    desc: '同时使用3个增益',    icon: '\u{26A1}', check: s => s.activeBuffs.length >= 3, tier: 'bronze' },
+  { id: 'first_quest',   name: '任务新手',    desc: '完成第一个任务',     icon: '\u{1F4CB}', check: s => (s.stats.questsCompleted||0)>=1, tier: 'bronze' },
+];
+
+function totalCount(obj) { let s=0; for(const k in obj) s+=obj[k]||0; return s; }
+
+// ===== NPC System =====
+const NPC_DATA = [
+  { id: 'old_farmer',    name: '老农民',     icon: '\u{1F468}\u{200D}\u{1F33E}', role: 'guide',     unlockCondition: s => true },
+  { id: 'factory_mgr',   name: '工厂经理',   icon: '\u{1F468}\u{200D}\u{1F3ED}', role: 'unlock',    unlockCondition: s => s.factoryUnlocked },
+  { id: 'shop_owner',    name: '商店店长',   icon: '\u{1F46E}\u{200D}\u{2640}\u{FE0F}', role: 'unlock', unlockCondition: s => s.shopUnlocked },
+  { id: 'logistics_mgr', name: '物流主管',   icon: '\u{1F468}\u{200D}\u{2708}\u{FE0F}', role: 'unlock', unlockCondition: s => s.logisticsUnlocked },
+  { id: 'merchant',      name: '神秘商人',   icon: '\u{1F9D9}',                  role: 'special',   unlockCondition: s => s.level >= 10 },
+];
+
+const NPC_DIALOGUES = {
+  old_farmer: [
+    { id: 'of_1', text: '欢迎来到圣王国！我是你的农场导师。首先，试着种植一些小麦吧。', task: '种植3个小麦', check: s => (s.stats.totalHarvested.wheat||0)>=3, reward: { gold: 50, xp: 30 } },
+    { id: 'of_2', text: '不错！现在建一座加工厂，把小麦加工成面粉能卖更好的价钱。', task: '建造加工厂', check: s => s.factoryUnlocked, reward: { gold: 200, xp: 100 } },
+    { id: 'of_3', text: '加工厂运转起来了！接下来建造商店，直接把商品卖给顾客。', task: '建造商店', check: s => s.shopUnlocked, reward: { gold: 500, xp: 200 } },
+    { id: 'of_4', text: '生意越做越大了！记得升级设备和扩张农田，效率最重要。', task: '将农田升级到5块', check: s => s.upgrades.farm_plot>=5, reward: { gold: 1000, xp: 500 } },
+  ],
+  factory_mgr: [
+    { id: 'fm_1', text: '欢迎来工厂！我的机器可以把原材料加工成高价值商品。', task: '加工5个面粉', check: s => (s.stats.totalProduced.flour||0)>=5, reward: { gold: 150, xp: 80 } },
+    { id: 'fm_2', text: '加工链越长利润越高！试试把面粉做成面包吧。', task: '加工3个面包', check: s => (s.stats.totalProduced.bread||0)>=3, reward: { gold: 300, xp: 150 } },
+    { id: 'fm_3', text: '升级速度提升可以让机器运转更快，建议你投资一下。', task: '升级速度提升1级', check: s => (s.upgrades.speed_boost||0)>=1, reward: { gold: 500, xp: 250 } },
+  ],
+  shop_owner: [
+    { id: 'so_1', text: '开店了！把加工好的商品摆到货架上，顾客会自己上门购买。', task: '上架5个商品', check: s => s.shop.shelves.filter(x=>x.quantity>0).length>=3, reward: { gold: 200, xp: 100 } },
+    { id: 'so_2', text: '广告投放能带来更多顾客，别忘了装修也能提升售价哦。', task: '升级广告投放1级', check: s => (s.upgrades.advertising||0)>=1, reward: { gold: 400, xp: 200 } },
+    { id: 'so_3', text: '顾客满意才会再来！保持货架充足是关键。', task: '服务20位顾客', check: s => (s.shop.totalCustomersServed||0)>=20, reward: { gold: 800, xp: 400 } },
+  ],
+  logistics_mgr: [
+    { id: 'lm_1', text: '物流中心可以让你的货物自动运输，解放双手！', task: '建造物流中心', check: s => s.logisticsUnlocked, reward: { gold: 300, xp: 150 } },
+    { id: 'lm_2', text: '设置自动运输路线，系统会自动帮你发货。', task: '创建1条自动路线', check: s => (s.logistics.autoRoutes||[]).length>=1, reward: { gold: 600, xp: 300 } },
+    { id: 'lm_3', text: '多买几辆卡车可以提高运输效率。', task: '拥有3辆卡车', check: s => s.upgrades.truck>=3, reward: { gold: 1000, xp: 500 } },
+  ],
+  merchant: [
+    { id: 'mer_1', text: '我是神秘商人，不定期带来特殊交易。今天有个好 offer！', task: '累计收入达到50,000', check: s => s.totalEarnings>=50000, reward: { gold: 2000, xp: 1000 } },
+    { id: 'mer_2', text: '转生可以获得永久加成，但会重置进度。敢不敢试试？', task: '完成1次转生', check: s => s.prestigeCount>=1, reward: { gold: 5000, xp: 2500 } },
+  ],
+};
+
+// ===== Quest System =====
+const QUEST_TEMPLATES = [
+  { id: 'q_harvest', text: '收获{count}个{crop}', type: 'daily', generate(s) { const c=randomUnlockedCrop(s); return { target:c, count:5+Math.floor(Math.random()*10), check:s2=>(s2.stats.totalHarvested[c]||0)>(s.stats.totalHarvested[c]||0)+this.count-1 }; } },
+  { id: 'q_produce', text: '加工{count}个{recipe}', type: 'daily', generate(s) { const r=randomUnlockedRecipe(s); return { target:r, count:3+Math.floor(Math.random()*5), check:s2=>(s2.stats.totalProduced[r]||0)>(s.stats.totalProduced[r]||0)+this.count-1 }; } },
+  { id: 'q_sell',    text: '服务{count}位顾客',    type: 'daily', generate() { return { count:10+Math.floor(Math.random()*20), check:s=>(s.shop.totalCustomersServed||0)>=this._startCount+this.count }; }, setStart(s){this._startCount=s.shop.totalCustomersServed||0;} },
+  { id: 'q_earn',    text: '赚取{count}金币',      type: 'daily', generate(s) { const t=500+Math.floor(s.totalEarnings*0.05); return { count:t, check:s2=>s2.totalEarnings>=this._startEarnings+this.count }; }, setStart(s){this._startEarnings=s.totalEarnings;} },
+  { id: 'q_upgrade', text: '升级任意设施1次',      type: 'daily', generate() { return { count:1, check:s=>this._startUpgr!==(s.totalUpgrades||0), _startUpgr:0 }; }, setStart(s){this._startUpgr=s.totalUpgrades||0;} },
+  { id: 'q_plant',   text: '种植{count}块农田',    type: 'daily', generate() { return { count:5+Math.floor(Math.random()*10), check:s=>this._startPlants+this.count<=(s.stats.totalPlanted||0) }; }, setStart(s){this._startPlants=s.stats.totalPlanted||0;} },
+  { id: 'q_big_earn',text: '本周累计赚取{count}金币',type:'weekly',generate(s){const t=5000+Math.floor(s.totalEarnings*0.2);return{count:t,check:s2=>s2.totalEarnings>=this._startEarnings+this.count};},setStart(s){this._startEarnings=s.totalEarnings;} },
+  { id: 'q_prestige',text: '完成1次转生',          type: 'weekly', generate() { return { count:1, check:s=>s.prestigeCount>this._startPrestige }; }, setStart(s){this._startPrestige=s.prestigeCount;} },
+];
+
+function randomUnlockedCrop(s) {
+  const unlocked = Object.keys(CROP_DATA).filter(k => s.level >= CROP_DATA[k].unlockLevel);
+  return unlocked[Math.floor(Math.random() * unlocked.length)] || 'wheat';
+}
+function randomUnlockedRecipe(s) {
+  const unlocked = Object.keys(RECIPE_DATA).filter(k => s.level >= RECIPE_DATA[k].unlockLevel);
+  return unlocked[Math.floor(Math.random() * unlocked.length)] || 'flour';
+}
+
+function generateQuests(s) {
+  if (!s.quests) s.quests = { daily: [], weekly: null, lastDailyReset: 0, lastWeeklyReset: 0 };
+  const now = Date.now();
+  const dayMs = 86400000, weekMs = 604800000;
+  if (now - s.quests.lastDailyReset > dayMs) {
+    s.quests.daily = [];
+    const templates = QUEST_TEMPLATES.filter(t => t.type === 'daily');
+    for (let i = 0; i < 3; i++) {
+      const tmpl = templates[Math.floor(Math.random() * templates.length)];
+      const q = { ...tmpl, ...tmpl.generate(s), id: 'dq_' + now + '_' + i, completed: false, claimed: false, reward: { gold: 50 + Math.floor(Math.random() * 200), xp: 30 + Math.floor(Math.random() * 100) } };
+      if (tmpl.setStart) tmpl.setStart.call(q, s);
+      s.quests.daily.push(q);
+    }
+    s.quests.lastDailyReset = now;
+  }
+  if (now - s.quests.lastWeeklyReset > weekMs) {
+    const wtmpl = QUEST_TEMPLATES.filter(t => t.type === 'weekly');
+    const tmpl = wtmpl[Math.floor(Math.random() * wtmpl.length)];
+    const q = { ...tmpl, ...tmpl.generate(s), id: 'wq_' + now, completed: false, claimed: false, reward: { gold: 500 + Math.floor(Math.random() * 1000), xp: 300 + Math.floor(Math.random() * 500) } };
+    if (tmpl.setStart) tmpl.setStart.call(q, s);
+    s.quests.weekly = q;
+    s.quests.lastWeeklyReset = now;
+  }
+}
 
 // Apply difficulty multipliers
 (function(){
@@ -130,6 +437,17 @@ function getGrowthSpeedMultiplier(s) {
   m *= (1 - 0.08 * (s.upgrades.fertilizer || 0));
   m *= (1 - 0.15 * (s.upgrades.tractor || 0));
   m *= (1 - 0.10 * (s.upgrades.greenhouse || 0));
+  // Season modifier
+  const season = getCurrentSeason(s);
+  if (season) m *= SEASONS[season].growthMod;
+  // Weather
+  if (s.activeWeather) {
+    if (s.activeWeather.effect.growthMod) m *= s.activeWeather.effect.growthMod;
+    if (s.activeWeather.effect.pestActive && Math.random() < 0.005) {
+      const inf = s.farm.plots.find(p => p.crop);
+      if (inf) { inf.growthProgress = Math.max(0, inf.growthProgress - 0.1); }
+    }
+  }
   const b = s.activeBuffs.find(b => b.effect === 'growth_speed');
   if (b) m *= (1 - b.value);
   m *= (1 - 0.05 * s.prestigePoints);
@@ -140,6 +458,7 @@ function getProductionSpeedMultiplier(s) {
   let m = 1;
   m *= (1 - 0.10 * (s.upgrades.speed_boost || 0));
   m *= (1 - 0.15 * (s.upgrades.automation || 0));
+  if (s.activeWeather && s.activeWeather.effect.prodMod) m *= 1 / s.activeWeather.effect.prodMod;
   const b = s.activeBuffs.find(b => b.effect === 'production_speed');
   if (b) m *= (1 - b.value);
   m *= (1 - 0.03 * s.prestigePoints);
@@ -158,20 +477,41 @@ function getCustomerRateMultiplier(s) {
 function getPriceMultiplier(s) {
   let m = 1;
   m *= (1 + 0.05 * (s.upgrades.decor || 0));
+  if (s.activeWeather) {
+    if (s.activeWeather.effect.priceMod) m *= s.activeWeather.effect.priceMod;
+    if (s.activeWeather.effect.harvestMod) m *= s.activeWeather.effect.harvestMod;
+  }
+  // Season autumn bonus
+  const season = getCurrentSeason(s);
+  if (season === 'autumn') m *= 1.2;
   const b = s.activeBuffs.find(b => b.effect === 'price_multiplier');
   if (b) m *= (1 + b.value);
   m *= (1 + 0.02 * s.prestigePoints);
   return m;
 }
 
+function getCurrentSeason(s) {
+  if (!s.seasonStartTime) return 'spring';
+  const elapsed = s.gameTime - s.seasonStartTime;
+  const idx = (Math.floor(elapsed / SEASON_DURATION) + (s.startSeasonIdx || 0)) % 4;
+  return SEASON_ORDER[idx];
+}
+
+function getSeasonProgress(s) {
+  if (!s.seasonStartTime) return 0;
+  const elapsed = s.gameTime - s.seasonStartTime;
+  return (elapsed % SEASON_DURATION) / SEASON_DURATION;
+}
+
 // ===== state.js =====
-const SAVE_KEY = 'vertical_farm_game_save';
+const SAVE_KEY = 'vertical_farm_game_save_v2';
 
 function createInitialState() {
   return {
     gold: 500, xp: 0, level: 1, totalEarnings: 0,
     prestigePoints: 0, prestigeCount: 0,
     gameTime: 0, lastSaveTime: Date.now(), currentTab: 'farm',
+    seasonStartTime: 0, startSeasonIdx: 0,
     factoryUnlocked: false, shopUnlocked: false, logisticsUnlocked: false,
     farm: { plots: [
       { id: 0, crop: null, plantedAt: 0, growthProgress: 0 },
@@ -199,8 +539,13 @@ function createInitialState() {
       truck: 1, truck_speed: 0,
     },
     activeBuffs: [],
-    stats: { totalHarvested: {}, totalProduced: {}, totalSold: {}, totalRevenue: 0, totalSpent: 0 },
+    activeWeather: null,
+    achievements: {},
+    quests: { daily: [], weekly: null, lastDailyReset: 0, lastWeeklyReset: 0 },
+    npcProgress: {},
+    stats: { totalHarvested: {}, totalProduced: {}, totalSold: {}, totalRevenue: 0, totalSpent: 0, totalPlanted: 0, seasonStats: {}, questsCompleted: 0, questsClaimed: 0, totalUpgrades: 0 },
     notifications: [],
+    settings: { bgm: true, sfx: true },
   };
 }
 
@@ -224,7 +569,6 @@ function hasInv(s, item, a) { return (s.inventory[item] || 0) >= a; }
 function saveGame(s, options) {
   const force = options === true || (options && options.force === true);
   if (!force) return true;
-
   s.lastSaveTime = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); return true; } catch { return false; }
 }
@@ -255,11 +599,18 @@ function migrateState(l) {
   const r = { ...f, ...l };
   r.farm = { ...f.farm, ...l.farm };
   r.factory = { ...f.factory, ...l.factory };
-  r.shop = { ...f.shop, ...l.shop };
-  r.logistics = { ...f.logistics, ...l.logistics };
+  r.shop = { ...f.shop, ...l.shop, customers: (l.shop && l.shop.customers) || [] };
+  r.logistics = { ...f.logistics, ...l.logistics, autoRoutes: (l.logistics && l.logistics.autoRoutes) || [] };
   r.upgrades = { ...f.upgrades, ...l.upgrades };
-  r.stats = { ...f.stats, ...l.stats };
+  r.stats = { ...f.stats, ...l.stats, seasonStats: (l.stats && l.stats.seasonStats) || {} };
   r.inventory = { ...f.inventory, ...l.inventory };
+  r.achievements = l.achievements || {};
+  r.quests = l.quests || { daily: [], weekly: null, lastDailyReset: 0, lastWeeklyReset: 0 };
+  r.npcProgress = l.npcProgress || {};
+  r.settings = l.settings || { bgm: true, sfx: true };
+  r.activeWeather = l.activeWeather || null;
+  r.seasonStartTime = l.seasonStartTime || 0;
+  r.startSeasonIdx = l.startSeasonIdx || 0;
   ensurePlots(r); ensureMachines(r); ensureShelves(r); ensureTrucks(r);
   return r;
 }
@@ -269,7 +620,7 @@ let notifId = 0;
 
 function notify(s, msg, type) {
   s.notifications.push({ id: ++notifId, message: msg, type: type || 'info', time: Date.now() });
-  if (s.notifications.length > 20) s.notifications = s.notifications.slice(-20);
+  if (s.notifications.length > 12) s.notifications = s.notifications.slice(-12);
 }
 
 function calculateOfflineEarnings(s) {
@@ -314,7 +665,7 @@ function doPrestige(s) {
   const pts = s.prestigePoints + np, cnt = s.prestigeCount + 1;
   Object.assign(s, {
     gold: 500 + cnt * 100, xp: 0, level: 1, totalEarnings: 0,
-    prestigePoints: pts, prestigeCount: cnt, gameTime: 0,
+    prestigePoints: pts, prestigeCount: cnt, gameTime: 0, seasonStartTime: 0, startSeasonIdx: 0,
     factoryUnlocked: false, shopUnlocked: false, logisticsUnlocked: false,
     farm: { plots: Array.from({ length: 3 }, (_, i) => ({ id: i, crop: null, plantedAt: 0, growthProgress: 0 })) },
     factory: { machines: [{ id: 0, recipe: null, startTime: 0, progress: 0 }] },
@@ -322,7 +673,7 @@ function doPrestige(s) {
     inventory: {},
     logistics: { trucks: [{ id: 0, busy: false, route: null, progress: 0, startTime: 0 }], routes: [], autoRoutes: [] },
     upgrades: { farm_plot: 3, irrigation: 0, fertilizer: 0, greenhouse: 0, tractor: 0, factory_machine: 1, speed_boost: 0, automation: 0, shop_shelf: 3, advertising: 0, decor: 0, truck: 1, truck_speed: 0 },
-    activeBuffs: [], notifications: [],
+    activeBuffs: [], activeWeather: null, notifications: [],
   });
   return { newPoints: np, totalPoints: pts };
 }
@@ -338,18 +689,144 @@ function activateBuff(s, k) {
 
 function updateBuffs(s) { const now = Date.now(); s.activeBuffs = s.activeBuffs.filter(b => b.expiresAt > now); }
 
+// ===== Weather System =====
+function updateWeather(s, dt) {
+  if (s.activeWeather) {
+    s.activeWeather.remaining -= dt;
+    if (s.activeWeather.remaining <= 0) {
+      notify(s, s.activeWeather.name + ' 已结束', 'info');
+      s.activeWeather = null;
+    }
+  } else if (Math.random() < 0.0003 * dt) {
+    const evt = WEATHER_EVENTS[Math.floor(Math.random() * WEATHER_EVENTS.length)];
+    if (Math.random() < evt.chance) {
+      s.activeWeather = { ...evt, remaining: evt.duration };
+      notify(s, evt.desc, evt.type === 'good' ? 'success' : 'warning');
+      if (evt.type === 'good') AudioEngine.playEventGood(); else AudioEngine.playEventBad();
+    }
+  }
+}
+
+// ===== Achievement System =====
+function checkAchievements(s) {
+  let newlyUnlocked = [];
+  for (const a of ACHIEVEMENT_DATA) {
+    if (!s.achievements[a.id] && a.check(s)) {
+      s.achievements[a.id] = { unlockedAt: Date.now(), tier: a.tier };
+      newlyUnlocked.push(a);
+    }
+  }
+  return newlyUnlocked;
+}
+function getAchievementTierName(tier) {
+  return tier === 'gold' ? '金' : tier === 'silver' ? '银' : '铜';
+}
+
+// ===== Quest System =====
+function updateQuests(s) {
+  generateQuests(s);
+  // Check daily quests
+  for (const q of s.quests.daily) {
+    if (!q.completed && q.check && q.check(s)) {
+      q.completed = true;
+      notify(s, '任务完成: ' + q.text, 'success');
+    }
+  }
+  // Check weekly quest
+  const wq = s.quests.weekly;
+  if (wq && !wq.completed && wq.check && wq.check(s)) {
+    wq.completed = true;
+    notify(s, '周任务完成: ' + wq.text, 'success');
+  }
+}
+
+function claimQuestReward(s, qid) {
+  for (const q of s.quests.daily) {
+    if (q.id === qid && q.completed && !q.claimed) {
+      q.claimed = true;
+      addGold(s, q.reward.gold); addXP(s, q.reward.xp);
+      s.stats.questsCompleted = (s.stats.questsCompleted || 0) + 1;
+      notify(s, '领取奖励: +' + q.reward.gold + 'G +' + q.reward.xp + 'XP', 'gold');
+      AudioEngine.playCoin(); return true;
+    }
+  }
+  const wq = s.quests.weekly;
+  if (wq && wq.id === qid && wq.completed && !wq.claimed) {
+    wq.claimed = true;
+    addGold(s, wq.reward.gold); addXP(s, wq.reward.xp);
+    s.stats.questsCompleted = (s.stats.questsCompleted || 0) + 1;
+    notify(s, '领取周任务奖励: +' + wq.reward.gold + 'G +' + wq.reward.xp + 'XP', 'gold');
+    AudioEngine.playCoin(); return true;
+  }
+  return false;
+}
+
+// ===== NPC System =====
+function getNPCDialogue(s, npcId) {
+  const dialogs = NPC_DIALOGUES[npcId] || [];
+  const prog = s.npcProgress[npcId] || 0;
+  if (prog >= dialogs.length) return null;
+  return dialogs[prog];
+}
+function advanceNPC(s, npcId) {
+  const dialogs = NPC_DIALOGUES[npcId] || [];
+  const prog = s.npcProgress[npcId] || 0;
+  if (prog < dialogs.length) {
+    const d = dialogs[prog];
+    if (d.check && d.check(s)) {
+      s.npcProgress[npcId] = prog + 1;
+      if (d.reward) { addGold(s, d.reward.gold); addXP(s, d.reward.xp); }
+      return d;
+    }
+  }
+  return null;
+}
+function canShowNPC(s, npcId) {
+  const npc = NPC_DATA.find(n => n.id === npcId);
+  return npc && npc.unlockCondition(s);
+}
+
+// ===== Season display =====
+function renderSeasonInfo(s) {
+  const season = getCurrentSeason(s);
+  const sd = SEASONS[season];
+  const progress = getSeasonProgress(s);
+  const timeLeft = Math.ceil(SEASON_DURATION * (1 - progress));
+  return '<div class="season-display" style="border-color:' + sd.color + '">' +
+    '<span class="season-icon">' + sd.icon + '</span>' +
+    '<span class="season-name" style="color:' + sd.color + '">' + sd.name + '季</span>' +
+    '<span class="season-desc">' + sd.desc + '</span>' +
+    '<div class="progress-bar small"><div class="progress-fill" style="width:' + Math.floor(progress * 100) + '%;background:' + sd.color + '"></div></div>' +
+    '<span class="season-timer">' + formatTime(timeLeft) + '</span>' +
+    '</div>';
+}
+
 // ===== farm.js =====
 function farmPlantCrop(s, plotId, cropKey) {
   const p = s.farm.plots.find(x => x.id === plotId); if (!p || p.crop) return false;
   const cd = CROP_DATA[cropKey]; if (!cd || s.level < cd.unlockLevel || !hasGold(s, cd.seedCost)) return false;
-  addGold(s, -cd.seedCost); p.crop = cropKey; p.plantedAt = s.gameTime; p.growthProgress = 0; return true;
+  // Winter check
+  const season = getCurrentSeason(s);
+  if (season === 'winter' && (s.upgrades.greenhouse || 0) <= 0) { notify(s, '冬季需要温室才能种植！', 'warning'); return false; }
+  addGold(s, -cd.seedCost); p.crop = cropKey; p.plantedAt = s.gameTime; p.growthProgress = 0;
+  s.stats.totalPlanted = (s.stats.totalPlanted || 0) + 1;
+  AudioEngine.playPlant(); return true;
 }
 function farmHarvestCrop(s, plotId) {
   const p = s.farm.plots.find(x => x.id === plotId); if (!p || !p.crop || p.growthProgress < 1) return false;
-  const cd = CROP_DATA[p.crop], y = 1 + Math.floor(Math.random() * 2);
+  const cd = CROP_DATA[p.crop];
+  let y = 1 + Math.floor(Math.random() * 2);
+  // Autumn harvest bonus
+  const season = getCurrentSeason(s);
+  if (season === 'autumn') y = Math.floor(y * 1.2);
+  if (s.activeWeather && s.activeWeather.effect.harvestMod) y = Math.floor(y * s.activeWeather.effect.harvestMod);
   addInv(s, p.crop, y); addXP(s, Math.ceil(cd.rawSell * 0.5));
   s.stats.totalHarvested[p.crop] = (s.stats.totalHarvested[p.crop] || 0) + y;
+  if (!s.stats.seasonStats) s.stats.seasonStats = {};
+  if (!s.stats.seasonStats[season + 'Harvested']) s.stats.seasonStats[season + 'Harvested'] = 0;
+  s.stats.seasonStats[season + 'Harvested']++;
   notify(s, '收获了 ' + y + 'x ' + cd.icon + ' ' + cd.name, 'success');
+  AudioEngine.playHarvest();
   p.crop = null; p.plantedAt = 0; p.growthProgress = 0; return true;
 }
 function farmHarvestAll(s) {
@@ -361,7 +838,8 @@ function sellRawCrop(s, k) {
   const cd = CROP_DATA[k]; if (!cd) return false;
   const q = s.inventory[k] || 0; if (q <= 0) return false;
   const r = q * cd.rawSell; addGold(s, r); addXP(s, Math.ceil(r * 0.2)); s.inventory[k] = 0;
-  notify(s, '售出 ' + q + 'x ' + cd.icon + ' ' + cd.name + '，获得 ' + r + 'G', 'gold'); return true;
+  notify(s, '售出 ' + q + 'x ' + cd.icon + ' ' + cd.name + '，获得 ' + r + 'G', 'gold');
+  AudioEngine.playCoin(); return true;
 }
 function updateFarm(s, dt) {
   const gm = getGrowthSpeedMultiplier(s);
@@ -369,7 +847,8 @@ function updateFarm(s, dt) {
 }
 function buyFarmPlot(s) {
   const c = getUpgradeCost('farm_plot', s.upgrades.farm_plot); if (!hasGold(s, c)) return false;
-  addGold(s, -c); s.upgrades.farm_plot++; ensurePlots(s); notify(s, '购买了新农田地块', 'success'); return true;
+  addGold(s, -c); s.upgrades.farm_plot++; ensurePlots(s); notify(s, '购买了新农田地块', 'success');
+  AudioEngine.playUpgrade(); return true;
 }
 
 function renderFarm(s) {
@@ -377,35 +856,35 @@ function renderFarm(s) {
   const gm = getGrowthSpeedMultiplier(s);
   let ph = s.farm.plots.map(p => {
     if (!p.crop) {
-      const co = ac.map(c => '<button class="btn-plant" onclick="window.game.plantCrop(' + p.id + ',\'' + c.key + '\')" ' + (s.gold < c.seedCost ? 'disabled' : '') + ' title="种植 ' + c.name + ' - ' + c.seedCost + 'G"><span class="plant-label">' + c.icon + ' ' + c.name + '</span>' + EmpireAssets.crop(c.key, 1, 'plant-icon', c.name) + '<span class="cost">' + c.seedCost + 'G</span></button>').join('');
+      const co = ac.map(c => '<button class="btn-plant" ontouchstart="window.game.plantCrop(' + p.id + ',\'' + c.key + '\')" onclick="window.game.plantCrop(' + p.id + ',\'' + c.key + '\')" ' + (s.gold < c.seedCost ? 'disabled' : '') + ' title="种植 ' + c.name + ' - ' + c.seedCost + 'G"><span class="plant-label">' + c.icon + ' ' + c.name + '</span><span class="cost">' + c.seedCost + 'G</span></button>').join('');
       return '<div class="plot empty"><div class="plot-label">空地 #' + (p.id + 1) + '</div><div class="plant-options">' + co + '</div></div>';
     }
     const cd = CROP_DATA[p.crop], pr = Math.min(1, p.growthProgress), pct = Math.floor(pr * 100);
     const ok = pr >= 1;
     return '<div class="plot growing ' + (ok ? 'ready' : '') + '">' +
-      '<div class="plot-crop">' + EmpireAssets.crop(p.crop, pr, 'crop-img', cd.name) + '</div>' +
+      '<div class="plot-crop"><span class="crop-emoji">' + cd.icon + '</span></div>' +
       '<div class="plot-name">' + cd.name + '</div>' +
       '<div class="progress-bar"><div class="progress-fill ' + (ok ? 'complete' : '') + '" style="width:' + pct + '%"></div></div>' +
       '<div class="plot-timer">' + (ok ? '可收获!' : Math.ceil((1 - pr) * cd.growTime * gm) + '秒') + '</div>' +
-      (ok ? '<button class="btn-harvest" onclick="window.game.harvestCrop(' + p.id + ')">' + EmpireAssets.icon('harvest', 'tiny-icon', '收获') + '收获</button>' : '') +
+      (ok ? '<button class="btn-harvest" ontouchstart="window.game.harvestCrop(' + p.id + ')" onclick="window.game.harvestCrop(' + p.id + ')">收获</button>' : '') +
       '</div>';
   }).join('');
   const rc = s.farm.plots.filter(p => p.crop && p.growthProgress >= 1).length;
-  const hab = rc > 1 ? '<button class="btn-action" onclick="window.game.harvestAll()">全部收获 (' + rc + ')</button>' : '';
+  const hab = rc > 1 ? '<button class="btn-action" ontouchstart="window.game.harvestAll()" onclick="window.game.harvestAll()">全部收获 (' + rc + ')</button>' : '';
   const pc = getUpgradeCost('farm_plot', s.upgrades.farm_plot);
-  const bpb = s.upgrades.farm_plot < 20 ? '<button class="btn-action" onclick="window.game.buyFarmPlot()" ' + (s.gold < pc ? 'disabled' : '') + '>购买农田 (' + pc + 'G)</button>' : '';
-  // One-click plant: always plant the most expensive unlocked crop
+  const bpb = s.upgrades.farm_plot < 20 ? '<button class="btn-action" ontouchstart="window.game.buyFarmPlot()" onclick="window.game.buyFarmPlot()" ' + (s.gold < pc ? 'disabled' : '') + '>购买农田 (' + pc + 'G)</button>' : '';
   var oneClickHtml = '';
   if (ac.length > 0 && s.farm.plots.some(function(pp) { return !pp.crop; })) {
     var bestCrop = ac.slice().sort(function(a, b) { return b.seedCost - a.seedCost; })[0];
     var emptyCount = s.farm.plots.filter(function(pp) { return !pp.crop; }).length;
-    oneClickHtml = '<button class="btn-action" onclick="window.game.oneClickPlant()" title="一键种植 ' + bestCrop.name + '（' + bestCrop.seedCost + 'G/粒）">一键种植 ' + bestCrop.icon + ' ' + bestCrop.name + ' (' + emptyCount + '空地)</button>';
+    oneClickHtml = '<button class="btn-action" ontouchstart="window.game.oneClickPlant()" onclick="window.game.oneClickPlant()" title="一键种植 ' + bestCrop.name + '">一键种植 ' + bestCrop.icon + ' ' + bestCrop.name + ' (' + emptyCount + '空地)</button>';
   }
   const fi = Object.entries(s.inventory).filter(([k]) => CROP_DATA[k]).map(([k, q]) => {
     const d = CROP_DATA[k];
-    return '<div class="inv-item"><span class="inv-icon">' + EmpireAssets.item(k, 'inv-img', d.name) + '</span><span class="inv-name">' + d.name + '</span><span class="inv-qty">x' + q + '</span><button class="btn-sell" onclick="window.game.sellRawCrop(\'' + k + '\')" ' + (q <= 0 ? 'disabled' : '') + '>出售 ' + d.rawSell + 'G/个</button></div>';
+    return '<div class="inv-item"><span class="inv-icon">' + d.icon + '</span><span class="inv-name">' + d.name + '</span><span class="inv-qty">x' + q + '</span><button class="btn-sell" ontouchstart="window.game.sellRawCrop(\'' + k + '\')" onclick="window.game.sellRawCrop(\'' + k + '\')" ' + (q <= 0 ? 'disabled' : '') + '>出售 ' + d.rawSell + 'G/个</button></div>';
   }).join('');
-  return '<div class="module-header farm-scene"><h2>农场</h2><p class="module-desc">种植作物，为工厂提供原材料</p></div>' +
+  return renderSeasonInfo(s) +
+    '<div class="module-header farm-scene"><h2>农场</h2><p class="module-desc">种植作物，为工厂提供原材料</p></div>' +
     '<div class="farm-controls">' + hab + bpb + oneClickHtml + '</div>' +
     '<div class="plots-grid">' + ph + '</div>' +
     '<div class="section-title">仓库 - 农产品</div><div class="inventory-list">' + (fi || '<div class="empty-text">暂无农产品，请先种植作物</div>') + '</div>';
@@ -418,7 +897,8 @@ function factoryStartProduction(s, mid, rk) {
   const rd = RECIPE_DATA[rk]; if (!rd || s.level < rd.unlockLevel) return false;
   for (const [i, q] of Object.entries(rd.inputs)) if (!hasInv(s, i, q)) return false;
   for (const [i, q] of Object.entries(rd.inputs)) addInv(s, i, -q);
-  m.recipe = rk; m.startTime = s.gameTime; m.progress = 0; return true;
+  m.recipe = rk; m.startTime = s.gameTime; m.progress = 0;
+  AudioEngine.playMachine(); return true;
 }
 function factoryCollectProduct(s, mid) {
   const m = s.factory.machines.find(x => x.id === mid); if (!m || !m.recipe || m.progress < 1) return false;
@@ -426,6 +906,7 @@ function factoryCollectProduct(s, mid) {
   addInv(s, m.recipe, 1); addXP(s, Math.ceil(rd.factorySell * 0.3));
   s.stats.totalProduced[m.recipe] = (s.stats.totalProduced[m.recipe] || 0) + 1;
   notify(s, '生产了 ' + rd.icon + ' ' + rd.name, 'success');
+  AudioEngine.playCoin();
   m.recipe = null; m.startTime = 0; m.progress = 0; return true;
 }
 function factoryCollectAll(s) {
@@ -447,43 +928,45 @@ function sellFactoryProduct(s, k) {
   const rd = RECIPE_DATA[k]; if (!rd) return false;
   const q = s.inventory[k] || 0; if (q <= 0) return false;
   const r = q * rd.factorySell; addGold(s, r); addXP(s, Math.ceil(r * 0.2)); s.inventory[k] = 0;
-  notify(s, '售出 ' + q + 'x ' + rd.icon + ' ' + rd.name + '，获得 ' + r + 'G', 'gold'); return true;
+  notify(s, '售出 ' + q + 'x ' + rd.icon + ' ' + rd.name + '，获得 ' + r + 'G', 'gold');
+  AudioEngine.playCoin(); return true;
 }
 function buyFactoryMachine(s) {
   const c = getUpgradeCost('factory_machine', s.upgrades.factory_machine); if (!hasGold(s, c)) return false;
-  addGold(s, -c); s.upgrades.factory_machine++; ensureMachines(s); notify(s, '购买了新加工机器', 'success'); return true;
+  addGold(s, -c); s.upgrades.factory_machine++; ensureMachines(s); notify(s, '购买了新加工机器', 'success');
+  AudioEngine.playUpgrade(); return true;
 }
 
 function renderFactory(s) {
-  if (!s.factoryUnlocked) return '<div class="module-header factory-scene"><h2>加工厂</h2><p class="module-desc">将农产品加工为高价值商品</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('factory_unlock', 'lock-icon-img', '加工厂') + '</div><p>加工厂尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildFactory()" ' + (s.gold < BUILD_COSTS.factory ? 'disabled' : '') + '>建造加工厂 (' + BUILD_COSTS.factory + 'G)</button></div>';
+  if (!s.factoryUnlocked) return '<div class="module-header factory-scene"><h2>加工厂</h2><p class="module-desc">将农产品加工为高价值商品</p></div><div class="locked-module"><div class="lock-icon">\u{1F512}</div><p>加工厂尚未建造</p><button class="btn-action btn-large" ontouchstart="window.game.buildFactory()" onclick="window.game.buildFactory()" ' + (s.gold < BUILD_COSTS.factory ? 'disabled' : '') + '>建造加工厂 (' + BUILD_COSTS.factory + 'G)</button></div>';
   const ar = Object.entries(RECIPE_DATA).filter(([_, d]) => s.level >= d.unlockLevel).map(([k, d]) => ({ key: k, ...d }));
   const pm = getProductionSpeedMultiplier(s);
   let mh = s.factory.machines.map(m => {
     if (!m.recipe) {
       const ro = ar.map(r => {
         const cm = canCraft(s, r.key);
-        const it = Object.entries(r.inputs).map(([k, v]) => EmpireAssets.item(k, 'tiny-icon', k) + v).join(' + ');
-        return '<button class="btn-recipe ' + (cm ? '' : 'disabled') + '" onclick="window.game.startProduction(' + m.id + ',\'' + r.key + '\')" ' + (cm ? '' : 'disabled') + '><span class="recipe-icon">' + EmpireAssets.recipe(r.key, 'recipe-img', r.name) + '</span><span class="recipe-name">' + r.name + '</span><span class="recipe-inputs">' + it + '</span><span class="recipe-time">' + Math.ceil(r.processTime * pm) + 's</span></button>';
+        const it = Object.entries(r.inputs).map(([k, v]) => (CROP_DATA[k] ? CROP_DATA[k].icon : (RECIPE_DATA[k] ? RECIPE_DATA[k].icon : '\u{1F4E6}')) + v).join(' + ');
+        return '<button class="btn-recipe ' + (cm ? '' : 'disabled') + '" ontouchstart="window.game.startProduction(' + m.id + ',\'' + r.key + '\')" onclick="window.game.startProduction(' + m.id + ',\'' + r.key + '\')" ' + (cm ? '' : 'disabled') + '><span class="recipe-icon">' + r.icon + '</span><span class="recipe-name">' + r.name + '</span><span class="recipe-inputs">' + it + '</span><span class="recipe-time">' + Math.ceil(r.processTime * pm) + 's</span></button>';
       }).join('');
       return '<div class="machine idle"><div class="machine-label">机器 #' + (m.id + 1) + ' - 空闲</div><div class="machine-visual">' + EmpireAssets.idleMachine(m.id, 'machine-art') + '</div><div class="recipe-options">' + ro + '</div></div>';
     }
     const rd = RECIPE_DATA[m.recipe], pr = Math.min(1, m.progress), pct = Math.floor(pr * 100), ok = pr >= 1;
-    return '<div class="machine working ' + (ok ? 'ready' : '') + '"><div class="machine-header"><span class="machine-label">机器 #' + (m.id + 1) + '</span><span class="machine-product">' + EmpireAssets.recipe(m.recipe, 'tiny-icon', rd.name) + rd.name + '</span></div><div class="machine-visual">' + EmpireAssets.factoryMachine(m.recipe, ok ? 'upgrade' : 'working', 'machine-art') + '</div><div class="progress-bar"><div class="progress-fill ' + (ok ? 'complete' : '') + '" style="width:' + pct + '%"></div></div><div class="machine-timer">' + (ok ? '完成!' : Math.ceil((1 - pr) * rd.processTime * pm) + '秒') + '</div>' + (ok ? '<button class="btn-collect" onclick="window.game.collectProduct(' + m.id + ')">' + EmpireAssets.icon('collect', 'tiny-icon', '收取') + '收取</button>' : '') + '</div>';
+    return '<div class="machine working ' + (ok ? 'ready' : '') + '"><div class="machine-header"><span class="machine-label">机器 #' + (m.id + 1) + '</span><span class="machine-product">' + rd.icon + ' ' + rd.name + '</span></div><div class="machine-visual">' + EmpireAssets.factoryMachine(m.recipe, ok ? 'ready' : 'working', 'machine-art') + '</div><div class="progress-bar"><div class="progress-fill ' + (ok ? 'complete' : '') + '" style="width:' + pct + '%"></div></div><div class="machine-timer">' + (ok ? '完成!' : Math.ceil((1 - pr) * rd.processTime * pm) + '秒') + '</div>' + (ok ? '<button class="btn-collect" ontouchstart="window.game.collectProduct(' + m.id + ')" onclick="window.game.collectProduct(' + m.id + ')">收取</button>' : '') + '</div>';
   }).join('');
   const rm = s.factory.machines.filter(m => m.recipe && m.progress >= 1).length;
-  const cab = rm > 1 ? '<button class="btn-action" onclick="window.game.collectAllFactory()">全部收取 (' + rm + ')</button>' : '';
+  const cab = rm > 1 ? '<button class="btn-action" ontouchstart="window.game.collectAllFactory()" onclick="window.game.collectAllFactory()">全部收取 (' + rm + ')</button>' : '';
   const mc = getUpgradeCost('factory_machine', s.upgrades.factory_machine);
-  const bmb = s.upgrades.factory_machine < 10 ? '<button class="btn-action" onclick="window.game.buyFactoryMachine()" ' + (s.gold < mc ? 'disabled' : '') + '>购买机器 (' + mc + 'G)</button>' : '';
+  const bmb = s.upgrades.factory_machine < 10 ? '<button class="btn-action" ontouchstart="window.game.buyFactoryMachine()" onclick="window.game.buyFactoryMachine()" ' + (s.gold < mc ? 'disabled' : '') + '>购买机器 (' + mc + 'G)</button>' : '';
   const fi = Object.entries(s.inventory).filter(([k]) => RECIPE_DATA[k]).map(([k, q]) => {
     const d = RECIPE_DATA[k];
-    return '<div class="inv-item"><span class="inv-icon">' + EmpireAssets.recipe(k, 'inv-img', d.name) + '</span><span class="inv-name">' + d.name + '</span><span class="inv-qty">x' + q + '</span><button class="btn-sell" onclick="window.game.sellFactoryProduct(\'' + k + '\')" ' + (q <= 0 ? 'disabled' : '') + '>出售 ' + d.factorySell + 'G/个</button></div>';
+    return '<div class="inv-item"><span class="inv-icon">' + d.icon + '</span><span class="inv-name">' + d.name + '</span><span class="inv-qty">x' + q + '</span><button class="btn-sell" ontouchstart="window.game.sellFactoryProduct(\'' + k + '\')" onclick="window.game.sellFactoryProduct(\'' + k + '\')" ' + (q <= 0 ? 'disabled' : '') + '>出售 ' + d.factorySell + 'G/个</button></div>';
   }).join('');
   return '<div class="module-header factory-scene"><h2>加工厂</h2><p class="module-desc">将原材料加工为高价值商品</p></div><div class="farm-controls">' + cab + bmb + '</div><div class="machines-grid">' + mh + '</div><div class="section-title">仓库 - 加工品</div><div class="inventory-list">' + (fi || '<div class="empty-text">暂无加工品，请选择配方开始生产</div>') + '</div>';
 }
 
 // ===== shop.js =====
 const CUSTOMER_NAMES = ['小明','小红','老王','阿花','大壮','小李','美美','阿强','小芳','建国','丽丽','志明','春花','国庆','小雪','大海'];
-const CUSTOMER_ICONS = ['👨','👩','👴','👵','👦','👧','🧑','👱','👲','🧔','👳','🧓'];
+const CUSTOMER_ICONS = ['\u{1F468}','\u{1F469}','\u{1F474}','\u{1F475}','\u{1F466}','\u{1F467}','\u{1F9D1}','\u{1F471}','\u{1F472}','\u{1F9D4}','\u{1F473}','\u{1F9D3}'];
 
 function shopStockShelf(s, sid, pk) {
   if (!s.shopUnlocked) return false;
@@ -504,6 +987,7 @@ function updateShop(s, dt) {
     const sp = sh.shelves.filter(x => x.quantity > 0 && x.product).map(x => x.product);
     if (sp.length > 0) {
       sh.customers.push({ id: Date.now() + Math.random(), name: CUSTOMER_NAMES[Math.floor(Math.random() * CUSTOMER_NAMES.length)], icon: CUSTOMER_ICONS[Math.floor(Math.random() * CUSTOMER_ICONS.length)], target: sp[Math.floor(Math.random() * sp.length)], patience: 10 + Math.random() * 20, waitTime: 0, satisfied: false });
+      AudioEngine.playDoor();
     }
   }
   const pm = getPriceMultiplier(s), rm2 = [];
@@ -513,44 +997,45 @@ function updateShop(s, dt) {
       const sl = sh.shelves.find(x => x.product === c.target && x.quantity > 0);
       if (sl) {
         sl.quantity--; const rd = RECIPE_DATA[c.target];
-        if (rd) { const rev = Math.floor(rd.shopSell * pm); addGold(s, rev); addXP(s, Math.ceil(rev * 0.1)); s.stats.totalSold[c.target] = (s.stats.totalSold[c.target] || 0) + 1; s.stats.totalRevenue += rev; sh.totalCustomersServed++; notify(s, c.icon + c.name + ' 购买了 ' + rd.icon + rd.name + ' +' + rev + 'G', 'gold'); }
+        if (rd) { const rev = Math.floor(rd.shopSell * pm); addGold(s, rev); addXP(s, Math.ceil(rev * 0.1)); s.stats.totalSold[c.target] = (s.stats.totalSold[c.target] || 0) + 1; s.stats.totalRevenue += rev; sh.totalCustomersServed++; notify(s, c.icon + ' ' + c.name + ' 购买了 ' + rd.icon + ' ' + rd.name + ' +' + rev + 'G', 'gold'); AudioEngine.playCoin(); }
         if (sl.quantity <= 0) { sl.product = null; sl.quantity = 0; }
         c.satisfied = true; rm2.push(i);
-      } else if (c.waitTime >= c.patience) { notify(s, c.icon + c.name + ' 等不及离开了...', 'warning'); rm2.push(i); }
+      } else if (c.waitTime >= c.patience) { notify(s, c.icon + ' ' + c.name + ' 等不及离开了...', 'warning'); rm2.push(i); }
     } else if (c.waitTime >= c.patience) { rm2.push(i); }
   }
   for (let i = rm2.length - 1; i >= 0; i--) sh.customers.splice(rm2[i], 1);
 }
 function buyShopShelf(s) {
   const c = getUpgradeCost('shop_shelf', s.upgrades.shop_shelf); if (!hasGold(s, c)) return false;
-  addGold(s, -c); s.upgrades.shop_shelf++; ensureShelves(s); notify(s, '购买了新货架', 'success'); return true;
+  addGold(s, -c); s.upgrades.shop_shelf++; ensureShelves(s); notify(s, '购买了新货架', 'success');
+  AudioEngine.playUpgrade(); return true;
 }
 
 function renderShop(s) {
-  if (!s.shopUnlocked) return '<div class="module-header shop-scene"><h2>商店</h2><p class="module-desc">零售商品，获取最高利润</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('shop_unlock', 'lock-icon-img', '商店') + '</div><p>商店尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildShop()" ' + (s.gold < BUILD_COSTS.shop ? 'disabled' : '') + '>建造商店 (' + BUILD_COSTS.shop + 'G)</button></div>';
+  if (!s.shopUnlocked) return '<div class="module-header shop-scene"><h2>商店</h2><p class="module-desc">零售商品，获取最高利润</p></div><div class="locked-module"><div class="lock-icon">\u{1F512}</div><p>商店尚未建造</p><button class="btn-action btn-large" ontouchstart="window.game.buildShop()" onclick="window.game.buildShop()" ' + (s.gold < BUILD_COSTS.shop ? 'disabled' : '') + '>建造商店 (' + BUILD_COSTS.shop + 'G)</button></div>';
   const sh = s.shop, pm = getPriceMultiplier(s), rm = getCustomerRateMultiplier(s);
   const slh = sh.shelves.map(sl => {
     if (sl.quantity > 0 && sl.product) {
       const rd = RECIPE_DATA[sl.product], pct = Math.floor((sl.quantity / sl.maxQuantity) * 100), sp = Math.floor(rd.shopSell * pm);
-      return '<div class="shelf stocked">' + EmpireAssets.shelf(sl.id, sl.quantity, sl.maxQuantity, 'shelf-art') + '<div class="shelf-product">' + EmpireAssets.recipe(sl.product, 'tiny-icon', rd.name) + rd.name + '</div><div class="shelf-quantity">' + sl.quantity + '/' + sl.maxQuantity + '</div><div class="progress-bar small"><div class="progress-fill" style="width:' + pct + '%"></div></div><div class="shelf-price">售价: ' + sp + 'G</div></div>';
+      return '<div class="shelf stocked"><div class="shelf-product">' + rd.icon + ' ' + rd.name + '</div><div class="shelf-quantity">' + sl.quantity + '/' + sl.maxQuantity + '</div><div class="progress-bar small"><div class="progress-fill" style="width:' + pct + '%"></div></div><div class="shelf-price">售价: ' + sp + 'G</div></div>';
     }
-    const pr = Object.entries(s.inventory).filter(([k, q]) => q > 0 && RECIPE_DATA[k]).map(([k, q]) => { const r = RECIPE_DATA[k]; return '<button class="btn-stock" onclick="window.game.stockShelf(' + sl.id + ',\'' + k + '\')">' + EmpireAssets.recipe(k, 'tiny-icon', r.name) + r.name + ' (x' + q + ')</button>'; }).join('');
-    return '<div class="shelf empty">' + EmpireAssets.shelf(sl.id, 0, sl.maxQuantity, 'shelf-art') + '<div class="shelf-label">货架 #' + (sl.id + 1) + ' - 空</div><div class="stock-options">' + (pr || '<span class="empty-text-sm">无可上架商品</span>') + '</div></div>';
+    const pr = Object.entries(s.inventory).filter(([k, q]) => q > 0 && RECIPE_DATA[k]).map(([k, q]) => { const r = RECIPE_DATA[k]; return '<button class="btn-stock" ontouchstart="window.game.stockShelf(' + sl.id + ',\'' + k + '\')" onclick="window.game.stockShelf(' + sl.id + ',\'' + k + '\')">' + r.icon + ' ' + r.name + ' (x' + q + ')</button>'; }).join('');
+    return '<div class="shelf empty"><div class="shelf-label">货架 #' + (sl.id + 1) + ' - 空</div><div class="stock-options">' + (pr || '<span class="empty-text-sm">无可上架商品</span>') + '</div></div>';
   }).join('');
-  const ch = sh.customers.length > 0 ? sh.customers.slice(0, 8).map(c => '<div class="customer ' + (c.satisfied ? 'happy' : '') + '"><span class="customer-icon">' + EmpireAssets.customer(c.name, 'customer-img') + '</span><span class="customer-name">' + c.name + '</span>' + (c.target ? '<span class="customer-target">想要 ' + (RECIPE_DATA[c.target] ? EmpireAssets.recipe(c.target, 'tiny-icon', RECIPE_DATA[c.target].name) : EmpireAssets.icon('goods', 'tiny-icon', '商品')) + '</span>' : '<span class="customer-target">在逛...</span>') + '</div>').join('') : '<div class="empty-text-sm">等待顾客光临...</div>';
+  const ch = sh.customers.length > 0 ? sh.customers.slice(0, 8).map(c => '<div class="customer ' + (c.satisfied ? 'happy' : '') + '"><span class="customer-icon">' + c.icon + '</span><span class="customer-name">' + c.name + '</span>' + (c.target ? '<span class="customer-target">想要 ' + (RECIPE_DATA[c.target] ? RECIPE_DATA[c.target].icon + ' ' + RECIPE_DATA[c.target].name : '商品') + '</span>' : '<span class="customer-target">在逛...</span>') + '</div>').join('') : '<div class="empty-text-sm">等待顾客光临...</div>';
   const sc = getUpgradeCost('shop_shelf', s.upgrades.shop_shelf);
-  const bsb = s.upgrades.shop_shelf < 15 ? '<button class="btn-action" onclick="window.game.buyShopShelf()" ' + (s.gold < sc ? 'disabled' : '') + '>购买货架 (' + sc + 'G)</button>' : '';
+  const bsb = s.upgrades.shop_shelf < 15 ? '<button class="btn-action" ontouchstart="window.game.buyShopShelf()" onclick="window.game.buyShopShelf()" ' + (s.gold < sc ? 'disabled' : '') + '>购买货架 (' + sc + 'G)</button>' : '';
   return '<div class="module-header shop-scene"><h2>商店</h2><p class="module-desc">零售终端 - 利润最大化的关键</p></div>' +
     '<div class="shop-stats"><div class="stat-card"><span class="stat-value">' + sh.totalCustomersServed + '</span><span class="stat-label">已服务顾客</span></div><div class="stat-card"><span class="stat-value">' + rm.toFixed(1) + 'x</span><span class="stat-label">客流倍率</span></div><div class="stat-card"><span class="stat-value">' + pm.toFixed(2) + 'x</span><span class="stat-label">价格倍率</span></div><div class="stat-card"><span class="stat-value">' + sh.customers.length + '</span><span class="stat-label">当前顾客</span></div></div>' +
-    '<div class="farm-controls"><button class="btn-action" onclick="window.game.autoStockShelves()">自动上架</button>' + bsb + '</div>' +
+    '<div class="farm-controls"><button class="btn-action" ontouchstart="window.game.autoStockShelves()" onclick="window.game.autoStockShelves()">自动上架</button>' + bsb + '</div>' +
     '<div class="section-title">货架</div><div class="shelves-grid">' + slh + '</div>' +
     '<div class="section-title">顾客</div><div class="customers-list">' + ch + '</div>';
 }
 
 // ===== logistics.js =====
 const ROUTE_TYPES = [
-  { id: 'farm_to_factory', name: '农场 → 工厂', icon: '🚛' },
-  { id: 'factory_to_shop', name: '工厂 → 商店', icon: '🚚' },
+  { id: 'farm_to_factory', name: '农场 \u2192 工厂', icon: '\u{1F69B}' },
+  { id: 'factory_to_shop', name: '工厂 \u2192 商店', icon: '\u{1F69A}' },
 ];
 function getTransportTime(s) { return Math.max(2, 10 * (1 - 0.10 * (s.upgrades.truck_speed || 0))); }
 function createShipment(s, rt, pk, qty) {
@@ -559,15 +1044,23 @@ function createShipment(s, rt, pk, qty) {
   const t = s.logistics.trucks.find(x => !x.busy);
   if (!t) { notify(s, '没有空闲卡车！', 'warning'); return false; }
   if ((s.inventory[pk] || 0) < qty) return false;
-  addInv(s, pk, -qty); t.busy = true; t.route = { type: rt, product: pk, quantity: qty }; t.progress = 0; t.startTime = s.gameTime; return true;
+  addInv(s, pk, -qty); t.busy = true; t.route = { type: rt, product: pk, quantity: qty }; t.progress = 0; t.startTime = s.gameTime;
+  AudioEngine.playTruck(); return true;
 }
 function updateLogistics(s, dt) {
   if (!s.logisticsUnlocked) return;
   const tt = getTransportTime(s);
+  if (s.activeWeather && s.activeWeather.effect.logisticsMod) tt /= s.activeWeather.effect.logisticsMod;
   for (const t of s.logistics.trucks) {
     if (!t.busy || !t.route) continue;
     t.progress += dt / tt;
-    if (t.progress >= 1) { addInv(s, t.route.product, t.route.quantity); const r = ROUTE_TYPES.find(x => x.id === t.route.type); notify(s, (r ? r.icon : '🚛') + ' 卡车送达 ' + t.route.quantity + 'x ' + t.route.product, 'success'); t.busy = false; t.route = null; t.progress = 0; t.startTime = 0; }
+    if (t.progress >= 1) {
+      addInv(s, t.route.product, t.route.quantity);
+      const r = ROUTE_TYPES.find(x => x.id === t.route.type);
+      notify(s, (r ? r.icon : '\u{1F69B}') + ' 卡车送达 ' + t.route.quantity + 'x ' + (RECIPE_DATA[t.route.product] ? RECIPE_DATA[t.route.product].name : CROP_DATA[t.route.product] ? CROP_DATA[t.route.product].name : t.route.product), 'success');
+      AudioEngine.playNotification();
+      t.busy = false; t.route = null; t.progress = 0; t.startTime = 0;
+    }
   }
   if (s.logistics.autoRoutes) for (const ar of s.logistics.autoRoutes) { if (!ar.active) continue; const ft = s.logistics.trucks.find(x => !x.busy); if (!ft) continue; const q = s.inventory[ar.product] || 0; if (q < ar.minQuantity) continue; createShipment(s, ar.routeType, ar.product, Math.min(q, ar.quantity)); }
 }
@@ -579,28 +1072,29 @@ function addAutoRoute(s, rt, prod, qty, min) {
 function removeAutoRoute(s, id) { if (s.logistics.autoRoutes) s.logistics.autoRoutes = s.logistics.autoRoutes.filter(r => r.id !== id); }
 function buyTruck(s) {
   const c = getUpgradeCost('truck', s.upgrades.truck); if (!hasGold(s, c)) return false;
-  addGold(s, -c); s.upgrades.truck++; ensureTrucks(s); notify(s, '购买了新卡车', 'success'); return true;
+  addGold(s, -c); s.upgrades.truck++; ensureTrucks(s); notify(s, '购买了新卡车', 'success');
+  AudioEngine.playUpgrade(); return true;
 }
 
 function renderLogistics(s) {
-  if (!s.logisticsUnlocked) return '<div class="module-header logistics-scene"><h2>物流中心</h2><p class="module-desc">自动化运输，连接全产业链</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('logistics_unlock', 'lock-icon-img', '物流中心') + '</div><p>物流中心尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildLogistics()" ' + (s.gold < BUILD_COSTS.logistics ? 'disabled' : '') + '>建造物流中心 (' + BUILD_COSTS.logistics + 'G)</button></div>';
+  if (!s.logisticsUnlocked) return '<div class="module-header logistics-scene"><h2>物流中心</h2><p class="module-desc">自动化运输，连接全产业链</p></div><div class="locked-module"><div class="lock-icon">\u{1F512}</div><p>物流中心尚未建造</p><button class="btn-action btn-large" ontouchstart="window.game.buildLogistics()" onclick="window.game.buildLogistics()" ' + (s.gold < BUILD_COSTS.logistics ? 'disabled' : '') + '>建造物流中心 (' + BUILD_COSTS.logistics + 'G)</button></div>';
   const tt = getTransportTime(s);
   const th = s.logistics.trucks.map(t => {
-    if (!t.busy) return '<div class="truck idle"><span class="truck-icon">' + EmpireAssets.vehicle('truck', 0, 'truck-img') + '</span><span class="truck-status">空闲</span></div>';
+    if (!t.busy) return '<div class="truck idle"><span class="truck-icon">\u{1F69B}</span><span class="truck-status">空闲</span></div>';
     const r = ROUTE_TYPES.find(x => x.id === t.route.type), pct = Math.floor(t.progress * 100);
-    return '<div class="truck busy"><span class="truck-icon">' + EmpireAssets.vehicle('truck', Math.floor(t.progress * 4) % 4, 'truck-img') + '</span><span class="truck-route">' + (r ? r.name : '运输中') + '</span><span class="truck-cargo">' + EmpireAssets.item(t.route.product, 'tiny-icon', t.route.product) + t.route.product + ' x' + t.route.quantity + '</span><div class="progress-bar small"><div class="progress-fill" style="width:' + pct + '%"></div></div></div>';
+    return '<div class="truck busy"><span class="truck-icon">\u{1F69B}</span><span class="truck-route">' + (r ? r.name : '运输中') + '</span><span class="truck-cargo">' + (CROP_DATA[t.route.product] ? CROP_DATA[t.route.product].icon : (RECIPE_DATA[t.route.product] ? RECIPE_DATA[t.route.product].icon : '\u{1F4E6}')) + ' ' + t.route.product + ' x' + t.route.quantity + '</span><div class="progress-bar small"><div class="progress-fill" style="width:' + pct + '%"></div></div></div>';
   }).join('');
-  const ii = Object.entries(s.inventory).filter(([_, q]) => q > 0).map(([k, q]) => '<option value="' + k + '">' + k + ' (x' + q + ')</option>').join('');
+  const ii = Object.entries(s.inventory).filter(([_, q]) => q > 0).map(([k, q]) => '<option value="' + k + '">' + (CROP_DATA[k] ? CROP_DATA[k].name : (RECIPE_DATA[k] ? RECIPE_DATA[k].name : k)) + ' (x' + q + ')</option>').join('');
   const ro = ROUTE_TYPES.map(r => '<option value="' + r.id + '">' + r.icon + ' ' + r.name + '</option>').join('');
-  const arh = (s.logistics.autoRoutes || []).map(ar => { const r = ROUTE_TYPES.find(x => x.id === ar.routeType); return '<div class="auto-route"><span>' + (r ? r.icon : '🔄') + ' ' + (r ? r.name : ar.routeType) + ': ' + ar.product + ' x' + ar.quantity + ' (库存>' + ar.minQuantity + ')</span><button class="btn-remove" onclick="window.game.removeAutoRoute(' + ar.id + ')">删除</button></div>'; }).join('');
+  const arh = (s.logistics.autoRoutes || []).map(ar => { const r = ROUTE_TYPES.find(x => x.id === ar.routeType); return '<div class="auto-route"><span>' + (r ? r.icon : '\u{1F504}') + ' ' + (r ? r.name : ar.routeType) + ': ' + ar.product + ' x' + ar.quantity + ' (库存>' + ar.minQuantity + ')</span><button class="btn-remove" ontouchstart="window.game.removeAutoRoute(' + ar.id + ')" onclick="window.game.removeAutoRoute(' + ar.id + ')">删除</button></div>'; }).join('');
   const tc = getUpgradeCost('truck', s.upgrades.truck);
-  const btb = s.upgrades.truck < 8 ? '<button class="btn-action" onclick="window.game.buyTruck()" ' + (s.gold < tc ? 'disabled' : '') + '>购买卡车 (' + tc + 'G)</button>' : '';
+  const btb = s.upgrades.truck < 8 ? '<button class="btn-action" ontouchstart="window.game.buyTruck()" onclick="window.game.buyTruck()" ' + (s.gold < tc ? 'disabled' : '') + '>购买卡车 (' + tc + 'G)</button>' : '';
   return '<div class="module-header logistics-scene"><h2>物流中心</h2><p class="module-desc">管理运输车队，连接全产业链</p></div>' +
     '<div class="farm-controls">' + btb + '</div>' +
     '<div class="section-title">车队 (运输时间: ' + Math.ceil(tt) + '秒)</div><div class="trucks-grid">' + th + '</div>' +
-    '<div class="section-title">手动发货</div><div class="shipment-form"><select id="ship-route">' + ro + '</select><select id="ship-product">' + (ii || '<option value="">无库存</option>') + '</select><input type="number" id="ship-qty" value="5" min="1" max="100" /><button class="btn-action" onclick="window.game.manualShipment()">发货</button></div>' +
+    '<div class="section-title">手动发货</div><div class="shipment-form"><select id="ship-route">' + ro + '</select><select id="ship-product">' + (ii || '<option value="">无库存</option>') + '</select><input type="number" id="ship-qty" value="5" min="1" max="100" /><button class="btn-action" ontouchstart="window.game.manualShipment()" onclick="window.game.manualShipment()">发货</button></div>' +
     '<div class="section-title">自动路线</div><div class="auto-routes">' + (arh || '<div class="empty-text-sm">暂无自动路线</div>') + '</div>' +
-    '<div class="shipment-form"><select id="auto-route-type">' + ro + '</select><input type="text" id="auto-route-product" placeholder="商品名称" /><input type="number" id="auto-route-qty" value="5" min="1" /><button class="btn-action" onclick="window.game.addAutoRouteFromUI()">添加自动路线</button></div>';
+    '<div class="shipment-form"><select id="auto-route-type">' + ro + '</select><input type="text" id="auto-route-product" placeholder="商品名称" /><input type="number" id="auto-route-qty" value="5" min="1" /><button class="btn-action" ontouchstart="window.game.addAutoRouteFromUI()" onclick="window.game.addAutoRouteFromUI()">添加自动路线</button></div>';
 }
 
 // ===== ui.js =====
@@ -609,12 +1103,14 @@ function formatTime(sec) { const h = Math.floor(sec / 3600), m = Math.floor((sec
 
 function renderHeader(s) {
   const xp = Math.floor(getXPProgress(s) * 100), pm = getPrestigeMultiplier(s);
-  return '<div class="header"><div class="header-left"><span class="game-title">' + EmpireAssets.icon('factory', 'header-icon', '圣王国') + '圣王国</span><span class="gold-display">' + EmpireAssets.icon('gold', 'header-icon', '金币') + formatNumber(s.gold) + ' G</span></div><div class="header-center"><div class="level-display"><span class="level-badge">Lv.' + s.level + '</span><div class="xp-bar"><div class="xp-fill" style="width:' + xp + '%"></div></div><span class="xp-text">' + xp + '%</span></div></div><div class="header-right">' + (s.prestigeCount > 0 ? '<span class="prestige-badge" title="转生加成">' + EmpireAssets.icon('prestige', 'tiny-icon', '转生') + 'x' + pm.toFixed(2) + '</span>' : '') + '<span class="time-display">' + EmpireAssets.icon('time', 'tiny-icon', '时间') + formatTime(s.gameTime) + '</span><button class="btn-icon" onclick="window.game.showSettings()" title="设置">' + EmpireAssets.icon('settings', 'asset-icon', '设置') + '</button></div></div>';
+  const season = getCurrentSeason(s);
+  const seasonIcon = SEASONS[season] ? SEASONS[season].icon : '';
+  return '<div class="header"><div class="header-left"><span class="game-title">\u{1F3ED} 圣王国</span><span class="gold-display">\u{1F4B0} ' + formatNumber(s.gold) + ' G</span></div><div class="header-center"><div class="level-display"><span class="level-badge">Lv.' + s.level + '</span><div class="xp-bar"><div class="xp-fill" style="width:' + xp + '%"></div></div><span class="xp-text">' + xp + '%</span></div></div><div class="header-right">' + (s.prestigeCount > 0 ? '<span class="prestige-badge" title="转生加成">\u{1F451}x' + pm.toFixed(2) + '</span>' : '') + '<span class="season-badge" title="当前季节">' + seasonIcon + '</span><span class="time-display">\u{23F1} ' + formatTime(s.gameTime) + '</span><button class="btn-icon" ontouchstart="window.game.showSettings()" onclick="window.game.showSettings()" title="设置">\u{2699}\u{FE0F}</button></div></div>';
 }
 
 function renderTabBar(s) {
-  const tabs = [{ id: 'farm', name: '农场' }, { id: 'factory', name: '工厂', locked: !s.factoryUnlocked }, { id: 'shop', name: '商店', locked: !s.shopUnlocked }, { id: 'logistics', name: '物流', locked: !s.logisticsUnlocked }, { id: 'upgrades', name: '升级' }, { id: 'buffs', name: '增益' }, { id: 'overview', name: '总览' }];
-  return '<div class="tab-bar">' + tabs.map(t => '<button class="tab ' + (s.currentTab === t.id ? 'active' : '') + ' ' + (t.locked ? 'locked' : '') + '" onclick="window.game.switchTab(\'' + t.id + '\')" title="' + (t.locked ? '未解锁' : t.name) + '"><span class="tab-icon">' + EmpireAssets.tab(t.id, 'tab-icon-img') + '</span><span class="tab-name">' + t.name + '</span></button>').join('') + '</div>';
+  const tabs = [{ id: 'farm', name: '农场' }, { id: 'factory', name: '工厂', locked: !s.factoryUnlocked }, { id: 'shop', name: '商店', locked: !s.shopUnlocked }, { id: 'logistics', name: '物流', locked: !s.logisticsUnlocked }, { id: 'upgrades', name: '升级' }, { id: 'buffs', name: '增益' }, { id: 'quests', name: '任务' }, { id: 'achievements', name: '成就' }, { id: 'npc', name: 'NPC' }, { id: 'overview', name: '总览' }];
+  return '<div class="tab-bar">' + tabs.map(t => '<button class="tab ' + (s.currentTab === t.id ? 'active' : '') + ' ' + (t.locked ? 'locked' : '') + '" ontouchstart="window.game.switchTab(\'' + t.id + '\')" onclick="window.game.switchTab(\'' + t.id + '\')" title="' + (t.locked ? '未解锁' : t.name) + '"><span class="tab-icon">' + EmpireAssets.tab(t.id, 'tab-icon-img') + '</span><span class="tab-name">' + t.name + '</span></button>').join('') + '</div>';
 }
 
 function renderUpgrades(s) {
@@ -623,19 +1119,89 @@ function renderUpgrades(s) {
   for (const [ck, cn] of Object.entries(cats)) {
     const ul = Object.entries(UPGRADE_DATA).filter(([_, d]) => d.category === ck).map(([k, d]) => {
       const cur = s.upgrades[k] || 0, cost = getUpgradeCost(k, cur), mx = cur >= d.maxLevel;
-      return '<div class="upgrade-item ' + (mx ? 'maxed' : '') + '"><span class="upgrade-icon">' + EmpireAssets.upgrade(k, 'upgrade-icon-img') + '</span><div class="upgrade-info"><span class="upgrade-name">' + d.name + '</span><span class="upgrade-effect">' + (d.effectDesc || '') + ' (Lv.' + cur + '/' + d.maxLevel + ')</span></div>' + (mx ? '<span class="upgrade-maxed">已满级</span>' : '<button class="btn-upgrade" onclick="window.game.buyUpgrade(\'' + k + '\')" ' + (s.gold < cost ? 'disabled' : '') + '>升级 (' + formatNumber(cost) + 'G)</button>') + '</div>';
+      return '<div class="upgrade-item ' + (mx ? 'maxed' : '') + '"><span class="upgrade-icon">' + d.icon + '</span><div class="upgrade-info"><span class="upgrade-name">' + d.name + '</span><span class="upgrade-effect">' + (d.effectDesc || '') + ' (Lv.' + cur + '/' + d.maxLevel + ')</span></div>' + (mx ? '<span class="upgrade-maxed">已满级</span>' : '<button class="btn-upgrade" ontouchstart="window.game.buyUpgrade(\'' + k + '\')" onclick="window.game.buyUpgrade(\'' + k + '\')" ' + (s.gold < cost ? 'disabled' : '') + '>升级 (' + formatNumber(cost) + 'G)</button>') + '</div>';
     }).join('');
     h += '<div class="section-title">' + cn + '</div><div class="upgrades-list">' + ul + '</div>';
   }
   const cp = canPrestige(s), pp = calculatePrestigePoints(s);
-  h += '<div class="section-title prestige-title">转生系统</div><div class="prestige-section"><div class="prestige-info"><p>累计收入: ' + formatNumber(s.totalEarnings) + ' G</p><p>当前转生点数: ' + s.prestigePoints + '</p><p>转生加成: x' + getPrestigeMultiplier(s).toFixed(2) + '</p><p>转生次数: ' + s.prestigeCount + '</p>' + (pp > 0 ? '<p class="prestige-gain">可获转生点数: +' + pp + '</p>' : '') + '</div><button class="btn-prestige" onclick="window.game.doPrestige()" ' + (!cp ? 'disabled' : '') + '>' + (cp ? '转生 (+' + pp + '点)' : '需累计收入 ' + formatNumber(100000) + 'G') + '</button><p class="prestige-warning">' + EmpireAssets.icon('warning', 'tiny-icon', '警告') + ' 转生将重置所有进度，但永久保留转生加成</p></div>';
+  h += '<div class="section-title prestige-title">转生系统</div><div class="prestige-section"><div class="prestige-info"><p>累计收入: ' + formatNumber(s.totalEarnings) + ' G</p><p>当前转生点数: ' + s.prestigePoints + '</p><p>转生加成: x' + getPrestigeMultiplier(s).toFixed(2) + '</p><p>转生次数: ' + s.prestigeCount + '</p>' + (pp > 0 ? '<p class="prestige-gain">可获转生点数: +' + pp + '</p>' : '') + '</div><button class="btn-prestige" ontouchstart="window.game.doPrestige()" onclick="window.game.doPrestige()" ' + (!cp ? 'disabled' : '') + '>' + (cp ? '转生 (+' + pp + '点)' : '需累计收入 ' + formatNumber(100000) + 'G') + '</button><p class="prestige-warning">\u{26A0}\u{FE0F} 转生将重置所有进度，但永久保留转生加成</p></div>';
   return h;
 }
 
 function renderBuffs(s) {
-  const ab = s.activeBuffs.length > 0 ? s.activeBuffs.map(b => { const rem = Math.max(0, Math.ceil((b.expiresAt - Date.now()) / 1000)); return '<div class="buff-active"><span class="buff-icon">' + EmpireAssets.buff(b.key, 'buff-icon-img') + '</span><span class="buff-name">' + b.name + '</span><span class="buff-timer">' + formatTime(rem) + '</span><div class="progress-bar small"><div class="progress-fill complete" style="width:' + Math.floor((rem / 120) * 100) + '%"></div></div></div>'; }).join('') : '<div class="empty-text">暂无激活的增益效果</div>';
-  const sb = Object.entries(BUFF_DATA).map(([k, d]) => { const ia = s.activeBuffs.some(b => b.key === k); return '<div class="buff-item ' + (ia ? 'active' : '') + '"><span class="buff-icon">' + EmpireAssets.buff(k, 'buff-icon-img') + '</span><div class="buff-info"><span class="buff-name">' + d.name + '</span><span class="buff-desc">' + d.description + '</span><span class="buff-duration">持续 ' + d.duration + '秒</span></div><button class="btn-buff" onclick="window.game.activateBuff(\'' + k + '\')" ' + (s.gold < d.cost || ia ? 'disabled' : '') + '>' + d.cost + 'G</button></div>'; }).join('');
+  const ab = s.activeBuffs.length > 0 ? s.activeBuffs.map(b => { const rem = Math.max(0, Math.ceil((b.expiresAt - Date.now()) / 1000)); return '<div class="buff-active"><span class="buff-icon">' + b.icon + '</span><span class="buff-name">' + b.name + '</span><span class="buff-timer">' + formatTime(rem) + '</span><div class="progress-bar small"><div class="progress-fill complete" style="width:' + Math.floor((rem / 120) * 100) + '%"></div></div></div>'; }).join('') : '<div class="empty-text">暂无激活的增益效果</div>';
+  const sb = Object.entries(BUFF_DATA).map(([k, d]) => { const ia = s.activeBuffs.some(b => b.key === k); return '<div class="buff-item ' + (ia ? 'active' : '') + '"><span class="buff-icon">' + d.icon + '</span><div class="buff-info"><span class="buff-name">' + d.name + '</span><span class="buff-desc">' + d.description + '</span><span class="buff-duration">持续 ' + d.duration + '秒</span></div><button class="btn-buff" ontouchstart="window.game.activateBuff(\'' + k + '\')" onclick="window.game.activateBuff(\'' + k + '\')" ' + (s.gold < d.cost || ia ? 'disabled' : '') + '>' + d.cost + 'G</button></div>'; }).join('');
   return '<div class="module-header shop-scene"><h2>增益商店</h2><p class="module-desc">购买临时增益，大幅提升效率</p></div><div class="section-title">激活中的增益</div><div class="buffs-active">' + ab + '</div><div class="section-title">增益商店</div><div class="buffs-shop">' + sb + '</div>';
+}
+
+function renderQuests(s) {
+  generateQuests(s);
+  let h = '<div class="module-header logistics-scene"><h2>任务中心</h2><p class="module-desc">完成任务获得丰厚奖励</p></div>';
+  // Daily quests
+  h += '<div class="section-title">每日任务 (' + s.quests.daily.filter(q => q.completed).length + '/' + s.quests.daily.length + ')</div>';
+  if (s.quests.daily.length === 0) h += '<div class="empty-text">暂无任务</div>';
+  else {
+    h += '<div class="quests-list">';
+    for (const q of s.quests.daily) {
+      const text = q.text.replace('{count}', q.count).replace('{crop}', q.target ? (CROP_DATA[q.target] ? CROP_DATA[q.target].name : q.target) : '').replace('{recipe}', q.target ? (RECIPE_DATA[q.target] ? RECIPE_DATA[q.target].name : q.target) : '');
+      h += '<div class="quest-item ' + (q.completed ? 'completed' : '') + ' ' + (q.claimed ? 'claimed' : '') + '">' +
+        '<div class="quest-info"><span class="quest-name">' + text + '</span><span class="quest-reward">\u{1F4B0} ' + q.reward.gold + 'G | \u{2B50} ' + q.reward.xp + 'XP</span></div>' +
+        (q.completed && !q.claimed ? '<button class="btn-action btn-small" ontouchstart="window.game.claimQuest(\'' + q.id + '\')" onclick="window.game.claimQuest(\'' + q.id + '\')">领取</button>' : (q.claimed ? '<span class="quest-done">\u{2705}已领取</span>' : '<span class="quest-progress">进行中</span>')) +
+        '</div>';
+    }
+    h += '</div>';
+  }
+  // Weekly quest
+  h += '<div class="section-title">每周任务</div>';
+  const wq = s.quests.weekly;
+  if (!wq) h += '<div class="empty-text">暂无周任务</div>';
+  else {
+    const text = wq.text.replace('{count}', formatNumber(wq.count));
+    h += '<div class="quest-item weekly ' + (wq.completed ? 'completed' : '') + ' ' + (wq.claimed ? 'claimed' : '') + '">' +
+      '<div class="quest-info"><span class="quest-name">' + text + '</span><span class="quest-reward">\u{1F4B0} ' + wq.reward.gold + 'G | \u{2B50} ' + wq.reward.xp + 'XP</span></div>' +
+      (wq.completed && !wq.claimed ? '<button class="btn-action btn-small" ontouchstart="window.game.claimQuest(\'' + wq.id + '\')" onclick="window.game.claimQuest(\'' + wq.id + '\')">领取</button>' : (wq.claimed ? '<span class="quest-done">\u{2705}已领取</span>' : '<span class="quest-progress">进行中</span>')) +
+      '</div>';
+  }
+  return h;
+}
+
+function renderAchievements(s) {
+  checkAchievements(s);
+  let h = '<div class="module-header shop-scene"><h2>成就殿堂</h2><p class="module-desc">完成成就获得荣耀</p></div>';
+  h += '<div class="achievement-stats">已完成: ' + Object.keys(s.achievements).length + ' / ' + ACHIEVEMENT_DATA.length + '</div>';
+  h += '<div class="achievements-list">';
+  for (const a of ACHIEVEMENT_DATA) {
+    const unlocked = !!s.achievements[a.id];
+    h += '<div class="achievement-item ' + (unlocked ? 'unlocked ' + a.tier : 'locked') + '">' +
+      '<span class="achievement-icon">' + a.icon + '</span>' +
+      '<div class="achievement-info"><span class="achievement-name">' + a.name + '</span><span class="achievement-desc">' + a.desc + '</span></div>' +
+      '<span class="achievement-tier">' + getAchievementTierName(a.tier) + '</span>' +
+      '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function renderNPC(s) {
+  let h = '<div class="module-header farm-scene"><h2>NPC 交流</h2><p class="module-desc">与NPC互动，完成任务获得奖励</p></div>';
+  for (const npc of NPC_DATA) {
+    if (!canShowNPC(s, npc.id)) continue;
+    const dialogue = getNPCDialogue(s, npc.id);
+    const prog = s.npcProgress[npc.id] || 0;
+    const total = (NPC_DIALOGUES[npc.id] || []).length;
+    h += '<div class="npc-card"><div class="npc-header"><span class="npc-icon">' + npc.icon + '</span><span class="npc-name">' + npc.name + '</span><span class="npc-role">' + (npc.role === 'guide' ? '导师' : npc.role === 'unlock' ? '专家' : '特殊') + '</span></div>';
+    h += '<div class="npc-progress">进度: ' + Math.min(prog, total) + '/' + total + '</div>';
+    if (dialogue) {
+      h += '<div class="npc-dialogue"><p>' + dialogue.text + '</p>';
+      const taskText = dialogue.task ? '<span class="npc-task">任务: ' + dialogue.task + '</span>' : '';
+      h += taskText + '</div>';
+      h += '<button class="btn-action" ontouchstart="window.game.advanceNPC(\'' + npc.id + '\')" onclick="window.game.advanceNPC(\'' + npc.id + '\')">完成任务</button>';
+    } else {
+      h += '<div class="npc-dialogue"><p>暂时没有新任务了，继续发展你的帝国吧！</p></div>';
+    }
+    h += '</div>';
+  }
+  return h;
 }
 
 function renderOverview(s) {
@@ -644,14 +1210,19 @@ function renderOverview(s) {
   const fma = s.factory.machines.filter(m => m.recipe).length, tm = s.factory.machines.length;
   const ss = s.shop.shelves.filter(x => x.quantity > 0).length, ts = s.shop.shelves.length;
   const tb = s.logistics.trucks.filter(t => t.busy).length, tt = s.logistics.trucks.length;
-  const ai = Object.entries(s.inventory).filter(([_, q]) => q > 0).map(([k, q]) => { const cd = CROP_DATA[k], rd2 = RECIPE_DATA[k]; return '<div class="inv-item-sm">' + EmpireAssets.item(k, 'tiny-icon', k) + (cd ? cd.name : (rd2 ? rd2.name : k)) + ' x' + q + '</div>'; }).join('');
-  const chain = '<div class="chain-visual"><div class="chain-node ' + (fp > 0 ? 'active' : '') + '"><div class="chain-icon">' + EmpireAssets.tab('farm', 'chain-icon-img') + '</div><div class="chain-label">农场</div><div class="chain-stat">' + fp + '/' + tp + ' 地块</div><div class="chain-detail">' + gr + ' 生长中 / ' + rd + ' 可收获</div></div><div class="chain-arrow ' + (s.factoryUnlocked ? 'active' : '') + '">→</div><div class="chain-node ' + (s.factoryUnlocked ? 'active' : '') + '"><div class="chain-icon">' + EmpireAssets.tab('factory', 'chain-icon-img') + '</div><div class="chain-label">工厂</div><div class="chain-stat">' + fma + '/' + tm + ' 运转</div><div class="chain-detail">' + (s.factoryUnlocked ? '已建造' : '未建造') + '</div></div><div class="chain-arrow ' + (s.shopUnlocked ? 'active' : '') + '">→</div><div class="chain-node ' + (s.shopUnlocked ? 'active' : '') + '"><div class="chain-icon">' + EmpireAssets.tab('shop', 'chain-icon-img') + '</div><div class="chain-label">商店</div><div class="chain-stat">' + ss + '/' + ts + ' 货架</div><div class="chain-detail">' + (s.shopUnlocked ? s.shop.customers.length + ' 顾客' : '未建造') + '</div></div></div>';
-  return '<div class="module-header logistics-scene"><h2>产业总览</h2><p class="module-desc">全局视角查看你的圣王国</p></div>' +
-    '<div class="overview-stats"><div class="stat-card large"><span class="stat-icon">' + EmpireAssets.icon('gold', 'stat-icon-img', '金币') + '</span><span class="stat-value">' + formatNumber(s.gold) + '</span><span class="stat-label">当前金币</span></div><div class="stat-card large"><span class="stat-icon">' + EmpireAssets.icon('income', 'stat-icon-img', '收入') + '</span><span class="stat-value">' + formatNumber(s.totalEarnings) + '</span><span class="stat-label">累计收入</span></div><div class="stat-card large"><span class="stat-icon">' + EmpireAssets.icon('level', 'stat-icon-img', '等级') + '</span><span class="stat-value">Lv.' + s.level + '</span><span class="stat-label">玩家等级</span></div><div class="stat-card large"><span class="stat-icon">' + EmpireAssets.icon('prestige', 'stat-icon-img', '转生') + '</span><span class="stat-value">' + s.prestigePoints + '</span><span class="stat-label">转生点数</span></div></div>' +
+  const ai = Object.entries(s.inventory).filter(([_, q]) => q > 0).map(([k, q]) => { const cd = CROP_DATA[k], rd2 = RECIPE_DATA[k]; return '<div class="inv-item-sm">' + (cd ? cd.icon : (rd2 ? rd2.icon : '\u{1F4E6}')) + ' ' + (cd ? cd.name : (rd2 ? rd2.name : k)) + ' x' + q + '</div>'; }).join('');
+  const chain = '<div class="chain-visual"><div class="chain-node ' + (fp > 0 ? 'active' : '') + '"><div class="chain-icon">\u{1F331}</div><div class="chain-label">农场</div><div class="chain-stat">' + fp + '/' + tp + ' 地块</div><div class="chain-detail">' + gr + ' 生长中 / ' + rd + ' 可收获</div></div><div class="chain-arrow ' + (s.factoryUnlocked ? 'active' : '') + '">\u2192</div><div class="chain-node ' + (s.factoryUnlocked ? 'active' : '') + '"><div class="chain-icon">\u{2699}\u{FE0F}</div><div class="chain-label">工厂</div><div class="chain-stat">' + fma + '/' + tm + ' 运转</div><div class="chain-detail">' + (s.factoryUnlocked ? '已建造' : '未建造') + '</div></div><div class="chain-arrow ' + (s.shopUnlocked ? 'active' : '') + '">\u2192</div><div class="chain-node ' + (s.shopUnlocked ? 'active' : '') + '"><div class="chain-icon">\u{1F3EA}</div><div class="chain-label">商店</div><div class="chain-stat">' + ss + '/' + ts + ' 货架</div><div class="chain-detail">' + (s.shopUnlocked ? s.shop.customers.length + ' 顾客' : '未建造') + '</div></div></div>';
+  // Weather display
+  let weatherHtml = '';
+  if (s.activeWeather) {
+    weatherHtml = '<div class="weather-alert ' + s.activeWeather.type + '"><span class="weather-icon">' + s.activeWeather.icon + '</span><span>' + s.activeWeather.name + ' - ' + s.activeWeather.desc + ' (' + Math.ceil(s.activeWeather.remaining) + '秒)</span></div>';
+  }
+  return '<div class="module-header logistics-scene"><h2>产业总览</h2><p class="module-desc">全局视角查看你的圣王国</p></div>' + weatherHtml +
+    '<div class="overview-stats"><div class="stat-card large"><span class="stat-icon">\u{1F4B0}</span><span class="stat-value">' + formatNumber(s.gold) + '</span><span class="stat-label">当前金币</span></div><div class="stat-card large"><span class="stat-icon">\u{1F4B5}</span><span class="stat-value">' + formatNumber(s.totalEarnings) + '</span><span class="stat-label">累计收入</span></div><div class="stat-card large"><span class="stat-icon">\u{2B50}</span><span class="stat-value">Lv.' + s.level + '</span><span class="stat-label">玩家等级</span></div><div class="stat-card large"><span class="stat-icon">\u{1F451}</span><span class="stat-value">' + s.prestigePoints + '</span><span class="stat-label">转生点数</span></div></div>' +
     '<div class="section-title">产业链</div>' + chain +
     '<div class="section-title">物流状态</div><div class="logistics-overview"><span>卡车: ' + tb + '/' + tt + ' 使用中</span></div>' +
     '<div class="section-title">全部库存</div><div class="full-inventory">' + (ai || '<div class="empty-text">仓库空空如也</div>') + '</div>' +
-    '<div class="section-title">统计数据</div><div class="stats-grid"><div class="stat-card"><span class="stat-value">' + formatNumber(s.stats.totalRevenue) + '</span><span class="stat-label">总收入</span></div><div class="stat-card"><span class="stat-value">' + formatNumber(s.stats.totalSpent) + '</span><span class="stat-label">总支出</span></div><div class="stat-card"><span class="stat-value">' + (s.shop.totalCustomersServed || 0) + '</span><span class="stat-label">服务顾客</span></div><div class="stat-card"><span class="stat-value">' + s.prestigeCount + '</span><span class="stat-label">转生次数</span></div></div>';
+    '<div class="section-title">统计数据</div><div class="stats-grid"><div class="stat-card"><span class="stat-value">' + formatNumber(s.stats.totalRevenue) + '</span><span class="stat-label">总收入</span></div><div class="stat-card"><span class="stat-value">' + formatNumber(s.stats.totalSpent) + '</span><span class="stat-label">总支出</span></div><div class="stat-card"><span class="stat-value">' + (s.shop.totalCustomersServed || 0) + '</span><span class="stat-label">服务顾客</span></div><div class="stat-card"><span class="stat-value">' + (Object.keys(s.achievements).length) + '</span><span class="stat-label">成就数</span></div></div>';
 }
 
 function renderNotifications(s) {
@@ -667,18 +1238,22 @@ function notifyOuterScreen(screen) {
 }
 
 function renderSettingsModal(s) {
-  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()"><h3>设置</h3><div class="modal-actions"><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div><div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p></div></div></div>';
+  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()"><h3>设置</h3><div class="modal-actions"><button class="btn-action" onclick="window.game.toggleBGM()">' + (s.settings.bgm ? '关闭' : '开启') + '背景音乐</button><button class="btn-action" onclick="window.game.toggleSFX()">' + (s.settings.sfx ? '关闭' : '开启') + '音效</button><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div><div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p><p>季节周期: 每5分钟切换</p><p>成就数: ' + Object.keys(s.achievements).length + '/' + ACHIEVEMENT_DATA.length + '</p></div></div></div>';
 }
 
 function renderOfflineModal(e) {
-  return '<div class="modal-overlay"><div class="modal offline-modal">' + EmpireAssets.img(EmpireAssets.effects.offline, 'offline-effect', '离线收益') + '<h3>欢迎回来！</h3><p class="offline-duration">你离开了 ' + formatTime(e.duration) + '</p><div class="offline-rewards"><div class="offline-reward">' + EmpireAssets.icon('gold', 'tiny-icon', '金币') + ' +' + formatNumber(e.gold) + ' G</div><div class="offline-reward">' + EmpireAssets.icon('xp', 'tiny-icon', '经验') + ' +' + formatNumber(e.xp) + ' XP</div>' + Object.entries(e.items).map(([i, q]) => { const cd = CROP_DATA[i], rd = RECIPE_DATA[i]; return '<div class="offline-reward">' + EmpireAssets.item(i, 'tiny-icon', i) + ' ' + (cd ? cd.name : (rd ? rd.name : i)) + ' x' + q + '</div>'; }).join('') + '</div><button class="btn-action btn-large" onclick="window.game.dismissOffline()">收取</button></div></div>';
+  return '<div class="modal-overlay"><div class="modal offline-modal"><h3>\u{1F4A4} 欢迎回来！</h3><p class="offline-duration">你离开了 ' + formatTime(e.duration) + '</p><div class="offline-rewards"><div class="offline-reward">\u{1F4B0} +' + formatNumber(e.gold) + ' G</div><div class="offline-reward">\u{2728} +' + formatNumber(e.xp) + ' XP</div>' + Object.entries(e.items).map(([i, q]) => { const cd = CROP_DATA[i], rd = RECIPE_DATA[i]; return '<div class="offline-reward">' + (cd ? cd.icon : (rd ? rd.icon : '\u{1F4E6}')) + ' ' + (cd ? cd.name : (rd ? rd.name : i)) + ' x' + q + '</div>'; }).join('') + '</div><button class="btn-action btn-large" ontouchstart="window.game.dismissOffline()" onclick="window.game.dismissOffline()">收取</button></div></div>';
+}
+
+function renderAchievementPopup(a) {
+  return '<div class="achievement-popup"><span class="achievement-popup-icon">' + a.icon + '</span><div class="achievement-popup-info"><span class="achievement-popup-name">解锁成就: ' + a.name + '</span><span class="achievement-popup-tier">' + getAchievementTierName(a.tier) + '级成就</span></div></div>';
 }
 
 // ===== main.js =====
 var game;
 
 (function() {
-  var state, lastTick, lastSave, lastUI, modalHTML = '', offlineEarnings = null;
+  var state, lastTick, lastSave, lastUI, modalHTML = '', offlineEarnings = null, achievementPopups = [];
 
   function init() {
     var saved = loadGame();
@@ -690,6 +1265,7 @@ var game;
       state = createInitialState();
     }
     lastTick = performance.now(); lastSave = Date.now(); lastUI = 0;
+    generateQuests(state);
     render();
     requestAnimationFrame(loop);
 
@@ -702,7 +1278,7 @@ var game;
     lastTick = now;
     update(dt);
     if (Date.now() - lastSave >= 60000) { saveGame(state, { force: true }); lastSave = Date.now(); }
-    if (now - lastUI >= 250) { render(); lastUI = now; }
+    if (now - lastUI >= 500) { render(); lastUI = now; }
   }
 
   function update(dt) {
@@ -712,6 +1288,17 @@ var game;
     if (state.shopUnlocked) updateShop(state, dt);
     if (state.logisticsUnlocked) updateLogistics(state, dt);
     updateBuffs(state);
+    updateWeather(state, dt);
+    updateQuests(state);
+    // Check achievements periodically
+    if (Math.floor(state.gameTime) % 5 === 0) {
+      var newAch = checkAchievements(state);
+      for (var i = 0; i < newAch.length; i++) {
+        notify(state, '\u{1F3C6} 解锁成就: ' + newAch[i].name + ' [' + getAchievementTierName(newAch[i].tier) + ']', 'gold');
+        AudioEngine.playAchievement();
+        achievementPopups.push({ ach: newAch[i], time: Date.now() });
+      }
+    }
   }
 
   function render() {
@@ -724,20 +1311,27 @@ var game;
       case 'logistics': c = renderLogistics(state); break;
       case 'upgrades': c = renderUpgrades(state); break;
       case 'buffs': c = renderBuffs(state); break;
+      case 'quests': c = renderQuests(state); break;
+      case 'achievements': c = renderAchievements(state); break;
+      case 'npc': c = renderNPC(state); break;
       case 'overview': c = renderOverview(state); break;
       default: c = renderFarm(state);
     }
-    app.innerHTML = renderHeader(state) + '<div class="main-content">' + c + '</div><div class="notification-area">' + renderNotifications(state) + '</div>' + modalHTML;
+    // Achievement popups
+    var popupHtml = '';
+    var now = Date.now();
+    achievementPopups = achievementPopups.filter(function(p) { return now - p.time < 3000; });
+    if (achievementPopups.length > 0) popupHtml = '<div class="achievement-popups">' + achievementPopups.map(function(p) { return renderAchievementPopup(p.ach); }).join('') + '</div>';
+    app.innerHTML = renderHeader(state) + '<div class="main-content">' + c + '</div><div class="notification-area">' + renderNotifications(state) + '</div>' + popupHtml + modalHTML;
     notifyOuterScreen(state.currentTab);
   }
 
   game = {
-    switchTab: function(t) { state.currentTab = t; render(); },
+    switchTab: function(t) { AudioEngine.playClick(); state.currentTab = t; AudioEngine.switchBGM(t); render(); },
     plantCrop: function(id, k) { if (farmPlantCrop(state, id, k)) render(); },
     harvestCrop: function(id) { if (farmHarvestCrop(state, id)) render(); },
     harvestAll: function() { farmHarvestAll(state); render(); },
     oneClickPlant: function() {
-      // Always plant the most expensive unlocked crop
       var unlocked = Object.keys(CROP_DATA).filter(function(k) { return state.level >= CROP_DATA[k].unlockLevel; });
       if (unlocked.length === 0) { notify(state, '没有可种植的作物', 'warning'); render(); return; }
       unlocked.sort(function(a, b) { return CROP_DATA[b].seedCost - CROP_DATA[a].seedCost; });
@@ -764,36 +1358,59 @@ var game;
     },
     sellRawCrop: function(k) { if (sellRawCrop(state, k)) render(); },
     buyFarmPlot: function() { if (buyFarmPlot(state)) render(); },
-    buildFactory: function() { if (hasGold(state, BUILD_COSTS.factory)) { addGold(state, -BUILD_COSTS.factory); state.factoryUnlocked = true; notify(state, '加工厂建造完成！', 'success'); render(); } },
+    buildFactory: function() { if (hasGold(state, BUILD_COSTS.factory)) { addGold(state, -BUILD_COSTS.factory); state.factoryUnlocked = true; notify(state, '加工厂建造完成！', 'success'); AudioEngine.playUpgrade(); render(); } },
     startProduction: function(id, k) { if (factoryStartProduction(state, id, k)) render(); },
     collectProduct: function(id) { if (factoryCollectProduct(state, id)) render(); },
     collectAllFactory: function() { factoryCollectAll(state); render(); },
     sellFactoryProduct: function(k) { if (sellFactoryProduct(state, k)) render(); },
     buyFactoryMachine: function() { if (buyFactoryMachine(state)) render(); },
-    buildShop: function() { if (hasGold(state, BUILD_COSTS.shop)) { addGold(state, -BUILD_COSTS.shop); state.shopUnlocked = true; notify(state, '商店建造完成！', 'success'); render(); } },
+    buildShop: function() { if (hasGold(state, BUILD_COSTS.shop)) { addGold(state, -BUILD_COSTS.shop); state.shopUnlocked = true; notify(state, '商店建造完成！', 'success'); AudioEngine.playUpgrade(); render(); } },
     stockShelf: function(id, k) { if (shopStockShelf(state, id, k)) render(); },
     autoStockShelves: function() { autoStockShelves(state); render(); },
     buyShopShelf: function() { if (buyShopShelf(state)) render(); },
-    buildLogistics: function() { if (hasGold(state, BUILD_COSTS.logistics)) { addGold(state, -BUILD_COSTS.logistics); state.logisticsUnlocked = true; notify(state, '物流中心建造完成！', 'success'); render(); } },
+    buildLogistics: function() { if (hasGold(state, BUILD_COSTS.logistics)) { addGold(state, -BUILD_COSTS.logistics); state.logisticsUnlocked = true; notify(state, '物流中心建造完成！', 'success'); AudioEngine.playUpgrade(); render(); } },
     manualShipment: function() { var re = document.getElementById('ship-route'), pe = document.getElementById('ship-product'), qe = document.getElementById('ship-qty'); if (!re || !pe || !qe) return; if (createShipment(state, re.value, pe.value, parseInt(qe.value) || 1)) render(); },
     addAutoRouteFromUI: function() { var re = document.getElementById('auto-route-type'), pe = document.getElementById('auto-route-product'), qe = document.getElementById('auto-route-qty'); if (!re || !pe || !qe) return; if (pe.value) { addAutoRoute(state, re.value, pe.value, parseInt(qe.value) || 5, 3); render(); } },
     removeAutoRoute: function(id) { removeAutoRoute(state, id); render(); },
     buyTruck: function() { if (buyTruck(state)) render(); },
-    buyUpgrade: function(k) { var c = getUpgradeCost(k, state.upgrades[k] || 0); if (hasGold(state, c)) { addGold(state, -c); state.upgrades[k]++; notify(state, '升级了 ' + k.replace(/_/g, ' ') + '！', 'success'); render(); } },
-    activateBuff: function(k) { if (activateBuff(state, k)) render(); },
-    doPrestige: function() { var r = doPrestige(state); if (r) { modalHTML = '<div class="modal-overlay"><div class="modal"><h3>转生成功！</h3><p>获得 ' + r.newPoints + ' 转生点数</p><p>当前总点数: ' + r.totalPoints + '</p><button class="btn-action btn-large" onclick="window.game.closeModal()">继续</button></div></div>'; render(); } },
+    buyUpgrade: function(k) { var c = getUpgradeCost(k, state.upgrades[k] || 0); if (hasGold(state, c)) { addGold(state, -c); state.upgrades[k]++; state.stats.totalUpgrades = (state.stats.totalUpgrades || 0) + 1; notify(state, '升级了 ' + UPGRADE_DATA[k].name + '！', 'success'); AudioEngine.playUpgrade(); render(); } },
+    activateBuff: function(k) { if (activateBuff(state, k)) { AudioEngine.playCoin(); render(); } },
+    doPrestige: function() { var r = doPrestige(state); if (r) { AudioEngine.playPrestigeBGM(); modalHTML = '<div class="modal-overlay"><div class="modal"><h3>\u{1F31F} 转生成功！</h3><p>获得 ' + r.newPoints + ' 转生点数</p><p>当前总点数: ' + r.totalPoints + '</p><button class="btn-action btn-large" ontouchstart="window.game.closeModal()" onclick="window.game.closeModal()">继续</button></div></div>'; render(); } },
     save: function() { if (saveGame(state, { force: true })) { notify(state, '游戏已保存！', 'success'); render(); } },
     showSettings: function() { modalHTML = renderSettingsModal(state); render(); },
     closeModal: function() { modalHTML = ''; render(); },
     hardReset: function() { if (confirm('确定要重置所有进度吗？此操作不可撤销！')) { if (confirm('真的确定吗？所有数据将永久删除！')) { deleteSave(); state = createInitialState(); modalHTML = ''; render(); } } },
     dismissOffline: function() { if (offlineEarnings) { applyOfflineEarnings(state, offlineEarnings); offlineEarnings = null; } modalHTML = ''; render(); },
+    toggleBGM: function() { state.settings.bgm = !state.settings.bgm; AudioEngine.bgmEnabled = state.settings.bgm; if (!state.settings.bgm) AudioEngine.stopBGM(); else AudioEngine.switchBGM(state.currentTab); render(); },
+    toggleSFX: function() { state.settings.sfx = !state.settings.sfx; AudioEngine.sfxEnabled = state.settings.sfx; render(); },
+    claimQuest: function(qid) { if (claimQuestReward(state, qid)) render(); },
+    advanceNPC: function(npcId) {
+      var result = advanceNPC(state, npcId);
+      if (result) {
+        notify(state, '\u{1F3C6} 完成NPC任务: ' + result.task + ' +' + result.reward.gold + 'G', 'success');
+        AudioEngine.playCoin();
+      } else {
+        notify(state, '任务条件未满足', 'warning');
+      }
+      render();
+    },
   };
+
+  // Touch optimization: initialize audio on first user interaction
+  function onFirstInteraction() {
+    AudioEngine.ensureInit();
+    AudioEngine.switchBGM(state.currentTab);
+    document.removeEventListener('touchstart', onFirstInteraction);
+    document.removeEventListener('click', onFirstInteraction);
+  }
+  document.addEventListener('touchstart', onFirstInteraction, { passive: true });
+  document.addEventListener('click', onFirstInteraction);
 
   window.addEventListener('message', function(event) {
     var data = event.data;
     if (!data || data.source !== 'empire-host') return;
     if (data.type === 'switch-screen') {
-      var allowed = ['farm', 'factory', 'shop', 'logistics', 'upgrades', 'buffs', 'overview'];
+      var allowed = ['farm', 'factory', 'shop', 'logistics', 'upgrades', 'buffs', 'quests', 'achievements', 'npc', 'overview'];
       if (allowed.indexOf(data.screen) !== -1) {
         try { game.switchTab(data.screen); } catch (_) {}
       }

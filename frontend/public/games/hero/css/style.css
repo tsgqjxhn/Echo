@@ -1439,3 +1439,99 @@ button:active { transform: scale(0.97); opacity: 0.9; }
 
 .daily-reward h3 { color: var(--gold); font-size: 14px; margin-bottom: 8px; }
 .daily-reward .rewards { font-size: 13px; color: var(--accent); }
+
+/* ===== Mobile Optimization ===== */
+
+/* Larger touch targets for mobile */
+@media (max-width: 768px) {
+  .hero-actions button,
+  .summon-buttons button,
+  .shop-item,
+  .tab-btn,
+  .btn-primary, .btn-secondary, .btn-gold, .btn-danger {
+    min-height: 48px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .hero-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+
+  .hero-card {
+    padding: 10px;
+  }
+
+  .shop-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .summon-card {
+    width: 100px;
+    padding: 8px;
+  }
+
+  /* Ensure touch targets are at least 44px */
+  .stage-btn, .campaign-map-card {
+    min-height: 48px;
+  }
+
+  .salary-claim {
+    min-height: 48px;
+    font-size: 14px;
+  }
+
+  /* Reduce font sizes slightly on small screens */
+  body { font-size: 14px; }
+
+  .resource-item .amount { font-size: 13px; }
+
+  /* Better spacing for mobile */
+  .campaign-panel { padding: 8px; }
+  .salary-panel { padding: 10px; }
+  .game-panel { padding: 10px; }
+}
+
+/* Extra small screens */
+@media (max-width: 380px) {
+  .top-bar-resources {
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .hero-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .shop-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .campaign-map-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .campaign-stage-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+  }
+}
+
+/* Disable text selection during gameplay */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Prevent pull-to-refresh on mobile */
+html, body {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Smooth scrolling */
+.screen-container {
+  -webkit-overflow-scrolling: touch;
+}

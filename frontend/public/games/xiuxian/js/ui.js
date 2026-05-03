@@ -35,6 +35,26 @@ class UIManager {
     this._updateStatusVisibility(name);
     this.renderPanel(name);
     this._notifyOuterScreen(name);
+    this._playPanelBGM(name);
+  }
+
+  _playPanelBGM(name) {
+    if (typeof XiuAudio === 'undefined') return;
+    XiuAudio.playButtonClick();
+    switch (name) {
+      case 'exploration':
+        XiuAudio.playExploreBGM();
+        break;
+      case 'auction':
+        XiuAudio.playAuctionBGM();
+        break;
+      default:
+        // Main BGM for cultivation, world, cave, etc.
+        if (name !== 'cultivation' || !this.combatInProgress) {
+          XiuAudio.playMainBGM();
+        }
+        break;
+    }
   }
 
   _notifyOuterScreen(screen) {
@@ -262,8 +282,12 @@ class UIManager {
         if (result.success) {
           this._showEffectOverlay(GameAssets.successEffect(p.realmIndex));
           this.showToast(`突破成功！晋升${result.realm.name}！`, 'legendary');
+          if (typeof XiuAudio !== 'undefined') XiuAudio.playBreakthroughSuccess();
         } else if (result.reason) {
-          if (!result.reason.includes('不足')) this._showEffectOverlay(GameAssets.effects.failure);
+          if (!result.reason.includes('不足')) {
+            this._showEffectOverlay(GameAssets.effects.failure);
+            if (typeof XiuAudio !== 'undefined') XiuAudio.playBreakthroughFailure();
+          }
           this.showToast(result.reason, result.reason.includes('不足') ? 'error' : 'info');
         }
         this.renderCultivation();
@@ -493,6 +517,7 @@ class UIManager {
     p.spiritStones -= adjustedCost;
     p.inventory[pillId] = (p.inventory[pillId] || 0) + 1;
     this.showToast(`从${source}购买了 ${pill.name}`, 'success');
+    if (typeof XiuAudio !== 'undefined') XiuAudio.playLingshi();
     this.renderCultivation();
     this.updateStatusBar();
   }
@@ -750,8 +775,10 @@ class UIManager {
         if (result.success) {
           this.showToast(`炼制成功！获得 ${GameData.items[result.recipe.result].name} x${result.amount}${result.quality === 'high' ? ' (优质)' : ''}`, 'success');
           if (result.levelUp) this.showToast('炼丹等级提升！', 'legendary');
+          if (typeof XiuAudio !== 'undefined') XiuAudio.playAlchemySuccess();
         } else {
           this.showToast('炼制失败，材料已消耗', 'error');
+          if (typeof XiuAudio !== 'undefined') XiuAudio.playAlchemyFailure();
         }
       }
       if (this.currentPanel === 'cave') this._renderAlchemyMiniGame();
@@ -865,6 +892,13 @@ class UIManager {
     this._bindClick('btn-advance', () => {
       const result = this.game.explorationSystem.advanceNode();
       if (result) {
+        if (typeof XiuAudio !== 'undefined') {
+          if (result.type === 'event') XiuAudio.playEncounter();
+          else if (result.type === 'combat') XiuAudio.playEncounter();
+          else if (result.type === 'cave') XiuAudio.playGetRareItem();
+          else if (result.type === 'gather' || result.type === 'treasure') XiuAudio.playGetItem();
+          else if (result.type === 'complete') XiuAudio.playGetRareItem();
+        }
         if (result.type === 'complete') {
           this.showToast('探索完成！', 'success');
         }
@@ -891,6 +925,7 @@ class UIManager {
     }
     const eventArt = GameAssets.events[enc.id];
     const npcArt = GameAssets.npcPortraits[enc.id];
+    if (typeof XiuAudio !== 'undefined') XiuAudio.playEncounter();
 
     document.getElementById('panel-exploration').innerHTML = `
       <div class="panel-title">奇遇</div>
@@ -944,6 +979,10 @@ class UIManager {
     const playerHpPct = Math.max(0, (combat.playerHp / p.maxHp) * 100);
     const enemyHpPct = Math.max(0, (combat.enemyHp / combat.enemyMaxHp) * 100);
     const logHtml = combat.log.slice(-8).join('<br>');
+
+    // Beast lore description
+    const beastLore = (typeof getBeastDescription !== 'undefined') ? getBeastDescription(combat.enemy.name) : '';
+    const beastLoreHtml = beastLore ? `<div class="beast-lore"><strong>妖兽图鉴：</strong>${beastLore}</div>` : '';
 
     const outerTechs = (p.equippedOuterTechniques || []);
     const innerTechs = (p.equippedInnerTechniques || []);
@@ -1005,6 +1044,7 @@ class UIManager {
             <div class="combat-tech-btns">${noInner ? '<span style="color:var(--text-secondary);font-size:12px">未装备</span>' : innerBtns}</div>
           </div>
         </div>
+        ${beastLoreHtml}
         <div class="combat-log">${logHtml || '战斗开始...'}</div>
         <div class="combat-actions">
           <button class="btn btn-primary" id="btn-combat-tick">下一回合</button>
@@ -1032,6 +1072,10 @@ class UIManager {
 
     this._bindClick('btn-combat-tick', () => {
       this.game.combatSystem.tick();
+      if (typeof XiuAudio !== 'undefined') {
+        XiuAudio.playBattleAttack();
+        setTimeout(() => XiuAudio.playBattleHit(), 300);
+      }
       this._renderCombat();
       if (combat.result) this._handleCombatResult();
     });
@@ -1063,6 +1107,7 @@ class UIManager {
     if (!combat.result) return;
 
     if (combat.result === 'win') {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.playBattleWin();
       // Check if defeated enemy matches a random NPC
       const ws = this.game.worldSystem;
       const enemyName = combat.enemy.name;
@@ -1086,6 +1131,7 @@ class UIManager {
           this.renderExploration();
         });
     } else {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.playBattleLose();
       this._showModal('战斗失败',
         `你被 ${combat.enemy.name} 击败了...生命恢复至30%`,
         () => {
@@ -1279,6 +1325,7 @@ class UIManager {
           p.spiritStones -= pillCost;
           p.inventory[pill.id] = (p.inventory[pill.id] || 0) + 1;
           this.showToast(`购买了 ${GameData.items[pill.id].name}`, 'success');
+          if (typeof XiuAudio !== 'undefined') XiuAudio.playLingshi();
           this.renderShop();
           this.updateStatusBar();
         }
@@ -1322,6 +1369,24 @@ class UIManager {
         <div class="card-row"><span>完成奇遇</span><span>${s.encountersCompleted}</span></div>
         <div class="card-row"><span>炼丹成功/失败</span><span>${s.pillsRefined} / ${s.pillsFailed}</span></div>
       </div>
+      <div class="card">
+        <div class="card-title">音效设置</div>
+        <div class="audio-settings">
+          <label class="audio-toggle">
+            <input type="checkbox" id="audio-master" checked>
+            <span>音效总开关</span>
+          </label>
+          <label class="audio-toggle">
+            <input type="checkbox" id="audio-bgm" checked>
+            <span>背景音乐</span>
+          </label>
+          <label class="audio-toggle">
+            <input type="checkbox" id="audio-sfx" checked>
+            <span>音效</span>
+          </label>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:6px">所有音效使用Web Audio API实时生成，无需下载音频文件</div>
+      </div>
       <div class="btn-group" style="margin-top:16px">
         <button class="btn" id="btn-export">导出存档</button>
         <button class="btn" id="btn-import">导入存档</button>
@@ -1329,6 +1394,25 @@ class UIManager {
       </div>
       <input type="file" id="file-import" style="display:none" accept=".txt,.sav">
     `;
+
+    // Audio settings
+    const masterToggle = document.getElementById('audio-master');
+    const bgmToggle = document.getElementById('audio-bgm');
+    const sfxToggle = document.getElementById('audio-sfx');
+    if (typeof XiuAudio !== 'undefined') {
+      masterToggle.checked = XiuAudio.enabled;
+      bgmToggle.checked = XiuAudio.bgmEnabled;
+      sfxToggle.checked = XiuAudio.sfxEnabled;
+    }
+    masterToggle.addEventListener('change', () => {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.setEnabled(masterToggle.checked);
+    });
+    bgmToggle.addEventListener('change', () => {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.setBgmEnabled(bgmToggle.checked);
+    });
+    sfxToggle.addEventListener('change', () => {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.setSfxEnabled(sfxToggle.checked);
+    });
 
     this._bindClick('btn-export', () => {
       const data = this.game.saveSystem.exportSave(p);
@@ -2179,6 +2263,7 @@ class UIManager {
       const result = auction.placeBid(minBid);
       if (result.ok) {
         this.showToast(`出价 ${BigNum.format(minBid)} 灵石`, 'info');
+        if (typeof XiuAudio !== 'undefined') XiuAudio.playAuctionBid();
       } else {
         this.showToast(result.reason, 'error');
       }
@@ -2189,6 +2274,7 @@ class UIManager {
       const result = auction.quickBid();
       if (result.ok) {
         this.showToast(`一口价 ${BigNum.format(quickBid)} 灵石！`, 'success');
+        if (typeof XiuAudio !== 'undefined') XiuAudio.playAuctionBid();
       } else {
         this.showToast(result.reason, 'error');
       }
@@ -2221,6 +2307,7 @@ class UIManager {
           const item = GameData.items[r.itemId];
           if (r.winner === 'player') {
             this.showToast(`竞得 ${item?.name || r.itemId} x${r.amount}！`, 'legendary');
+            if (typeof XiuAudio !== 'undefined') XiuAudio.playAuctionWin();
           } else {
             this.showToast(`${item?.name || r.itemId} 被 ${r.winner} 拍走`, 'info');
           }
@@ -2261,7 +2348,10 @@ class UIManager {
 
   _bindClick(id, handler) {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('click', handler);
+    if (el) el.addEventListener('click', () => {
+      if (typeof XiuAudio !== 'undefined') XiuAudio.playButtonClick();
+      handler(el);
+    });
   }
 
   _showModal(title, content, onClose) {
@@ -2310,6 +2400,7 @@ class UIManager {
     toast.textContent = message;
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
+    if (typeof XiuAudio !== 'undefined') XiuAudio.playToast();
   }
 
   _initParticles() {

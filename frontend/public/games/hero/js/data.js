@@ -152,7 +152,13 @@ const ENEMY_TYPES = {
   knight_e:  { name: '黑骑士', hp: 50,  atk: 10, speed: 0.8, size: 18, color: '#424242', xp: 12 },
   mage_e:    { name: '暗法师', hp: 25,  atk: 12, speed: 0.9, size: 14, color: '#9c27b0', xp: 10, ranged: true, range: 180 },
   orc:       { name: '兽人',   hp: 40,  atk: 8,  speed: 1.0, size: 20, color: '#8bc34a', xp: 8 },
-  wolf:      { name: '魔兽',   hp: 18,  atk: 6,  speed: 2.5, size: 12, color: '#607d8b', xp: 5 }
+  wolf:       { name: '魔兽',    hp: 18,  atk: 6,  speed: 2.5, size: 12, color: '#607d8b', xp: 5 },
+  // --- New enemy types ---
+  shadow_assassin: { name: '暗影刺客', hp: 22, atk: 9, speed: 2.8, size: 13, color: '#311b92', xp: 8, dodgeRate: 0.25 },
+  elemental:  { name: '元素精灵', hp: 30, atk: 14, speed: 1.3, size: 14, color: '#00bcd4', xp: 11, ranged: true, range: 160, elementType: 'ice' },
+  troll:      { name: '巨魔',    hp: 80, atk: 15, speed: 0.5, size: 24, color: '#33691e', xp: 14, slowAttack: true },
+  necromancer:{ name: '亡灵法师', hp: 35, atk: 7,  speed: 0.7, size: 15, color: '#880e4f', xp: 12, ranged: true, range: 200, summonSkill: true },
+  berserker:  { name: '狂战士',  hp: 45, atk: 9,  speed: 1.5, size: 19, color: '#b71c1c', xp: 10, berserkMode: true }
 };
 
 const BOSS_TYPES = [
@@ -166,27 +172,27 @@ const BATTLE_MAPS = [
   {
     id: 'veloria', name: '藤影城', terrain: '雨林', theme: 'tengying',
     desc: '藤蔓覆盖的远征城邦，敌人数量稳定增加，适合作为开局战役。',
-    enemies: ['skeleton', 'goblin', 'wolf'], miniBoss: 0, finalBoss: 1
+    enemies: ['skeleton', 'goblin', 'wolf', 'shadow_assassin'], miniBoss: 0, finalBoss: 1
   },
   {
     id: 'mireholt', name: '雾泽城', terrain: '沼泽', theme: 'swamp',
     desc: '腐雾与浅水拖慢行军，高血量敌人与法师开始混编。',
-    enemies: ['goblin', 'wolf', 'mage_e', 'orc'], miniBoss: 1, finalBoss: 2
+    enemies: ['goblin', 'wolf', 'mage_e', 'orc', 'berserker'], miniBoss: 1, finalBoss: 2
   },
   {
     id: 'saharun', name: '砂冠城', terrain: '沙漠', theme: 'desert',
     desc: '遗迹间的开阔战场，远程单位增多，敌人攻击成长更明显。',
-    enemies: ['skeleton', 'archer_e', 'orc', 'knight_e'], miniBoss: 0, finalBoss: 2
+    enemies: ['skeleton', 'archer_e', 'orc', 'knight_e', 'necromancer'], miniBoss: 0, finalBoss: 2
   },
   {
     id: 'frostspire', name: '霜穹城', terrain: '极地雪原', theme: 'snow',
     desc: '寒风中的北境要塞，精英怪比例提升，Boss 血量更厚。',
-    enemies: ['wolf', 'mage_e', 'knight_e', 'archer_e'], miniBoss: 2, finalBoss: 3
+    enemies: ['wolf', 'mage_e', 'knight_e', 'archer_e', 'elemental'], miniBoss: 2, finalBoss: 3
   },
   {
     id: 'emberfall', name: '熔渊城', terrain: '火山', theme: 'volcano',
     desc: '熔岩环绕的终局城池，敌人数量、生命和攻击全面提升。',
-    enemies: ['orc', 'knight_e', 'mage_e', 'wolf'], miniBoss: 1, finalBoss: 3
+    enemies: ['orc', 'knight_e', 'mage_e', 'wolf', 'troll'], miniBoss: 1, finalBoss: 3
   }
 ];
 
@@ -469,6 +475,52 @@ const DAILY_TASKS = [
   { id: 'dt3', name: '领取俸禄',  desc: '领取1次爵位俸禄',      target: 1, reward: { wood: 200, stone: 200 } },
   { id: 'dt4', name: '英雄培养',  desc: '升级1次英雄',          target: 1, reward: { gold: 200 } }
 ];
+
+
+// ============================================================
+// Story & Narrative Data
+// ============================================================
+
+const STORY_DATA = {
+  heroBackstories: {
+    arthur: '出身于边境小村的战士，为了保卫家园踏上征程。在一次远古遗迹的探险中，拔出了传说中的石中剑，从此肩负起统一王国的使命...',
+    caesar: '罗马帝国最年轻的将军，凭借卓越的战术才能征服了高卢全境。当黑暗势力从东方入侵时，他毅然率军远征，誓要守护文明的火种...',
+    genghis: '草原上的雄鹰，自幼在马背上长大。 unified the warring tribes and forged the mightiest cavalry the world had ever seen. His arrows blot out the sun...',
+    charles: '法兰克的守护者，手持圣枪隆基努斯。在亡灵大军席卷大陆之际，他以生命为代价筑起圣盾结界，保护了最后的避难所...',
+    lincoln: '从平民中走出的魔法师，掌握着远古禁忌的解放魔法。他坚信真正的力量不在于毁灭，而在于守护每一个弱小的生命...',
+    washington: '独立军团的领袖，在绝境中带领人民赢得了自由。他的剑锋所指，即是自由之光照耀的地方...',
+    joan: '农家少女却在教堂中听到了神谕。披上铠甲、拿起长枪，她成为了战场上的启明星，照亮了联军胜利的道路...',
+    sultan: '新月帝国的天才统帅，精通弩箭与弯刀的双重技艺。他在沙漠中建立了庞大的学院，培养了无数传奇射手...',
+    robin: '雪伍德森林的义贼之王，箭无虚发。他用劫富济贫的方式对抗暴政，成为了平民心中的传奇英雄...',
+    spartan: '温泉关最后的勇士，以三百人之力抵挡了万军之师。他的战吼能让敌人肝胆俱裂，闻风丧胆...',
+    ninja: '来自东方岛国的暗影大师，掌握着分身与瞬移的秘术。没人见过他的真面目，因为见过的敌人都已经倒下了...',
+    priest: '圣光教会最虔诚的治疗者，行走于战场之上挽救生命。他相信即使在最黑暗的时刻，希望之光也永远不会熄灭...',
+    soldier: '王国军中最普通的步兵，没有耀眼的背景，只有钢铁般的意志。正是千千万万像他这样的战士，筑起了王国的防线...',
+    archer: '精灵族边境巡逻队的射手，天生拥有超凡的视力。她的连射技巧能在三息之内射出九箭，箭箭命中要害...',
+    scout: '王国最出色的斥候，身手敏捷如风。在敌后侦查时从未失手，为大军提供了无数关键情报...',
+    page: '贵族城堡中的年轻侍从，暗中学习治疗魔法。虽然身份卑微，但他的治愈之手挽救过无数战友的生命...'
+  },
+
+  levelStories: [
+    { level: 1, title: '启程', text: '王国边境出现异动，作为王国勇士，你奉命前往调查。前方的道路充满未知，但你心中燃烧着守护家园的决心...' },
+    { level: 3, title: '初战告捷', text: '你击败了第一批入侵者，发现他们身上带有黑暗力量的印记。这股力量似乎来自遥远的北方荒原...' },
+    { level: 5, title: '暗影初现', text: '在森林深处，你发现了黑暗势力的踪迹。奇怪的符文遍布树干，空气中弥漫着腐朽的气息...' },
+    { level: 7, title: '盟友的呼唤', text: '附近的村庄遭到袭击，幸存的村民告诉你，一支亡灵军队正在向王都进发。你必须加快速度了...' },
+    { level: 10, title: '骷髅王的威胁', text: '古老的骷髅王从沉睡中苏醒，率领亡灵大军向人类世界发起了进攻。这是对你实力的第一次真正考验...' },
+    { level: 13, title: '沼泽迷踪', text: '穿越迷雾沼泽的途中，你遭遇了前所未见的变异怪物。黑暗力量正在扭曲这片土地上的生灵...' },
+    { level: 15, title: '火焰试炼', text: '沙漠深处的遗迹中，传说封印着远古的火焰恶魔。你所经过的地方，只剩下焦黑的痕迹...' },
+    { level: 17, title: '冰原行者', text: '北境的寒冰无法冻结你心中的热血。在这片永恒冻土之下，沉睡着足以毁灭世界的远古巨兽...' },
+    { level: 20, title: '熔渊之心', text: '你来到了世界的尽头——熔渊城。这里是黑暗力量的源头，最终的决战即将展开。王国的命运，就掌握在你的手中...' },
+    { level: 25, title: '无尽征途', text: '传说在通关所有主城之后，隐藏在时空裂隙中的无尽试炼将向你敞开。只有真正的英雄，才能在这条路上走得更远...' }
+  ],
+
+  bossStories: {
+    '骷髅王': '曾经的最强骑士，死后被黑暗力量复活，成为亡灵军团的首领。他挥舞着生锈的巨剑，率领不死大军践踏生者的土地...',
+    '火焰恶魔': '来自地狱深渊的恶魔，所过之处皆为焦土。千年前被英雄封印于火山之中，如今封印破裂，它再次降临人间...',
+    '冰霜巨人': '远古时代存活至今的巨人之王，拥有操控寒冰的力量。他的每一次呼吸都能冻结河流，每一步都让大地颤抖...',
+    '暗影龙': '混沌时代的遗民，是暗影与恐惧的化身。传说它的龙息能够腐蚀灵魂，被它凝视的人将永远陷入噩梦之中...'
+  }
+};
 
 // Apply difficulty multipliers
 (function(){

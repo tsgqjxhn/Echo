@@ -18,7 +18,7 @@
         <span v-if="character?.sceneTime" class="header-scene">{{ character.sceneTime }}</span>
       </button>
 
-      <button type="button" class="btn-tts" :class="{ active: isHeaderTTSSpeaking }" @click="toggleHeaderTTS" aria-label="语音朗读">
+      <button v-if="showHeaderTTS" type="button" class="btn-tts" :class="{ active: isHeaderTTSSpeaking }" @click="toggleHeaderTTS" aria-label="语音朗读">
         <svg v-if="isHeaderTTSSpeaking" viewBox="0 0 1024 1024" width="22" height="22">
           <path d="M257.5 322.4l215.6-133c24.98-15.4 57.88-7.9 73.5 16.75A51.2 51.2 0 0 1 554.7 234v556c0 29.4-23.9 53-53.3 53a53.3 53.3 0 0 1-28.3-8L257.5 701.6H160c-41.2 0-74.7-33-74.7-73.7V396.1c0-40.7 33.5-73.7 74.7-73.7h97.5zm26.1 58.4a32.3 32.3 0 0 1-17 4.8H160c-5.9 0-10.7 4.7-10.7 10.5v231.8c0 5.8 4.8 10.5 10.7 10.5h106.7c6 0 11.9 1.7 17 4.8L490.7 771V253L283.6 380.8zM801 830a32.3 32.3 0 0 1-45.2-.8 31.3 31.3 0 0 1 .8-44.7c157.6-150.5 157.6-394 0-544.4a31.3 31.3 0 0 1-.8-44.7 32.3 32.3 0 0 1 45.2-.8c183.7 175.3 183.7 460 0 635.3zm-107-126.2a32.3 32.3 0 0 1-45.2-1.2 31.3 31.3 0 0 1 1.2-44.7c86.2-80.6 86.2-210.6 0-291.2a31.3 31.3 0 0 1-1.2-44.7 32.3 32.3 0 0 1 45.2-1.2c112.9 105.5 112.9 277.4 0 383z" fill="currentColor"/>
         </svg>
@@ -217,9 +217,23 @@
             </svg>
             <span>图鉴</span>
           </button>
+          <button v-if="hasChatSettingsAction" type="button" class="chat-more-item" @click="openChatSettings">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+              <path d="M19.14 12.94a7.957 7.957 0 0 0 .04-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.97 7.97 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.97 7.97 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.69 8.84a.5.5 0 0 0 .12.64l2.03 1.58a8 8 0 0 0 0 1.88L2.81 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.5.38 1.04.69 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7.97 7.97 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/>
+            </svg>
+            <span>会话设置</span>
+          </button>
         </div>
       </div>
     </Teleport>
+
+    <ChatSettingsSheet
+      :visible="showChatSettings"
+      :character-id="characterId"
+      :character-name="character?.name"
+      @close="showChatSettings = false"
+      @change="onChatSettingsChange"
+    />
 
     <StoryGallery :visible="showGallery" @close="showGallery = false" />
 
@@ -366,6 +380,12 @@ import { getStorageDriver } from '@/services/storage'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
 import StoryGallery from '@/components/StoryGallery/index.vue'
 import ImageViewer from '@/components/ImageViewer/index.vue'
+import ChatSettingsSheet from '@/components/ChatSettingsSheet/index.vue'
+import {
+  loadChatSettings,
+  DEFAULT_CHAT_SETTINGS,
+  type ChatSettings,
+} from '@/services/chat-settings'
 
 const AUTO_VOICE_KEY = 'chat_auto_tts'
 
@@ -396,6 +416,8 @@ const memorySummary = ref('')
 const memoryPreferences = ref<string[]>([])
 const switchingCharacter = ref(false)
 const showChatMore = ref(false)
+const showChatSettings = ref(false)
+const chatSettings = ref<ChatSettings>({ ...DEFAULT_CHAT_SETTINGS })
 const showGallery = ref(false)
 const imageViewerVisible = ref(false)
 const imageViewerSrc = ref('')
@@ -417,12 +439,18 @@ const messages = computed(() => chatStore.messages)
 const hasComposerContent = computed(() => inputText.value.length > 0)
 const hasSendableContent = computed(() => inputText.value.trim().length > 0)
 const showBracketButton = computed(() => !voiceMode.value && (hasComposerContent.value || isInputFocused.value))
-const showVoiceToggle = computed(() => !hasComposerContent.value)
+const showVoiceToggle = computed(() => !hasComposerContent.value && showVoiceInputToggle.value)
 const showSendButton = computed(() => hasComposerContent.value)
 const hasGalleryAction = computed(() =>
   characterId.value === ECHO_STORY_CHARACTER_ID || character.value?.sourceType === 'builtin-story'
 )
-const hasChatMoreActions = computed(() => hasGalleryAction.value)
+const isStarCharacter = computed(() =>
+  characterId.value === ECHO_STORY_CHARACTER_ID || character.value?.sourceType === 'builtin-story'
+)
+const hasChatSettingsAction = computed(() => !isStarCharacter.value && Boolean(characterId.value))
+const hasChatMoreActions = computed(() => hasGalleryAction.value || hasChatSettingsAction.value)
+const showHeaderTTS = computed(() => isStarCharacter.value || chatSettings.value.enableTTS)
+const showVoiceInputToggle = computed(() => isStarCharacter.value || chatSettings.value.enableVoiceInput)
 const showBackButton = computed(() => isHistoryEntry.value)
 const showRandomSwitchButton = computed(() => !isHistoryEntry.value)
 const isCurrentChatGenerating = computed(() => chatStore.isCurrentSessionGenerating)
@@ -580,6 +608,7 @@ async function initChat() {
 
 async function loadCharacter() {
   character.value = await characterStore.getCharacterById(characterId.value)
+  await reloadChatSettings()
 }
 
 async function switchToRandomCharacter() {
@@ -627,6 +656,14 @@ async function loadAutoVoicePlayback() {
 async function maybeAutoSpeak() {
   if (!autoVoicePlayback.value || isCurrentChatGenerating.value) {
     return
+  }
+
+  // For non-star characters, respect the per-character chat settings: when
+  // either TTS or auto-TTS is disabled, skip auto playback entirely.
+  if (!isStarCharacter.value) {
+    if (!chatSettings.value.enableTTS || !chatSettings.value.autoTTS) {
+      return
+    }
   }
 
   const lastMessage = [...messages.value].reverse().find(message => message.role === 'assistant')
@@ -992,6 +1029,34 @@ function openGallery() {
   showChatMore.value = false
   charPopoverVisible.value = false
   showGallery.value = true
+}
+
+function openChatSettings() {
+  showChatMore.value = false
+  showChatSettings.value = true
+}
+
+function onChatSettingsChange(next: ChatSettings) {
+  chatSettings.value = next
+  // If TTS was just disabled, also stop any ongoing playback.
+  if (!next.enableTTS) {
+    if (isHeaderTTSSpeaking.value) {
+      ttsService.value?.stop()
+      isHeaderTTSSpeaking.value = false
+    }
+  }
+  // If voice input was disabled while in voice mode, fall back to keyboard.
+  if (!next.enableVoiceInput && voiceMode.value) {
+    voiceMode.value = false
+  }
+}
+
+async function reloadChatSettings() {
+  if (!characterId.value || isStarCharacter.value) {
+    chatSettings.value = { ...DEFAULT_CHAT_SETTINGS }
+    return
+  }
+  chatSettings.value = await loadChatSettings(characterId.value)
 }
 
 async function toggleAutoVoicePlayback() {

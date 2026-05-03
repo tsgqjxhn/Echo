@@ -3,6 +3,8 @@ package com.echo.app.plugins;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
@@ -25,11 +27,21 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import java.util.ArrayList;
+import com.k2fsa.sherpa.ncnn.SherpaNcnn;
+import com.k2fsa.sherpa.ncnn.RecognizerConfig;
+import com.k2fsa.sherpa.ncnn.FeatureExtractorConfig;
+import com.k2fsa.sherpa.ncnn.ModelConfig;
+
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin(name = "NativeSpeech")
 public class NativeSpeechPlugin extends Plugin {
@@ -40,8 +52,11 @@ public class NativeSpeechPlugin extends Plugin {
     private static final String TTS_STATE_EVENT = "ttsState";
     private static final String TTS_ERROR_EVENT = "ttsError";
 
+    private static final int SAMPLE_RATE = 16000;
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // System speech recognizer
     private SpeechRecognizer speechRecognizer;
     private boolean isListening = false;
     private boolean stopRequested = false;
@@ -51,14 +66,24 @@ public class NativeSpeechPlugin extends Plugin {
     private static final long MIN_RECOGNITION_DURATION_MS = 800L;
     private String latestTranscript = "";
     private String latestPartialTranscript = "";
+
+    // Audio recording
     private MediaRecorder audioRecorder;
     private File audioRecordFile;
 
+    // TTS
     private TextToSpeech textToSpeech;
     private boolean ttsReady = false;
     private boolean ttsInitializing = false;
     private PluginCall pendingSpeakCall;
     private JSObject pendingSpeakOptions;
+
+    // sherpa-ncnn local STT
+    private SherpaNcnn sherpaRecognizer;
+    private Thread sherpaThread;
+    private AudioRecord sherpaAudioRecord;
+    private final AtomicBoolean sherpaRunning = new AtomicBoolean(false);
+    private boolean useSherpaNcnn = false;
 
     @Override
     public void load() {
@@ -69,7 +94,9 @@ public class NativeSpeechPlugin extends Plugin {
     @PluginMethod
     public void checkAvailability(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("sttAvailable", SpeechRecognizer.isRecognitionAvailable(getContext()));
+        boolean systemStt = SpeechRecognizer.isRecognitionAvailable(getContext());
+        boolean sherpaReady = isSherpaModelReady();
+        result.put("sttAvailable", systemStt || sherpaReady);
         result.put("ttsAvailable", textToSpeech != null || ttsReady || ttsInitializing);
         result.put("recordPermission", hasRecordPermission());
         call.resolve(result);
@@ -86,116 +113,431 @@ public class NativeSpeechPlugin extends Plugin {
                 return;
             }
 
-            if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
-                call.reject("当前设备不支持系统语音识别");
+            boolean systemSttAvailable = SpeechRecognizer.isRecognitionAvailable(getContext());
+
+            // Use sherpa-ncnn when preferOffline or system STT unavailable
+            if (preferOffline || !systemSttAvailable) {
+                if (!isSherpaModelReady()) {
+                    call.reject("本地语音模型未就绪");
+                    return;
+                }
+                startSherpaRecognition(call, language);
                 return;
             }
 
-            cancelRecognitionInternal(false);
-            clearRecognitionText();
-            stopRequested = false;
-
-            try {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
-                speechRecognizer.setRecognitionListener(buildRecognitionListener());
-
-                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
-                intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-                intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
-                intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline);
-                intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
-
-                if (preferOffline && Build.VERSION.SDK_INT >= 33) {
-                    try {
-                        speechRecognizer.triggerModelDownload(intent);
-                    } catch (Throwable ignored) {
-                    }
-                }
-
-                isListening = true;
-                recognitionStartTime = System.currentTimeMillis();
-                emitState(STT_STATE_EVENT, "listening", null);
-                speechRecognizer.startListening(intent);
-
-                JSObject result = new JSObject();
-                result.put("started", true);
-                call.resolve(result);
-            } catch (Exception error) {
-                releaseSpeechRecognizer();
-                call.reject(error.getMessage() != null ? error.getMessage() : "启动系统语音识别失败");
-            }
+            // Fallback to system speech recognizer
+            startSystemRecognition(call, language);
         });
     }
 
     @PluginMethod
     public void downloadRecognitionModel(PluginCall call) {
-        final String language = call.getString("language", "zh-CN");
-
         runOnMainThread(() -> {
-            if (Build.VERSION.SDK_INT < 33) {
-                call.reject("系统版本不支持触发离线语音模型下载 (需要 Android 13+)");
-                return;
-            }
-            if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
-                call.reject("当前设备不支持系统语音识别");
-                return;
-            }
-            try {
-                SpeechRecognizer downloader = SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
-                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
-                downloader.triggerModelDownload(intent);
-                downloader.destroy();
-                call.resolve(new JSObject().put("triggered", true));
-            } catch (Throwable error) {
-                call.reject(error.getMessage() != null ? error.getMessage() : "触发模型下载失败");
-            }
+            call.resolve(new JSObject().put("triggered", true));
         });
     }
 
     @PluginMethod
     public void stopRecognition(PluginCall call) {
         runOnMainThread(() -> {
-            if (speechRecognizer == null || !isListening) {
-                JSObject result = new JSObject();
-                result.put("text", bestTranscript());
-                call.resolve(result);
+            if (useSherpaNcnn) {
+                stopSherpaRecognition(call);
                 return;
             }
-
-            if (pendingStopCall != null) {
-                pendingStopCall.resolve(new JSObject().put("text", bestTranscript()));
-            }
-
-            pendingStopCall = call;
-            stopRequested = true;
-
-            scheduleStopFallback();
-
-            try {
-                speechRecognizer.stopListening();
-            } catch (Exception error) {
-                resolveStopCall(bestTranscript());
-            }
+            stopSystemRecognition(call);
         });
     }
 
     @PluginMethod
     public void cancelRecognition(PluginCall call) {
         runOnMainThread(() -> {
+            if (useSherpaNcnn) {
+                cancelSherpaRecognition();
+                call.resolve();
+                return;
+            }
             cancelRecognitionInternal(true);
             call.resolve();
         });
     }
+
+    // ==================== sherpa-ncnn Local STT ====================
+
+    private boolean isSherpaModelReady() {
+        try {
+            String[] files = {
+                "sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.param",
+                "sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.bin",
+                "sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.param",
+                "sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.bin",
+                "sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.param",
+                "sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.bin",
+                "sherpa-ncnn/tokens.txt"
+            };
+            for (String name : files) {
+                getContext().getAssets().open(name).close();
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private void startSherpaRecognition(PluginCall call, String language) {
+        cancelRecognitionInternal(false);
+        clearRecognitionText();
+        stopRequested = false;
+
+        try {
+            // Copy model files from assets to internal storage
+            File modelDir = new File(getContext().getFilesDir(), "sherpa-ncnn-model");
+            if (!modelDir.exists()) {
+                modelDir.mkdirs();
+            }
+            copyAssetIfNeeded("sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.param", new File(modelDir, "encoder_jit_trace-pnnx.ncnn.param"));
+            copyAssetIfNeeded("sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.bin", new File(modelDir, "encoder_jit_trace-pnnx.ncnn.bin"));
+            copyAssetIfNeeded("sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.param", new File(modelDir, "decoder_jit_trace-pnnx.ncnn.param"));
+            copyAssetIfNeeded("sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.bin", new File(modelDir, "decoder_jit_trace-pnnx.ncnn.bin"));
+            copyAssetIfNeeded("sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.param", new File(modelDir, "joiner_jit_trace-pnnx.ncnn.param"));
+            copyAssetIfNeeded("sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.bin", new File(modelDir, "joiner_jit_trace-pnnx.ncnn.bin"));
+            copyAssetIfNeeded("sherpa-ncnn/tokens.txt", new File(modelDir, "tokens.txt"));
+
+            // Build recognizer config
+            RecognizerConfig config = new RecognizerConfig();
+            config.featConfig.sampleRate = 16000.0f;
+            config.featConfig.featureDim = 80;
+
+            config.modelConfig.encoderParam = new File(modelDir, "encoder_jit_trace-pnnx.ncnn.param").getAbsolutePath();
+            config.modelConfig.encoderBin = new File(modelDir, "encoder_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
+            config.modelConfig.decoderParam = new File(modelDir, "decoder_jit_trace-pnnx.ncnn.param").getAbsolutePath();
+            config.modelConfig.decoderBin = new File(modelDir, "decoder_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
+            config.modelConfig.joinerParam = new File(modelDir, "joiner_jit_trace-pnnx.ncnn.param").getAbsolutePath();
+            config.modelConfig.joinerBin = new File(modelDir, "joiner_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
+            config.modelConfig.tokens = new File(modelDir, "tokens.txt").getAbsolutePath();
+            config.modelConfig.numThreads = 4;
+            config.modelConfig.useGPU = false;
+
+            config.enableEndpoint = true;
+            config.rule1MinTrailingSilence = 2.4f;
+            config.rule2MinTrailingSilence = 1.2f;
+            config.rule3MinUtteranceLength = 20.0f;
+
+            // Initialize sherpa-ncnn recognizer
+            if (sherpaRecognizer != null) {
+                sherpaRecognizer.release();
+            }
+
+            sherpaRecognizer = new SherpaNcnn(config);
+
+            useSherpaNcnn = true;
+            isListening = true;
+            recognitionStartTime = System.currentTimeMillis();
+            emitState(STT_STATE_EVENT, "listening", null);
+
+            // Start audio recording thread
+            startSherpaAudioThread();
+
+            JSObject result = new JSObject();
+            result.put("started", true);
+            call.resolve(result);
+        } catch (Exception error) {
+            releaseSherpaResources();
+            call.reject(error.getMessage() != null ? error.getMessage() : "启动本地语音识别失败");
+        }
+    }
+
+    private void copyAssetIfNeeded(String assetPath, File destFile) throws IOException {
+        if (destFile.exists() && destFile.length() > 0) {
+            return;
+        }
+        try (InputStream in = getContext().getAssets().open(assetPath);
+             OutputStream out = new FileOutputStream(destFile)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+        }
+    }
+
+    private void startSherpaAudioThread() {
+        sherpaRunning.set(true);
+        emitState(STT_STATE_EVENT, "recording", null);
+
+        sherpaThread = new Thread(() -> {
+            int minBufferSize = AudioRecord.getMinBufferSize(
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+            );
+            int bufferSize = Math.max(minBufferSize, SAMPLE_RATE / 10 * 2); // at least 100ms
+
+            sherpaAudioRecord = new AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    bufferSize
+            );
+
+            if (sherpaAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                mainHandler.post(() -> {
+                    emitError(STT_ERROR_EVENT, "麦克风初始化失败", "audio_init_failed", null);
+                    stopSherpaInternal();
+                });
+                return;
+            }
+
+            sherpaAudioRecord.startRecording();
+            short[] buffer = new short[bufferSize / 2];
+
+            while (sherpaRunning.get() && !stopRequested) {
+                int read = sherpaAudioRecord.read(buffer, 0, buffer.length);
+                if (read > 0) {
+                    float[] samples = new float[read];
+                    for (int i = 0; i < read; i++) {
+                        samples[i] = buffer[i] / 32768.0f;
+                    }
+
+                    sherpaRecognizer.acceptWaveform(samples, SAMPLE_RATE);
+
+                    if (sherpaRecognizer.isReady()) {
+                        sherpaRecognizer.decode();
+                        String text = sherpaRecognizer.getText();
+                        if (text != null && !text.isEmpty()) {
+                            latestPartialTranscript = text;
+                            mainHandler.post(() -> emitSTTResult(text, false));
+                        }
+                    }
+                }
+            }
+
+            // Final decode
+            String finalText = "";
+            try {
+                sherpaRecognizer.inputFinished();
+                while (sherpaRecognizer.isReady()) {
+                    sherpaRecognizer.decode();
+                }
+                finalText = sherpaRecognizer.getText();
+            } catch (Exception e) {
+                // fall through to resolve with best transcript
+            }
+
+            if (finalText != null && !finalText.isEmpty()) {
+                latestTranscript = finalText;
+                final String textToEmit = finalText;
+                mainHandler.post(() -> {
+                    emitSTTResult(textToEmit, true);
+                    resolveSherpaStop(textToEmit);
+                });
+            } else {
+                String fallback = bestTranscript();
+                mainHandler.post(() -> resolveSherpaStop(fallback));
+            }
+
+            // Cleanup audio record
+            try {
+                sherpaAudioRecord.stop();
+            } catch (Exception ignored) {
+            }
+            try {
+                sherpaAudioRecord.release();
+            } catch (Exception ignored) {
+            }
+            sherpaAudioRecord = null;
+        });
+        sherpaThread.start();
+    }
+
+    private void stopSherpaRecognition(PluginCall call) {
+        if (!isListening || !useSherpaNcnn) {
+            call.resolve(new JSObject().put("text", bestTranscript()));
+            return;
+        }
+
+        if (pendingStopCall != null) {
+            pendingStopCall.resolve(new JSObject().put("text", bestTranscript()));
+        }
+        pendingStopCall = call;
+        stopRequested = true;
+
+        scheduleStopFallback();
+    }
+
+    private void resolveSherpaStop(String text) {
+        cancelStopFallback();
+        isListening = false;
+        stopRequested = false;
+        useSherpaNcnn = false;
+
+        PluginCall stopCall = pendingStopCall;
+        pendingStopCall = null;
+
+        emitState(STT_STATE_EVENT, "idle", null);
+        releaseSherpaResources();
+
+        if (stopCall != null) {
+            JSObject result = new JSObject();
+            result.put("text", text != null ? text : "");
+            stopCall.resolve(result);
+        }
+    }
+
+    private void cancelSherpaRecognition() {
+        sherpaRunning.set(false);
+        stopRequested = false;
+        isListening = false;
+        useSherpaNcnn = false;
+
+        PluginCall stopCall = pendingStopCall;
+        pendingStopCall = null;
+        if (stopCall != null) {
+            stopCall.resolve(new JSObject().put("text", ""));
+        }
+
+        cancelStopFallback();
+        emitState(STT_STATE_EVENT, "idle", null);
+
+        if (sherpaThread != null) {
+            try {
+                sherpaThread.join(500);
+            } catch (InterruptedException ignored) {
+            }
+            sherpaThread = null;
+        }
+
+        if (sherpaAudioRecord != null) {
+            try {
+                sherpaAudioRecord.stop();
+            } catch (Exception ignored) {
+            }
+            try {
+                sherpaAudioRecord.release();
+            } catch (Exception ignored) {
+            }
+            sherpaAudioRecord = null;
+        }
+
+        releaseSherpaResources();
+    }
+
+    private void stopSherpaInternal() {
+        sherpaRunning.set(false);
+        isListening = false;
+        stopRequested = false;
+        useSherpaNcnn = false;
+        cancelStopFallback();
+        emitState(STT_STATE_EVENT, "idle", null);
+        releaseSherpaResources();
+    }
+
+    private void releaseSherpaResources() {
+        if (sherpaRecognizer != null) {
+            try {
+                sherpaRecognizer.release();
+            } catch (Exception ignored) {
+            }
+            sherpaRecognizer = null;
+        }
+    }
+
+    // ==================== System STT ====================
+
+    private void startSystemRecognition(PluginCall call, String language) {
+        cancelRecognitionInternal(false);
+        clearRecognitionText();
+        stopRequested = false;
+
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
+            speechRecognizer.setRecognitionListener(buildRecognitionListener());
+
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+            intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false);
+            intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+
+            isListening = true;
+            recognitionStartTime = System.currentTimeMillis();
+            emitState(STT_STATE_EVENT, "listening", null);
+            speechRecognizer.startListening(intent);
+
+            JSObject result = new JSObject();
+            result.put("started", true);
+            call.resolve(result);
+        } catch (Exception error) {
+            releaseSpeechRecognizer();
+            call.reject(error.getMessage() != null ? error.getMessage() : "启动系统语音识别失败");
+        }
+    }
+
+    private void stopSystemRecognition(PluginCall call) {
+        if (speechRecognizer == null || !isListening) {
+            call.resolve(new JSObject().put("text", bestTranscript()));
+            return;
+        }
+
+        if (pendingStopCall != null) {
+            pendingStopCall.resolve(new JSObject().put("text", bestTranscript()));
+        }
+
+        pendingStopCall = call;
+        stopRequested = true;
+        scheduleStopFallback();
+
+        try {
+            speechRecognizer.stopListening();
+        } catch (Exception error) {
+            resolveStopCall(bestTranscript());
+        }
+    }
+
+    private void cancelRecognitionInternal(boolean emitStoppedState) {
+        if (useSherpaNcnn) {
+            cancelSherpaRecognition();
+            return;
+        }
+
+        cancelStopFallback();
+        stopRequested = false;
+        isListening = false;
+
+        if (speechRecognizer != null) {
+            try {
+                speechRecognizer.cancel();
+            } catch (Exception ignored) {
+            }
+        }
+
+        PluginCall stopCall = pendingStopCall;
+        pendingStopCall = null;
+        if (stopCall != null) {
+            stopCall.resolve(new JSObject().put("text", bestTranscript()));
+        }
+
+        releaseSpeechRecognizer();
+
+        if (emitStoppedState) {
+            emitState(STT_STATE_EVENT, "idle", null);
+        }
+    }
+
+    // ==================== Audio Recording ====================
 
     @PluginMethod
     public void startAudioRecording(PluginCall call) {
         runOnMainThread(() -> {
             if (!hasRecordPermission()) {
                 call.reject("缺少麦克风权限 (RECORD_AUDIO)");
+                return;
+            }
+            if (isListening) {
+                call.reject("当前正在进行语音识别，请先停止");
                 return;
             }
             cancelAudioRecordingInternal();
@@ -261,6 +603,8 @@ public class NativeSpeechPlugin extends Plugin {
             call.resolve();
         });
     }
+
+    // ==================== TTS ====================
 
     @PluginMethod
     public void speak(PluginCall call) {
@@ -349,6 +693,8 @@ public class NativeSpeechPlugin extends Plugin {
             releaseTextToSpeech();
         });
     }
+
+    // ==================== Helpers ====================
 
     private byte[] readAllBytes(File file) throws Exception {
         long length = file.length();
@@ -598,31 +944,6 @@ public class NativeSpeechPlugin extends Plugin {
             JSObject result = new JSObject();
             result.put("text", text != null ? text : "");
             stopCall.resolve(result);
-        }
-    }
-
-    private void cancelRecognitionInternal(boolean emitStoppedState) {
-        cancelStopFallback();
-        stopRequested = false;
-        isListening = false;
-
-        if (speechRecognizer != null) {
-            try {
-                speechRecognizer.cancel();
-            } catch (Exception ignored) {
-            }
-        }
-
-        PluginCall stopCall = pendingStopCall;
-        pendingStopCall = null;
-        if (stopCall != null) {
-            stopCall.resolve(new JSObject().put("text", bestTranscript()));
-        }
-
-        releaseSpeechRecognizer();
-
-        if (emitStoppedState) {
-            emitState(STT_STATE_EVENT, "idle", null);
         }
     }
 

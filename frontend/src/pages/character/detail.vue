@@ -25,6 +25,12 @@
     <div v-if="character" class="character-info">
       <div class="avatar-section">
         <img :src="character.avatar || defaultAvatar" :alt="character.name" class="avatar" />
+        <div v-if="character.chatBackground || character.globalBackground || character.switchAnimation || (character.emotionAnimations && character.emotionAnimations.length)" class="media-tags">
+          <span v-if="character.chatBackground" class="media-tag">🖼️ 聊天背景</span>
+          <span v-if="character.globalBackground" class="media-tag">🌐 全局背景</span>
+          <span v-if="character.switchAnimation" class="media-tag">🎬 切换动图</span>
+          <span v-if="character.emotionAnimations && character.emotionAnimations.length" class="media-tag">😊 情感动图 {{ character.emotionAnimations.length }}个</span>
+        </div>
       </div>
 
       <div class="info-section">
@@ -48,6 +54,29 @@
           <label>整体设定</label>
           <p class="settings-text">{{ character.settings }}</p>
         </div>
+
+        <!-- 媒体设定预览 -->
+        <div v-if="character.chatBackground || character.globalBackground || character.switchAnimation || (character.emotionAnimations && character.emotionAnimations.length)" class="info-item media-preview-section">
+          <label>媒体设定</label>
+          <div class="media-grid">
+            <div v-if="character.chatBackground" class="media-card">
+              <span class="media-label">聊天背景</span>
+              <img :src="character.chatBackground" alt="聊天背景" class="media-thumb" />
+            </div>
+            <div v-if="character.globalBackground" class="media-card">
+              <span class="media-label">全局背景</span>
+              <img :src="character.globalBackground" alt="全局背景" class="media-thumb" />
+            </div>
+            <div v-if="character.switchAnimation" class="media-card">
+              <span class="media-label">切换动图</span>
+              <img :src="character.switchAnimation" alt="切换动图" class="media-thumb" />
+            </div>
+            <div v-for="(ea, idx) in character.emotionAnimations" :key="idx" class="media-card">
+              <span class="media-label">{{ ea.emotion || '情感' }} 动图</span>
+              <img :src="ea.animationUrl" :alt="ea.emotion" class="media-thumb" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="action-section">
@@ -67,6 +96,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
+import defaultAvatarAsset from '@/static/images/user-avatar.svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,7 +104,7 @@ const characterStore = useCharacterStore()
 
 const character = ref<any>(null)
 const loading = ref(false)
-const defaultAvatar = '/src/static/images/default-avatar.svg'
+const defaultAvatar = defaultAvatarAsset
 
 const characterId = computed(() => route.params.id as string)
 
@@ -171,6 +201,59 @@ async function deleteCharacter() {
   min-height: 100vh;
   padding: 0 0 120px;
   background: var(--page-backdrop-soft);
+}
+
+.media-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.media-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.media-preview-section {
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .media-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .media-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    letter-spacing: 0.04em;
+  }
+
+  .media-thumb {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
 }
 
 .header {

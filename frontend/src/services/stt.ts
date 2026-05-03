@@ -537,7 +537,7 @@ export class STTService {
     try {
       await NativeSpeech.startRecognition({
         language: this.config.language,
-        preferOffline: false,
+        preferOffline: true,
       })
       this.state = RecordingState.RECORDING
     } catch (error) {

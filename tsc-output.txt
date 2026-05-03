@@ -1,0 +1,7 @@
+src/data/character-presets.ts(1,1): error TS6133: 'ICharacter' is declared but its value is never read.
+src/services/providers/bedrock/index.ts(14,10): error TS6133: 'extractMessageText' is declared but its value is never read.
+src/services/providers/bedrock/index.ts(14,30): error TS6133: 'normalizeUsage' is declared but its value is never read.
+src/services/providers/grok/index.ts(3,3): error TS6196: 'AdapterChatRequest' is declared but never used.
+src/services/providers/grok/index.ts(6,3): error TS6196: 'ChatCompletionResult' is declared but never used.
+src/services/providers/grok/index.ts(9,3): error TS6196: 'StreamChunkResult' is declared but never used.
+src/services/providers/grok/index.ts(11,25): error TS6133: 'openaiCapabilities' is declared but its value is never read.

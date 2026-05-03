@@ -71,6 +71,7 @@ const gameTitles: Record<string, string> = {
   empire: '圣王国',
   hero: '勇士',
   'dark-dorm': '暗黑宿舍',
+  'survivor-defense': '幸存者防线',
 }
 
 const h5GamePaths: Record<string, string> = {
@@ -78,6 +79,7 @@ const h5GamePaths: Record<string, string> = {
   empire: '/games/empire/index.html',
   hero: '/games/hero/index.html',
   'dark-dorm': '/games/dark-dorm/index.html',
+  'survivor-defense': '/games/survivor-defense/index.html',
 }
 
 const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')

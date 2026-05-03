@@ -74,8 +74,20 @@
         </div>
 
         <div class="card-body">
-          <h2>{{ character.name }}</h2>
-          <p>{{ character.description }}</p>
+          <div class="card-avatar-row">
+            <img v-if="character.avatar" :src="character.avatar" :alt="character.name" class="card-avatar" />
+            <div v-else class="card-avatar-placeholder">{{ character.name?.charAt(0) || '?' }}</div>
+            <div class="card-copy">
+              <h2>{{ character.name }}</h2>
+              <p>{{ character.description }}</p>
+            </div>
+          </div>
+          <div class="card-media-hints">
+            <span v-if="character.chatBackground" class="card-media-dot" title="聊天背景">🖼️</span>
+            <span v-if="character.globalBackground" class="card-media-dot" title="全局背景">🌐</span>
+            <span v-if="character.switchAnimation" class="card-media-dot" title="切换动图">🎬</span>
+            <span v-if="character.emotionAnimations && character.emotionAnimations.length" class="card-media-dot" title="情感动图">😊</span>
+          </div>
           <span class="card-date">{{ formatDate(character.createdAt) }}</span>
         </div>
 
@@ -106,6 +118,14 @@
       accept=".png,.json"
       @change="onImportFileChange"
     />
+    <input
+      ref="importFolderInput"
+      class="hidden-input"
+      type="file"
+      webkitdirectory
+      directory
+      @change="onImportFolderChange"
+    />
 
   </div>
 </template>
@@ -135,6 +155,7 @@ const searchKeyword = ref('')
 const selectedBigCategory = ref('全部')
 const selectedTheme = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
+const importFolderInput = ref<HTMLInputElement | null>(null)
 
 const browseCategoryGroups = getBrowseCategoryGroups()
 const allThemes = getAllThemeLeaves()
@@ -302,7 +323,20 @@ function confirmDelete(character: ICharacter) {
 
 
 function openImportSheet() {
-  importFileInput.value?.click()
+  uni.showActionSheet({
+    itemList: [
+      '导入文件（支持 .png / .json 角色卡，单文件 ≤ 20MB）',
+      '导入文件夹（仅读取 .json，建议文件夹 ≤ 500MB）',
+    ],
+    itemColor: '#38bdf8',
+    success: (res: { tapIndex: number }) => {
+      if (res.tapIndex === 0) {
+        importFileInput.value?.click()
+      } else if (res.tapIndex === 1) {
+        importFolderInput.value?.click()
+      }
+    },
+  })
 }
 
 function onImportFileChange(event: Event) {
@@ -310,11 +344,63 @@ function onImportFileChange(event: Event) {
   const file = input.files?.[0]
   if (!file) return
 
+  // 单文件大小上限：20MB
+  const MAX_FILE_BYTES = 20 * 1024 * 1024
+  if (file.size > MAX_FILE_BYTES) {
+    uni.showToast({ title: `文件超过 20MB（${(file.size / 1024 / 1024).toFixed(1)}MB）`, icon: 'none' })
+    input.value = ''
+    return
+  }
+
   handleImportFile(file)
   input.value = ''
 }
 
-async function handleImportFile(file: File) {
+async function onImportFolderChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files || files.length === 0) {
+    input.value = ''
+    return
+  }
+
+  // 文件夹总大小上限：500MB（避免一次性读入海量文件造成卡顿）
+  const MAX_FOLDER_BYTES = 500 * 1024 * 1024
+  let totalBytes = 0
+  for (const f of Array.from(files)) totalBytes += f.size
+  if (totalBytes > MAX_FOLDER_BYTES) {
+    uni.showToast({
+      title: `文件夹超过 500MB（${(totalBytes / 1024 / 1024).toFixed(0)}MB），请精简后再试`,
+      icon: 'none',
+    })
+    input.value = ''
+    return
+  }
+
+  const jsonFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.json'))
+  if (jsonFiles.length === 0) {
+    uni.showToast({ title: '未找到 JSON 文件', icon: 'none' })
+    input.value = ''
+    return
+  }
+  let successCount = 0
+  let failCount = 0
+  for (const file of jsonFiles) {
+    try {
+      await handleImportFile(file, false)
+      successCount++
+    } catch {
+      failCount++
+    }
+  }
+  uni.showToast({
+    title: `导入完成：${successCount} 成功${failCount > 0 ? `，${failCount} 失败` : ''}`,
+    icon: successCount > 0 ? 'success' : 'none',
+  })
+  input.value = ''
+}
+
+async function handleImportFile(file: File, redirect = true) {
   try {
     const imported = await importCharacterFromFile(file)
     const character: Partial<ICharacter> = {
@@ -326,7 +412,9 @@ async function handleImportFile(file: File) {
 
     const newId = await characterStore.createCharacter(character)
     uni.showToast({ title: `导入成功：${imported.name}`, icon: 'success' })
-    router.push(`/character/edit?id=${newId}`)
+    if (redirect) {
+      router.push(`/character/edit?id=${newId}`)
+    }
   } catch (error) {
     uni.showToast({
       title: (error as Error).message || '导入失败',
@@ -678,6 +766,42 @@ $cyan: #67e8f9;
   padding: 14px 12px 16px;
 }
 
+.card-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.card-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
+  color: var(--text-tertiary);
+  font-size: 18px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .card-body h2 {
   margin: 0;
   color: var(--text-primary);
@@ -692,9 +816,21 @@ $cyan: #67e8f9;
   line-height: 1.55;
   font-size: 12px;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.card-media-hints {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.card-media-dot {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.85;
 }
 
 .card-date {
@@ -1111,7 +1247,11 @@ $cyan: #67e8f9;
 }
 
 .hidden-input {
-  display: none;
+  opacity: 0;
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 .import-box {

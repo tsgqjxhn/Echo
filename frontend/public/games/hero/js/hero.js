@@ -2,6 +2,96 @@
 // Hero Management System
 // ============================================================
 
+// ===== Hero Passive Skills =====
+const HERO_PASSIVE_SKILLS = {
+  // Commander passives
+  commander: [
+    { id: 'counter', name: '反击', desc: '受击时30%概率反击，造成50%攻击伤害', procChance: 0.30, dmgMult: 0.5 },
+    { id: 'fortress', name: '坚韧', desc: 'HP低于30%时防御提升，受到的伤害减少25%', hpThreshold: 0.3, dmgReduce: 0.25 }
+  ],
+  // Defender passives
+  defender: [
+    { id: 'ironwill', name: '钢铁意志', desc: '最大HP+15%，受到的治疗效果+20%', hpBonus: 0.15, healBonus: 0.2 },
+    { id: 'thorns', name: '荆棘反伤', desc: '受到伤害时反弹20%给攻击者', reflectDmg: 0.2 }
+  ],
+  // Support passives
+  support: [
+    { id: 'elemental', name: '元素亲和', desc: '魔法伤害+20%，技能冷却-15%', magicBonus: 0.2, cdr: 0.15 },
+    { id: 'manaregen', name: '法力回流', desc: '击杀敌人时恢复3%最大HP并减少技能冷却1秒', hpRestore: 0.03, cdReduce: 1 }
+  ],
+  // Ranger passives
+  ranger: [
+    { id: 'headshot', name: '爆头', desc: '攻击时10%概率造成3倍暴击伤害', procChance: 0.1, critMult: 3.0 },
+    { id: 'agility', name: '敏捷', desc: '闪避率+15%，移动速度+10%', dodgeBonus: 0.15, spdBonus: 0.1 }
+  ]
+};
+
+const HeroPassives = {
+  getPassives(heroClass) {
+    return HERO_PASSIVE_SKILLS[heroClass] || [];
+  },
+
+  applyBattlePassives(heroClass, stats) {
+    const passives = this.getPassives(heroClass);
+    for (const p of passives) {
+      if (p.hpBonus) stats.hp = Math.floor(stats.hp * (1 + p.hpBonus));
+      if (p.spdBonus) stats.spd *= (1 + p.spdBonus);
+      if (p.dodgeBonus) stats.dodgeRate = (stats.dodgeRate || 0) + p.dodgeBonus;
+      if (p.magicBonus) stats.magicBonus = p.magicBonus;
+      if (p.cdr) stats.cooldownReduction = p.cdr;
+    }
+    return stats;
+  },
+
+  checkCounterAttack(heroClass) {
+    const passives = this.getPassives(heroClass);
+    const counter = passives.find(p => p.id === 'counter');
+    if (counter && Math.random() < counter.procChance) return counter.dmgMult;
+    return 0;
+  },
+
+  checkHeadshot(heroClass) {
+    const passives = this.getPassives(heroClass);
+    const headshot = passives.find(p => p.id === 'headshot');
+    if (headshot && Math.random() < headshot.procChance) return headshot.critMult;
+    return 1;
+  },
+
+  checkDodge(heroClass) {
+    const passives = this.getPassives(heroClass);
+    const agility = passives.find(p => p.id === 'agility');
+    if (agility && Math.random() < agility.dodgeBonus) return true;
+    return false;
+  },
+
+  checkFortressMode(heroClass, hpPercent) {
+    const passives = this.getPassives(heroClass);
+    const fortress = passives.find(p => p.id === 'fortress');
+    if (fortress && hpPercent < fortress.hpThreshold) return fortress.dmgReduce;
+    return 0;
+  },
+
+  checkManaFlow(heroClass) {
+    const passives = this.getPassives(heroClass);
+    const manaregen = passives.find(p => p.id === 'manaregen');
+    if (manaregen) return { hpRestore: manaregen.hpRestore, cdReduce: manaregen.cdReduce };
+    return null;
+  },
+
+  checkThorns(heroClass) {
+    const passives = this.getPassives(heroClass);
+    const thorns = passives.find(p => p.id === 'thorns');
+    if (thorns) return thorns.reflectDmg;
+    return 0;
+  },
+
+  // Format passives for display
+  getPassiveDescriptions(heroClass) {
+    const passives = this.getPassives(heroClass);
+    return passives.map(p => `<span style="color:var(--accent);font-size:11px;">[${p.name}]</span> <span style="color:var(--text-dim);font-size:11px;">${p.desc}</span>`).join('<br>');
+  }
+};
+
 const HeroManager = {
   getHero(id) {
     return gameState.heroes.find(h => h.id === id);
@@ -245,6 +335,11 @@ const HeroManager = {
         <div class="hero-skill">
           <h3>${hero.skill} (Lv.${hero.skillLevel})</h3>
           <p>${template.skillDesc}</p>
+        </div>
+
+        <div class="hero-passives" style="margin:12px 0;padding:10px;background:rgba(79,195,247,0.08);border-radius:6px;border:1px solid rgba(79,195,247,0.2);">
+          <h3 style="color:var(--accent);font-size:13px;margin-bottom:6px;">被动技能</h3>
+          <p style="font-size:12px;color:var(--text-dim);line-height:1.6;">${HeroPassives.getPassiveDescriptions(hero.heroClass)}</p>
         </div>
 
         <div class="hero-actions">

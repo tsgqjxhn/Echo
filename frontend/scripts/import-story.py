@@ -98,9 +98,9 @@ def detect_contact_name(lines):
     return "未知用户"
 
 
-VOLUME_RE = re.compile(r"^##\s*卷([一二三四五六七八九十]+)[：|｜](.+?)(?:（.+）)?$")
+VOLUME_RE = re.compile(r"^##\s*卷([一二三四五六七八九十]+)[：:|｜](.+?)(?:[（(].+[)）])?$")
 DAY_RE = re.compile(r"^###\s*第(\d+)天[|｜](.+)$")
-SECTION_TIME_RE = re.compile(r"^[①②③④⑤⑥⑦⑧⑨⑩]\s*`")
+SECTION_TIME_RE = re.compile(r"^[①②③④⑤⑥⑦⑧⑨⑩\d]+\s*`")
 
 
 def parse_volume_header(line):

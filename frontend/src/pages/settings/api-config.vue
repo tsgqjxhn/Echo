@@ -61,6 +61,7 @@
           <span>配置名称</span>
           <input v-model="form.name" type="text" maxlength="40" placeholder="例如：主账号" />
         </label>
+        <p class="hint capability-hint">文本模型是目前支持的模型，如果在语音、图片、动图中没有出现分类，则代表该厂商未提供该服务或者仅对企业开放该服务</p>
         <label class="field">
           <span>Provider 类型</span>
           <select v-model="form.provider" class="field-select" @change="onProviderChange">
@@ -141,7 +142,7 @@
         class="field-select"
       >
         <option value="">— 请选择模型 —</option>
-        <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+        <option v-for="m in availableModels" :key="m" :value="m">{{ modelDisplayName(m) }}</option>
       </select>
 
       <input
@@ -172,7 +173,7 @@
         >
           <div class="model-card-copy">
             <span>模型</span>
-            <strong>{{ model }}</strong>
+            <strong>{{ modelDisplayName(model) }}</strong>
           </div>
           <div class="model-card-actions">
             <button type="button" @click.stop="selectModel(model)">设为当前</button>
@@ -199,7 +200,7 @@ import { useRouter } from 'vue-router'
 import type { APIConfig, APIConfigType, APIProvider } from '@/types/api-config'
 import { PROVIDER_DISPLAY_NAMES } from '@/types/api-config'
 import { apiConfigService } from '@/services/api-config'
-import { getAdapterOrDefault } from '@/services/providers/registry'
+import { getAdapterOrDefault, adapters } from '@/services/providers/registry'
 import { generateUUID } from '@/utils/uuid'
 import { uni } from '@/utils/uni-polyfill'
 
@@ -238,12 +239,29 @@ const isLocalType = computed(() => {
 })
 
 const providerOptions = computed(() => {
-  if (!isLocalType.value) {
-    const { local, ...rest } = PROVIDER_DISPLAY_NAMES
-    return rest as Record<string, string>
+  const type = effectiveConfigType.value
+  const result: Record<string, string> = {}
+  for (const [provider, adapter] of adapters.entries()) {
+    let supported = false
+    switch (type) {
+      case 'text': supported = adapter.capabilities.chat; break
+      case 'tts': supported = adapter.capabilities.tts; break
+      case 'stt': supported = adapter.capabilities.stt; break
+      case 'image': supported = adapter.capabilities.imageGeneration; break
+      case 'video': supported = adapter.capabilities.videoGeneration; break
+    }
+    if (supported) {
+      result[provider] = PROVIDER_DISPLAY_NAMES[provider as APIProvider]
+    }
   }
-  return PROVIDER_DISPLAY_NAMES
+  return result
 })
+
+function modelDisplayName(model: string): string {
+  // Provider name already follows the "Provider/Brand" pattern (e.g. "OpenAI/ChatGPT").
+  // Avoid duplicating that prefix here so the model dropdown stays compact.
+  return model
+}
 
 const DEFAULT_URLS: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
@@ -253,6 +271,12 @@ const DEFAULT_URLS: Record<string, string> = {
   volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
   zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+  grok: 'https://api.x.ai/v1',
+  minimax: 'https://api.minimax.chat/v1',
+  baidu: 'https://qianfan.baidubce.com/v2',
+  bedrock: 'https://bedrock-runtime.us-east-1.amazonaws.com',
+  azure: '',
+  ollama: 'http://localhost:11434/v1',
 }
 
 const baseURLPlaceholder = computed(() => {
@@ -339,9 +363,20 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   }
 }
 
+function ensureValidProvider() {
+  const options = providerOptions.value
+  const keys = Object.keys(options)
+  if (!options[form.value.provider]) {
+    form.value.provider = (keys[0] as APIProvider) || 'openai-compatible'
+    const def = DEFAULT_URLS[form.value.provider]
+    form.value.baseURL = def || ''
+  }
+}
+
 function clearForm() {
   form.value = { name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' }
   showKey.value = false
+  ensureValidProvider()
 }
 
 function onProviderChange() {

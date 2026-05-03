@@ -5,16 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
   <title>暗夜宿舍 - 异步塔防</title>
   <script>
-    // Fall back to the built bundle when not running under the Vite dev server.
-    // main.ts sets window.__appLoaded__ on init; if missing, redirect to dist/.
-    // Skip when already inside dist/ to avoid recursion.
+    // The bundled app at ./assets/app.js drives this page directly. The legacy
+    // dist/ fallback is no longer shipped, so keep this script as a no-op
+    // placeholder to avoid a false-positive redirect into a 404.
     (function () {
-      if (location.pathname.indexOf('/dist/') !== -1) return;
-      var target = 'dist/index.html';
-      if (location.protocol === 'file:') return location.replace(target);
-      setTimeout(function () {
-        if (!window.__appLoaded__) location.replace(target);
-      }, 1500);
+      window.__appLoaded__ = window.__appLoaded__ || false;
     })();
   </script>
   <script>

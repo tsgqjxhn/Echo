@@ -7,6 +7,12 @@ import { dashscopeAdapter } from './dashscope'
 import { volcengineAdapter } from './volcengine'
 import { geminiAdapter } from './gemini'
 import { zhipuAdapter } from './zhipu'
+import { grokAdapter } from './grok'
+import { minimaxAdapter } from './minimax'
+import { baiduAdapter } from './baidu'
+import { bedrockAdapter } from './bedrock'
+import { azureAdapter } from './azure'
+import { ollamaAdapter } from './ollama'
 
 const adapters = new Map<APIProvider, ProviderAdapter>()
 
@@ -15,13 +21,19 @@ function register(adapter: ProviderAdapter): void {
 }
 
 register(localAdapter)
+register(ollamaAdapter)
 register(openaiAdapter)
 register(openaiCompatibleAdapter)
 register(anthropicAdapter)
+register(geminiAdapter)
+register(grokAdapter)
+register(azureAdapter)
+register(bedrockAdapter)
 register(dashscopeAdapter)
 register(volcengineAdapter)
-register(geminiAdapter)
 register(zhipuAdapter)
+register(baiduAdapter)
+register(minimaxAdapter)
 
 export function getAdapter(provider: APIProvider): ProviderAdapter {
   const adapter = adapters.get(provider)
