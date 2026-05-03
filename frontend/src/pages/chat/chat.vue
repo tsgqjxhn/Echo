@@ -117,11 +117,16 @@
               type="button"
               class="hold-to-talk"
               :class="{ recording: recordingState === RecordingState.RECORDING }"
-              @pointerdown="onHoldToTalkStart"
-              @pointerup="onHoldToTalkEnd"
-              @pointerleave="onHoldToTalkEnd"
+              draggable="false"
+              @pointerdown.prevent="onHoldToTalkStart"
+              @pointerup.prevent="onHoldToTalkEnd"
+              @pointerleave.prevent="onHoldToTalkEnd"
+              @pointercancel.prevent="onHoldToTalkEnd"
+              @contextmenu.prevent
+              @selectstart.prevent
+              @dragstart.prevent
             >
-              {{ recordingState === RecordingState.RECORDING ? '松开发送' : '按住说话' }}
+              {{ holdToTalkLabel }}
             </button>
           </div>
 
@@ -385,6 +390,8 @@ const voiceMode = ref(false)
 const showTools = ref(false)
 const recordingState = ref<RecordingState>(RecordingState.IDLE)
 const recordingStartedAt = ref(0)
+const isHoldingToTalk = ref(false)
+const isStartingVoiceRecording = ref(false)
 const memorySummary = ref('')
 const memoryPreferences = ref<string[]>([])
 const switchingCharacter = ref(false)
@@ -455,6 +462,12 @@ const recordingCopy = computed(() => {
 
   return '按住按钮说话，松开发送。'
 })
+
+const holdToTalkLabel = computed(() =>
+  isHoldingToTalk.value || recordingState.value === RecordingState.RECORDING
+    ? '正在输入中……'
+    : '按住说话'
+)
 
 
 const groupCharacters = computed(() =>
@@ -777,13 +790,71 @@ function onInputPointerUp() {
   }
 }
 
-async function onHoldToTalkStart() {
-  await toggleVoiceRecording()
+function setHoldPointerCapture(event?: PointerEvent) {
+  const target = event?.currentTarget as HTMLElement | undefined
+  try {
+    target?.setPointerCapture?.(event?.pointerId ?? 0)
+  } catch {
+    // Some embedded WebViews throw if pointer capture is unavailable for this event.
+  }
 }
 
-async function onHoldToTalkEnd() {
+function releaseHoldPointerCapture(event?: PointerEvent) {
+  const target = event?.currentTarget as HTMLElement | undefined
+  try {
+    target?.releasePointerCapture?.(event?.pointerId ?? 0)
+  } catch {
+    // Safe to ignore: the button may already have lost capture after pointerleave.
+  }
+}
+
+function isVoiceRecording() {
+  return recordingState.value === RecordingState.RECORDING
+}
+
+async function onHoldToTalkStart(event?: PointerEvent) {
+  event?.preventDefault()
+  setHoldPointerCapture(event)
+
+  if (
+    isCurrentChatGenerating.value ||
+    recordingState.value !== RecordingState.IDLE ||
+    isStartingVoiceRecording.value
+  ) {
+    return
+  }
+
+  isHoldingToTalk.value = true
+  isStartingVoiceRecording.value = true
+
+  try {
+    await toggleVoiceRecording()
+  } finally {
+    isStartingVoiceRecording.value = false
+  }
+
+  if (!isHoldingToTalk.value && isVoiceRecording()) {
+    await finishVoiceRecording()
+  } else if (!isVoiceRecording()) {
+    isHoldingToTalk.value = false
+  }
+}
+
+async function onHoldToTalkEnd(event?: PointerEvent) {
+  event?.preventDefault()
+  releaseHoldPointerCapture(event)
+
+  isHoldingToTalk.value = false
+
+  if (isStartingVoiceRecording.value) {
+    return
+  }
+
   if (recordingState.value === RecordingState.RECORDING) {
     await finishVoiceRecording()
+  } else if (recordingState.value === RecordingState.ERROR) {
+    recordingState.value = RecordingState.IDLE
+    sttService.value?.cancel()
   }
 }
 
@@ -801,6 +872,20 @@ async function toggleVoiceRecording() {
     const settings = await loadVoiceSettings()
     sttService.value = new STTService({
       language: settings.stt.language || DEFAULT_STT_CONFIG.language
+    })
+    sttService.value.onResult((text, _isFinal) => {
+      // 实时收集本地识别结果，确保 transcribe() 能取到文本
+      if (text) {
+        console.log('STT 识别中:', text)
+      }
+    })
+    sttService.value.onError((error) => {
+      recordingState.value = RecordingState.IDLE
+      isHoldingToTalk.value = false
+      uni.showToast({
+        title: error.message || '语音识别失败',
+        icon: 'none'
+      })
     })
   }
 
@@ -839,6 +924,7 @@ async function finishVoiceRecording() {
     return
   }
 
+  isHoldingToTalk.value = false
   recordingState.value = RecordingState.PROCESSING
 
   try {
@@ -1342,6 +1428,10 @@ onUnmounted(() => {
   font: inherit;
   font-size: 14px;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
 
   &.recording {
     color: #34d399;

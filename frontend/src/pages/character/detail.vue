@@ -17,6 +17,7 @@
       <h1 class="title">{{ character?.name || '角色详情' }}</h1>
 
       <div class="header-actions">
+        <button class="action-btn" @click="cloneCharacter">复制</button>
         <button class="action-btn" @click="goToEdit">编辑</button>
       </div>
     </div>
@@ -102,6 +103,27 @@ async function loadCharacter(id: string) {
 
 function goBack() {
   router.back()
+}
+
+async function cloneCharacter() {
+  if (!character.value) return
+  uni.showModal({
+    title: '复制角色',
+    content: `确定要复制「${character.value.name}」吗？`,
+    success: async (res: { confirm: boolean }) => {
+      if (res.confirm) {
+        try {
+          const newId = await characterStore.cloneCharacter(character.value.id)
+          uni.showToast({ title: '复制成功', icon: 'success' })
+          setTimeout(() => {
+            router.push(`/character/edit?id=${newId}`)
+          }, 800)
+        } catch {
+          uni.showToast({ title: '复制失败', icon: 'none' })
+        }
+      }
+    },
+  })
 }
 
 function goToEdit() {
@@ -229,6 +251,7 @@ async function deleteCharacter() {
 .header-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
 }
 
 .character-info {

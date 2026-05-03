@@ -54,6 +54,14 @@ export const useGameStore = defineStore('game', () => {
     return getSettingsService().isGlobalEnabled()
   })
 
+  const difficultyLevel = computed(() => {
+    return getSettingsService().getDifficultyLevel()
+  })
+
+  const baseSuccessRate = computed(() => {
+    return getSettingsService().getBaseSuccessRate()
+  })
+
   // 方法
   /**
    * 初始化游戏设置
@@ -86,6 +94,16 @@ export const useGameStore = defineStore('game', () => {
    */
   async function setGlobalEnabled(enabled: boolean) {
     await getSettingsService().setGlobalEnabled(enabled)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function setDifficultyLevel(level: 'easy' | 'normal' | 'hard') {
+    await getSettingsService().setDifficultyLevel(level)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function setBaseSuccessRate(rate: number) {
+    await getSettingsService().setBaseSuccessRate(rate)
     gameSettings.value = getSettingsService().getSettings()
   }
 
@@ -199,11 +217,17 @@ export const useGameStore = defineStore('game', () => {
    * 获取逃跑游戏的可用路线
    */
   function getEscapeRoutes(): EscapeRoute[] {
+    const modifier = {
+      easy: 0.7,
+      normal: 1.0,
+      hard: 1.3
+    }[getSettingsService().getDifficultyLevel()] ?? 1.0
+
     return [
-      { id: 'forest', name: '森林', icon: '🌲', difficulty: 30 },
-      { id: 'mountain', name: '山路', icon: '⛰️', difficulty: 50 },
-      { id: 'river', name: '河流', icon: '🌊', difficulty: 40 },
-      { id: 'road', name: '大路', icon: '🛣️', difficulty: 20 }
+      { id: 'forest', name: '森林', icon: '🌲', difficulty: Math.round(30 * modifier) },
+      { id: 'mountain', name: '山路', icon: '⛰️', difficulty: Math.round(50 * modifier) },
+      { id: 'river', name: '河流', icon: '🌊', difficulty: Math.round(40 * modifier) },
+      { id: 'road', name: '大路', icon: '🛣️', difficulty: Math.round(20 * modifier) }
     ]
   }
 
@@ -243,6 +267,8 @@ export const useGameStore = defineStore('game', () => {
     // 计算属性
     canTriggerGame,
     isGlobalEnabled,
+    difficultyLevel,
+    baseSuccessRate,
     // 方法
     initializeSettings,
     canTriggerGameInSession,
@@ -250,6 +276,8 @@ export const useGameStore = defineStore('game', () => {
     setGlobalEnabled,
     setSessionEnabled,
     toggleSessionEnabled,
+    setDifficultyLevel,
+    setBaseSuccessRate,
     triggerMiniGame,
     processGameAction,
     playStandaloneGame,

@@ -1,12 +1,26 @@
 /**
  * 设置状态管理
- * 使用 Pinia，负责主题、游戏开关等全局设置
+ * 使用 Pinia，负责主题、游戏开关、系统提示词等全局设置
  */
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ThemeType } from '@/types/user'
+import type { SystemPrompt, PromptCategory } from '@/types/system-prompt'
 import { storageDriver } from '@/services/storage'
+import {
+  loadSystemPrompts,
+  setAllEnabled,
+  setAllAdvanced,
+  setCategoryAdvanced,
+  resetToDefaults,
+  getActivePrompts,
+  getPromptsByCategory,
+  getPromptText,
+  updatePrompt as updateSystemPrompt,
+  exportPromptConfig,
+  importPromptConfig
+} from '@/services/system-prompt'
 
 /**
  * 设置状态接口
@@ -30,6 +44,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const theme = ref<ThemeType>(DEFAULT_THEME)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const systemPrompts = ref<SystemPrompt[]>(loadSystemPrompts())
 
   // 计算属性
   const themeDisplayName = computed(() => {
@@ -154,20 +169,115 @@ export const useSettingsStore = defineStore('settings', () => {
     error.value = null
   }
 
+  // ==================== 系统提示词管理 ====================
+
+  /**
+   * 启用的提示词列表（按优先级排序）
+   */
+  const activePrompts = computed(() => getActivePrompts(systemPrompts.value))
+
+  /**
+   * 重新加载系统提示词
+   */
+  function reloadSystemPrompts() {
+    systemPrompts.value = loadSystemPrompts()
+  }
+
+  /**
+   * 更新单个提示词
+   */
+  function updatePrompt(id: string, updates: Partial<Pick<SystemPrompt, 'enabled' | 'useAdvanced' | 'basicPrompt' | 'advancedPrompt'>>) {
+    systemPrompts.value = updateSystemPrompt(id, updates)
+  }
+
+  /**
+   * 导出配置为 JSON 字符串
+   */
+  function exportConfig(): string {
+    return exportPromptConfig(systemPrompts.value)
+  }
+
+  /**
+   * 导入配置
+   */
+  function importConfig(jsonString: string): boolean {
+    const result = importPromptConfig(jsonString)
+    if (result) {
+      systemPrompts.value = result
+      return true
+    }
+    return false
+  }
+
+  /**
+   * 一键启用/弃用全部
+   */
+  function toggleAllEnabled(enabled: boolean) {
+    systemPrompts.value = setAllEnabled(enabled)
+  }
+
+  /**
+   * 一键切换全部高级模式
+   */
+  function toggleAllAdvanced(useAdvanced: boolean) {
+    systemPrompts.value = setAllAdvanced(useAdvanced)
+  }
+
+  /**
+   * 一键切换指定分类的高级模式
+   */
+  function toggleCategoryAdvanced(category: PromptCategory, useAdvanced: boolean) {
+    systemPrompts.value = setCategoryAdvanced(category, useAdvanced)
+  }
+
+  /**
+   * 重置为默认配置
+   */
+  function resetSystemPrompts() {
+    systemPrompts.value = resetToDefaults()
+  }
+
+  /**
+   * 获取指定分类的提示词
+   */
+  function getPromptsByCat(category: PromptCategory) {
+    return getPromptsByCategory(category, systemPrompts.value)
+  }
+
+  /**
+   * 获取实际使用的提示词文本
+   */
+  function getActivePromptText(id: string): string | null {
+    return getPromptText(id)
+  }
+
   return {
     // 状态
     theme,
     loading,
     error,
+    systemPrompts,
     // 计算属性
     themeDisplayName,
     isDarkMode,
+    activePrompts,
     // 方法
     loadTheme,
     setTheme,
     applyTheme,
     toggleTheme,
     initTheme,
-    clearError
+    clearError,
+    // 系统提示词管理
+    reloadSystemPrompts,
+    updatePrompt,
+    toggleAllEnabled,
+    toggleAllAdvanced,
+    toggleCategoryAdvanced,
+    resetSystemPrompts,
+    getPromptsByCat,
+    getActivePromptText,
+    exportConfig,
+    importConfig
   }
 })

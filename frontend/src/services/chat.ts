@@ -26,6 +26,7 @@ import { touchMemory } from './memory-lifecycle'
 import { buildContextWindow } from './context-manager'
 import { loadSessionSummary } from './summarizer'
 import { getCharacterAISummary } from './character-profile-json'
+import { getActivePrompts } from './system-prompt'
 
 const MAX_SYSTEM_PROMPT_LENGTH = 6000
 const FORMAT_INSTRUCTION = '【格式规范】动作、神态、心理活动等非对话内容必须用中文圆括号（）包裹，严禁使用*星号*标记。示例：（微笑着点头）而非 *微笑着点头*。'
@@ -240,6 +241,32 @@ export class ChatService {
   }
 
   /**
+   * 替换系统提示词模板中的变量宏
+   */
+  private resolveSystemPromptMacros(
+    text: string,
+    character: ICharacter,
+    userInfo: { name?: string; corePrompt?: string; globalPrompt?: string } | null,
+    memoryPrompt: string = '',
+    sessionSummary: string | null = null
+  ): string {
+    return text
+      .replace(/\{\{char\.name\}\}/g, character.name || '')
+      .replace(/\{\{char\.desc\}\}/g, character.description || '')
+      .replace(/\{\{char\.description\}\}/g, character.description || '')
+      .replace(/\{\{char\.personality\}\}/g, character.personality || '')
+      .replace(/\{\{char\.behavior\}\}/g, character.behavior || '')
+      .replace(/\{\{char\.values\}\}/g, character.values || '')
+      .replace(/\{\{char\.scenario\}\}/g, character.scenario || '')
+      .replace(/\{\{char\.settings\}\}/g, character.settings || '')
+      .replace(/\{\{user\.name\}\}/g, userInfo?.name || '用户')
+      .replace(/\{\{user\.corePrompt\}\}/g, userInfo?.corePrompt || '')
+      .replace(/\{\{user\.globalPrompt\}\}/g, userInfo?.globalPrompt || '')
+      .replace(/\{\{memory\}\}/g, memoryPrompt || '')
+      .replace(/\{\{summary\}\}/g, sessionSummary || '')
+  }
+
+  /**
    * 按层次组装 system prompt:
    * Layer 1: Persona (Anchor → Traits → Voice)
    * Layer 2: Scenario (场景设定)
@@ -261,6 +288,38 @@ export class ChatService {
     characterAISummary = ''
   ): string {
     const sections: string[] = []
+
+    // 获取启用的系统提示词
+    let topPrompts: Array<{ text: string }> = []
+    let middlePrompts: Array<{ text: string }> = []
+    let bottomPrompts: Array<{ text: string }> = []
+    try {
+      const activePrompts = getActivePrompts()
+      const resolve = (p: typeof activePrompts[number]) =>
+        this.resolveSystemPromptMacros(
+          p.useAdvanced ? p.advancedPrompt : p.basicPrompt,
+          character,
+          userInfo,
+          memoryPrompt,
+          sessionSummary
+        )
+      topPrompts = activePrompts
+        .filter(p => p.injectionPosition === 'system-top')
+        .map(p => ({ text: resolve(p) }))
+      middlePrompts = activePrompts
+        .filter(p => p.injectionPosition === 'system-middle')
+        .map(p => ({ text: resolve(p) }))
+      bottomPrompts = activePrompts
+        .filter(p => p.injectionPosition === 'system-bottom')
+        .map(p => ({ text: resolve(p) }))
+    } catch {
+      // 向后兼容：系统提示词加载失败时不影响现有功能
+    }
+
+    // --- system-top 注入 ---
+    for (const prompt of topPrompts) {
+      if (prompt.text.trim()) sections.push(prompt.text.trim())
+    }
 
     // Layer 1: Persona (Anchor-Traits-Voice)
     if (character.persona) {
@@ -306,6 +365,11 @@ export class ChatService {
       if (userSection.trim()) sections.push(userSection)
     }
 
+    // --- system-middle 注入 ---
+    for (const prompt of middlePrompts) {
+      if (prompt.text.trim()) sections.push(prompt.text.trim())
+    }
+
     // Layer 5: Memory (regex-based long-term memory from chat-memory.ts)
     if (memoryPrompt) {
       sections.push(`【长期记忆】\n${memoryPrompt}`)
@@ -344,6 +408,11 @@ export class ChatService {
     sections.push(FORMAT_INSTRUCTION)
     if (extraSystemPrompt) {
       sections.push(extraSystemPrompt)
+    }
+
+    // --- system-bottom 注入 ---
+    for (const prompt of bottomPrompts) {
+      if (prompt.text.trim()) sections.push(prompt.text.trim())
     }
 
     const raw = sections.join('\n\n')

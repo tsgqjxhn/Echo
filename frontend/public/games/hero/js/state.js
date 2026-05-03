@@ -173,17 +173,18 @@ function spendResources(costs) {
   return true;
 }
 
-function addResources(rewards) {
+function addResources(rewards, skipMult) {
   if (!rewards) return;
   const p = gameState.player;
   const gemsBuff = getCityBuffValue('gemsMult');
   const resDouble = getCityBuffValue('resDouble').double;
+  const diffMult = skipMult ? 1 : (window.__difficultyRewardMult || 1);
   for (const key of ['wood', 'food', 'stone', 'gold', 'gems']) {
     if (!rewards[key]) continue;
     let val = rewards[key];
     if (key === 'gems') val = Math.floor(val * (1 + gemsBuff.value));
     if (resDouble) val *= 2;
-    p[key] += val;
+    p[key] += Math.floor(val * diffMult);
   }
   saveGame();
 }

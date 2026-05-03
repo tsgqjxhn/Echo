@@ -58,8 +58,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ensureNotificationPermission } from '@/services/notification'
 
 const router = useRouter()
 
@@ -69,6 +70,29 @@ const dndEnabled = ref(false)
 const dndStart = ref('23:00')
 const dndEnd = ref('08:00')
 const soundEnabled = ref(true)
+
+onMounted(() => {
+  try {
+    const raw = localStorage.getItem('echo_notification_settings')
+    if (!raw) return
+    const settings = JSON.parse(raw) as {
+      newMsgNotify?: boolean
+      friendNotify?: boolean
+      dndEnabled?: boolean
+      dndStart?: string
+      dndEnd?: string
+      soundEnabled?: boolean
+    }
+    newMsgNotify.value = settings.newMsgNotify !== false
+    friendNotify.value = settings.friendNotify !== false
+    dndEnabled.value = settings.dndEnabled === true
+    dndStart.value = settings.dndStart || '23:00'
+    dndEnd.value = settings.dndEnd || '08:00'
+    soundEnabled.value = settings.soundEnabled !== false
+  } catch {
+    // Ignore malformed settings.
+  }
+})
 
 watch([newMsgNotify, friendNotify, dndEnabled, dndStart, dndEnd, soundEnabled], () => {
   const settings = {
@@ -80,6 +104,9 @@ watch([newMsgNotify, friendNotify, dndEnabled, dndStart, dndEnd, soundEnabled], 
     soundEnabled: soundEnabled.value,
   }
   localStorage.setItem('echo_notification_settings', JSON.stringify(settings))
+  if (newMsgNotify.value) {
+    void ensureNotificationPermission().catch(() => undefined)
+  }
 }, { deep: true })
 </script>
 

@@ -1606,3 +1606,18 @@ GameData.techniqueSlotLimits = {
   dacheng:  { outer: 9, inner: 5 },
   dujie:    { outer: 10, inner: 6 },
 };
+
+// Apply difficulty multipliers
+(function(){
+  const dm = window.__difficultyMonsterMult || 1;
+  const dr = window.__difficultyRewardMult || 1;
+  for (const zone of Object.keys(GameData.enemies || {})) {
+    for (const e of GameData.enemies[zone]) {
+      e.hp = Math.max(1, Math.floor(e.hp * dm));
+      e.attack = Math.max(1, Math.floor(e.attack * dm));
+    }
+  }
+  for (const g of GameData.gardenUpgrades || []) {
+    g.yield = Math.max(1, Math.floor(g.yield * dr));
+  }
+})();

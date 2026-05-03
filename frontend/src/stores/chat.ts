@@ -11,6 +11,7 @@ import { getStorageDriver } from '@/services/storage'
 import { createLLMAPI } from '@/services/llm-api'
 import { createChatService, type ChatService } from '@/services/chat'
 import { apiConfigService } from '@/services/api-config'
+import { notifyApp } from '@/services/notification'
 
 export interface ChatState {
   currentSessionId: string | null
@@ -210,6 +211,7 @@ export const useChatStore = defineStore('chat', () => {
       if (visibleText.trim()) {
         const savedReply = await chatService.saveAssistantReply(sessionId, visibleText)
         await replaceVisibleDraft(savedReply)
+        await notifyAssistantReply(sessionId, visibleText)
         queueProactiveFollowUp(sessionId)
       } else {
         removeVisibleDraft()
@@ -221,6 +223,35 @@ export const useChatStore = defineStore('chat', () => {
       setSessionGenerating(sessionId, false)
       await loadSessions()
     }
+  }
+
+  function startAssistantReply(
+    sessionId: string,
+    streamFactory: () => Promise<AsyncGenerator<string, void, unknown>>
+  ) {
+    void streamAssistantReply(sessionId, streamFactory).catch(async error => {
+      const session = await getStorageDriver().getSession(sessionId)
+      void notifyApp({
+        title: '回复生成失败',
+        body: (error as Error).message || '请检查大模型配置后重试',
+        route: session ? `/chat/${session.characterId}?sessionId=${sessionId}` : undefined,
+        kind: 'message',
+      })
+    })
+  }
+
+  async function notifyAssistantReply(sessionId: string, content: string) {
+    const storage = getStorageDriver()
+    const session = await storage.getSession(sessionId)
+    const character = session ? await storage.getCharacter(session.characterId) : null
+    const route = session ? `/chat/${session.characterId}?sessionId=${sessionId}` : undefined
+
+    await notifyApp({
+      title: character?.name ? `${character.name} 回复了你` : '收到新回复',
+      body: content.replace(/\s+/g, ' ').slice(0, 90),
+      route,
+      kind: 'message',
+    })
   }
 
   async function sendMessage(content: string) {
@@ -235,7 +266,6 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
-    const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
     const userMessage = Message.createText(sessionId, 'user', trimmedContent)
     if (currentSessionId.value === sessionId) {
@@ -243,7 +273,10 @@ export const useChatStore = defineStore('chat', () => {
     }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(sessionId, () => remoteChatService.sendMessage(sessionId))
+    startAssistantReply(sessionId, async () => {
+      const remoteChatService = await getRemoteChatService()
+      return remoteChatService.sendMessage(sessionId)
+    })
   }
 
   async function sendImage(imagePath: string) {
@@ -253,7 +286,6 @@ export const useChatStore = defineStore('chat', () => {
 
     const sessionId = currentSessionId.value
     clearProactiveFollowUp(sessionId)
-    const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
     const userMessage = Message.createImage(sessionId, 'user', imagePath)
     if (currentSessionId.value === sessionId) {
@@ -261,7 +293,10 @@ export const useChatStore = defineStore('chat', () => {
     }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(sessionId, () => remoteChatService.sendImage(sessionId))
+    startAssistantReply(sessionId, async () => {
+      const remoteChatService = await getRemoteChatService()
+      return remoteChatService.sendImage(sessionId)
+    })
   }
 
   async function sendVoice(audioPath: string, text: string, duration?: number) {
@@ -271,7 +306,6 @@ export const useChatStore = defineStore('chat', () => {
 
     const sessionId = currentSessionId.value
     clearProactiveFollowUp(sessionId)
-    const remoteChatService = await getRemoteChatService()
     const localChatService = getLocalChatService()
     const userMessage = Message.createVoice(
       sessionId,
@@ -285,7 +319,10 @@ export const useChatStore = defineStore('chat', () => {
     }
     await localChatService.appendMessage(userMessage)
 
-    await streamAssistantReply(sessionId, () => remoteChatService.sendVoice(sessionId))
+    startAssistantReply(sessionId, async () => {
+      const remoteChatService = await getRemoteChatService()
+      return remoteChatService.sendVoice(sessionId)
+    })
   }
 
   async function retryLastResponse(messageId?: string) {
@@ -313,14 +350,14 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     const lastUserMessage = messages.value[userBoundaryIndex]
-    const remoteChatService = await getRemoteChatService()
     if (currentSessionId.value === sessionId) {
       messages.value = messages.value.slice(0, userBoundaryIndex + 1)
     }
 
-    await streamAssistantReply(sessionId, () =>
-      remoteChatService.retryGeneration(sessionId, lastUserMessage)
-    )
+    startAssistantReply(sessionId, async () => {
+      const remoteChatService = await getRemoteChatService()
+      return remoteChatService.retryGeneration(sessionId, lastUserMessage)
+    })
   }
 
   async function toggleLike(messageId: string) {

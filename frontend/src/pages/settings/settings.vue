@@ -78,8 +78,8 @@
             <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/global-prompt')">
-            <span class="setting-item-title">提示词</span>
+          <button type="button" class="setting-item" @click="router.push('/settings/system-prompt')">
+            <span class="setting-item-title">系统提示词管理</span>
             <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
@@ -98,10 +98,6 @@
             <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/about')">
-            <span class="setting-item-title">关于/版本</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
         </div>
       </section>
     </div>
@@ -159,7 +155,7 @@ function goToDataManagement() {
 function confirmClearData() {
   uni.showModal({
     title: '确认清空本地数据',
-    content: '这会删除所有本地角色、会话、API 配置与游戏设置，且无法撤销。建议先到“数据导入导出”中完成备份后再继续。',
+    content: '这会删除所有本地角色、会话、API 配置与游戏设置，且无法撤销。建议先到"数据导入导出"中完成备份后再继续。',
     success: async result => {
       if (!result.confirm) {
         return

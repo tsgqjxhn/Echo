@@ -349,7 +349,8 @@ class Player {
     if (sect && sect.bonus && sect.bonus.cultivation_mult) passiveSum += sect.bonus.cultivation_mult;
 
     const arrayMult = this.talentModifiers ? this.talentModifiers.arrayBonusMult || 1 : 1;
-    return realm.baseRate * (1 + passiveSum) * activeMult * (1 + arrayBonus * arrayMult);
+    const dr = window.__difficultyRewardMult || 1;
+    return realm.baseRate * (1 + passiveSum) * activeMult * (1 + arrayBonus * arrayMult) * dr;
   }
 
   // Recalculate talent modifiers from talents array

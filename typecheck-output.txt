@@ -1,0 +1,15 @@
+src/components/MessageBubble/index.vue(126,7): error TS6133: 'canSpeakMessage' is declared but its value is never read.
+src/components/MessageBubble/index.vue(223,16): error TS6133: 'listenMessage' is declared but its value is never read.
+src/pages/character/list.vue(210,7): error TS6133: 'currentSmallCategories' is declared but its value is never read.
+src/pages/chat/chat.vue(997,16): error TS6133: 'toggleAutoVoicePlayback' is declared but its value is never read.
+src/pages/dialogue/feed.vue(340,16): error TS6133: 'toggleDialogueTTS' is declared but its value is never read.
+src/pages/favorites/favorites.vue(80,22): error TS2551: Property 'favoriteCharacters' does not exist on type 'Store<"character", Pick<{ characters: Ref<{ id: string; name: string; avatar?: string | undefined; background?: string | undefined; description: string; greeting?: string | undefined; settings: string; ... 33 more ...; gameData?: string | undefined; }[], ICharacter[] | { ...; }[]>; ... 14 more ...; clearError: () =>...'. Did you mean 'friendCharacters'?
+src/pages/favorites/favorites.vue(120,24): error TS2339: Property 'toggleFavorite' does not exist on type 'Store<"character", Pick<{ characters: Ref<{ id: string; name: string; avatar?: string | undefined; background?: string | undefined; description: string; greeting?: string | undefined; settings: string; ... 33 more ...; gameData?: string | undefined; }[], ICharacter[] | { ...; }[]>; ... 14 more ...; clearError: () =>...'.
+src/pages/game/mini/chess.vue(77,29): error TS6133: 'row' is declared but its value is never read.
+src/pages/game/mini/chess.vue(78,26): error TS6133: 'col' is declared but its value is never read.
+src/pages/game/mini/chess.vue(670,10): error TS6133: 'calcAffinity' is declared but its value is never read.
+src/pages/game/mini/puzzle.vue(90,7): error TS6133: 'props' is declared but its value is never read.
+src/pages/game/mini/puzzle.vue(111,7): error TS6133: 'GRID' is declared but its value is never read.
+src/pages/history/history.vue(531,7): error TS6133: 'likedSessions' is declared but its value is never read.
+src/pages/history/history.vue(845,10): error TS6133: 'formatRelativeTime' is declared but its value is never read.
+src/pages/history/history.vue(861,10): error TS6133: 'goToDetail' is declared but its value is never read.

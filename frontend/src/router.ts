@@ -32,6 +32,11 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '创建角色' }
   },
   {
+    path: '/character/preview',
+    component: () => import('./pages/character/preview.vue'),
+    meta: { title: '预览对话' }
+  },
+  {
     path: '/chat/:characterId',
     component: () => import('./pages/chat/chat.vue'),
     meta: { title: '聊天' }
@@ -55,6 +60,11 @@ const routes: RouteRecordRaw[] = [
     path: '/settings/global-prompt',
     component: () => import('./pages/settings/global-prompt.vue'),
     meta: { title: '配置提示词' }
+  },
+  {
+    path: '/settings/system-prompt',
+    component: () => import('./pages/settings/system-prompt.vue'),
+    meta: { title: '系统提示词管理' }
   },
   {
     path: '/settings/api-config',
@@ -87,11 +97,6 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '存储管理' }
   },
   {
-    path: '/settings/about',
-    component: () => import('./pages/settings/about.vue'),
-    meta: { title: '关于' }
-  },
-  {
     path: '/moments',
     component: () => import('./pages/moments/moments.vue'),
     meta: { title: '朋友圈' }
@@ -105,6 +110,11 @@ const routes: RouteRecordRaw[] = [
     path: '/game/settings',
     component: () => import('./pages/game/settings.vue'),
     meta: { title: '游戏设置' }
+  },
+  {
+    path: '/game/generate',
+    component: () => import('./pages/game/generate.vue'),
+    meta: { title: '生成游戏' }
   },
   {
     path: '/game/escape',

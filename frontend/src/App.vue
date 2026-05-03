@@ -22,6 +22,7 @@ import {
 } from '@/services/story-conversations'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { HISTORY_READ_EVENT, hasAnyHistoryUnread } from '@/services/history-unread'
+import { APP_NOTIFICATION_EVENT, type AppNotificationPayload } from '@/services/notification'
 import { uni } from '@/utils/uni-polyfill'
 import '@/styles/theme.scss'
 
@@ -36,6 +37,10 @@ interface AnchorRect {
   left: number
   width: number
   height: number
+}
+
+interface InAppNotification extends AppNotificationPayload {
+  id: number
 }
 
 const route = useRoute()
@@ -58,6 +63,7 @@ const dialogueViewVersion = ref(0)
 const swipeStart = ref<SwipeStart | null>(null)
 const switchingConversation = ref(false)
 const hasHistoryBadge = ref(false)
+const appNotifications = ref<InAppNotification[]>([])
 
 function shouldHideTabBar() {
   if (route.path.startsWith('/game/play/')) {
@@ -379,6 +385,30 @@ function handleVisibilityChange() {
   }
 }
 
+function dismissAppNotification(id: number) {
+  appNotifications.value = appNotifications.value.filter(item => item.id !== id)
+}
+
+function openAppNotification(item: InAppNotification) {
+  dismissAppNotification(item.id)
+  if (item.route) {
+    router.push(item.route)
+  }
+}
+
+function handleAppNotification(event: Event) {
+  const payload = (event as CustomEvent<AppNotificationPayload>).detail
+  if (!payload?.title) return
+
+  const item: InAppNotification = {
+    ...payload,
+    id: Date.now() + Math.floor(Math.random() * 1000),
+  }
+
+  appNotifications.value = [item, ...appNotifications.value].slice(0, 3)
+  window.setTimeout(() => dismissAppNotification(item.id), 5200)
+}
+
 const showTabBar = computed(() => !shouldHideTabBar())
 const isHistoryChat = computed(() => route.path.includes('/chat') && route.query.from === 'history')
 const isHistoryDialogue = computed(() => route.path.includes('/dialogue') && route.query.from === 'history')
@@ -462,12 +492,15 @@ const routeViewKey = computed(() => {
 const dialogueCharacterName = computed(() => dialogueCharacter.value?.name || '当前角色')
 const dialogueCharacterAvatar = computed(() => dialogueCharacter.value?.avatar || '')
 
+import { initBuiltinCharacters } from '@/data/builtin-characters'
+
 onMounted(async () => {
   await Promise.allSettled([
     settingsStore.initTheme(),
     userStore.loadUserInfo(),
     gameStore.initializeSettings()
   ])
+  try { await initBuiltinCharacters() } catch { /* ignore */ }
   updateActiveTab()
   document.addEventListener('pointerdown', handleGlobalPointerDown, true)
   document.addEventListener('pointerup', handleGlobalPointerUp, true)
@@ -478,6 +511,7 @@ onMounted(async () => {
   window.addEventListener('scroll', handleViewportMutation, true)
   window.addEventListener('focus', refreshHistoryBadge)
   window.addEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
+  window.addEventListener(APP_NOTIFICATION_EVENT, handleAppNotification)
   await refreshHistoryBadge()
 })
 
@@ -491,6 +525,7 @@ onUnmounted(() => {
   window.removeEventListener('scroll', handleViewportMutation, true)
   window.removeEventListener('focus', refreshHistoryBadge)
   window.removeEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
+  window.removeEventListener(APP_NOTIFICATION_EVENT, handleAppNotification)
 })
 
 watch(
@@ -533,6 +568,21 @@ watch(
     </div>
 
     <AppTabBar v-if="showTabBar" v-model="activeTab" :history-badge="hasHistoryBadge" data-debug="app-tabbar" />
+
+    <Teleport to="body">
+      <div v-if="appNotifications.length" class="app-notification-stack">
+        <button
+          v-for="item in appNotifications"
+          :key="item.id"
+          type="button"
+          class="app-notification-card"
+          @click="openAppNotification(item)"
+        >
+          <strong>{{ item.title }}</strong>
+          <span v-if="item.body">{{ item.body }}</span>
+        </button>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div
@@ -836,6 +886,54 @@ body {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;
+}
+
+.app-notification-stack {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  right: 14px;
+  z-index: 12000;
+  display: grid;
+  gap: 10px;
+  width: min(320px, calc(100vw - 28px));
+  pointer-events: none;
+}
+
+.app-notification-card {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, 0.26);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(12, 18, 31, 0.96) 0%, rgba(7, 13, 24, 0.96) 100%);
+  color: var(--text-primary);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+
+  strong,
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  strong {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  span {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }
 
 @media (max-width: 640px) {

@@ -45,6 +45,14 @@ interface ShowModalOptions {
   success?: (res: { confirm: boolean; cancel: boolean }) => void
 }
 
+interface ShowActionSheetOptions {
+  title?: string
+  itemList: string[]
+  itemColor?: string
+  success?: (res: { tapIndex: number; content?: string }) => void
+  fail?: (err: any) => void
+}
+
 /**
  * 显示提示框
  */
@@ -79,6 +87,27 @@ export function showModal(options: ShowModalOptions): void {
   if (typeof window !== 'undefined') {
     const result = window.confirm(options.content)
     options.success?.({ confirm: result, cancel: !result })
+  }
+}
+
+/**
+ * 显示操作菜单
+ */
+export function showActionSheet(options: ShowActionSheetOptions): void {
+  if (typeof window !== 'undefined') {
+    const item = window.prompt(
+      (options.title ? options.title + '\n' : '') + options.itemList.map((t, i) => `${i + 1}. ${t}`).join('\n')
+    )
+    if (item === null) {
+      options.fail?.({ errMsg: 'cancel' })
+      return
+    }
+    const idx = parseInt(item, 10) - 1
+    if (idx >= 0 && idx < options.itemList.length) {
+      options.success?.({ tapIndex: idx })
+    } else {
+      options.fail?.({ errMsg: 'invalid index' })
+    }
   }
 }
 
@@ -180,6 +209,7 @@ export function getStorageSync(key: string): any {
 export const uni = {
   showToast,
   showModal,
+  showActionSheet,
   navigateTo,
   navigateBack,
   chooseImage,

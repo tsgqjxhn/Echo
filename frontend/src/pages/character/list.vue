@@ -62,6 +62,10 @@
         :key="character.id"
         class="character-card"
         @click="goToDetail(character.id)"
+        @contextmenu.prevent="onCardContextMenu(character, $event)"
+        @touchstart="onCardTouchStart(character, $event)"
+        @touchend="onCardTouchEnd"
+        @touchmove="onCardTouchMove"
       >
         <div class="card-topbar">
           <span class="meta-chip meta-chip--top">{{ getModeLabel(character.mode) }}</span>
@@ -74,6 +78,17 @@
           <p>{{ character.description }}</p>
           <span class="card-date">{{ formatDate(character.createdAt) }}</span>
         </div>
+
+        <div class="card-actions">
+          <button type="button" class="card-action-btn" @click.stop="goToEdit(character.id)">
+            <svg viewBox="0 0 24 24" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            编辑
+          </button>
+          <button type="button" class="card-action-btn clone" @click.stop="cloneCharacter(character)">
+            <svg viewBox="0 0 24 24" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            复制
+          </button>
+        </div>
       </article>
     </section>
 
@@ -84,100 +99,25 @@
       <button type="button" class="primary-btn" @click="router.push('/character/create')">立即创建</button>
     </section>
 
-    <div v-if="showImportSheet" class="overlay" @click.self="closeImportSheet">
-      <section class="sheet import-sheet">
-        <div class="sheet-head">
-          <div>
-            <p class="eyebrow">导入文档</p>
-            <h2>从文件里提取角色设定</h2>
-          </div>
-          <button type="button" class="close-btn" @click="closeImportSheet">关闭</button>
-        </div>
-
-        <div class="sheet-scroll" @click="showImportSubCategoryMenu = false">
-          <p class="sheet-copy">
-            当前优先支持 `txt`、`md`、`json`、`csv`。导入后会自动生成银色头像和背景，并将文档内容整理成角色设定。
-          </p>
-
-          <input
-            ref="importFileInput"
-            class="hidden-input"
-            type="file"
-            accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv"
-            @change="onImportFileChange"
-          />
-
-          <div class="import-box">
-            <button type="button" class="action-btn" @click="triggerImportFile">选择文档</button>
-            <span>{{ selectedImportFileName || '尚未选择文件' }}</span>
-          </div>
-
-          <label class="field">
-            <span>导入后使用的大类型</span>
-            <select v-model="importCategory">
-              <option v-for="group in categoryGroups" :key="group.label" :value="group.label">
-                {{ group.label }}
-              </option>
-            </select>
-          </label>
-
-          <div class="field field--dropdown">
-            <span>导入后使用的小类型</span>
-            <button
-              type="button"
-              class="select-trigger"
-              :aria-expanded="showImportSubCategoryMenu"
-              @click.stop="showImportSubCategoryMenu = !showImportSubCategoryMenu"
-            >
-              <span>{{ importSubCategory }}</span>
-              <svg class="select-caret" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M7 10.5L12 15.5L17 10.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                />
-              </svg>
-            </button>
-
-            <div
-              v-if="showImportSubCategoryMenu"
-              class="select-menu select-menu--up"
-              @click.stop
-            >
-              <button
-                v-for="item in importSmallCategories"
-                :key="item"
-                type="button"
-                class="select-option"
-                :class="{ active: importSubCategory === item }"
-                @click="selectImportSubCategory(item)"
-              >
-                {{ item }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <button type="button" class="primary-btn full" :disabled="!selectedImportFile" @click="submitImportDocument">
-          导入并生成角色
-        </button>
-      </section>
-    </div>
+    <input
+      ref="importFileInput"
+      class="hidden-input"
+      type="file"
+      accept=".png,.json"
+      @change="onImportFileChange"
+    />
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import createCharacterIcon from '@/static/images/create-character.svg'
 import importCharacterIcon from '@/static/images/import-character.svg'
 import searchIcon from '@/static/images/search-action.svg'
 import { useCharacterStore } from '@/stores/character'
-import { dataManagementService } from '@/services/data-management'
+import { importCharacterFromFile } from '@/services/character-import'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
@@ -186,8 +126,6 @@ import {
   DEFAULT_CATEGORY,
   getAllThemeLeaves,
   getBrowseCategoryGroups,
-  getCategoryGroups,
-  getFirstSubCategory
 } from '@/data/taxonomy'
 
 const router = useRouter()
@@ -196,23 +134,10 @@ const characterStore = useCharacterStore()
 const searchKeyword = ref('')
 const selectedBigCategory = ref('全部')
 const selectedTheme = ref('')
-const showImportSheet = ref(false)
-const showImportSubCategoryMenu = ref(false)
 const importFileInput = ref<HTMLInputElement | null>(null)
-const selectedImportFile = ref<File | null>(null)
-const importCategory = ref(DEFAULT_CATEGORY)
-const importSubCategory = ref(getFirstSubCategory(DEFAULT_CATEGORY))
 
-const categoryGroups = getCategoryGroups()
 const browseCategoryGroups = getBrowseCategoryGroups()
 const allThemes = getAllThemeLeaves()
-
-const currentSmallCategories = computed(() => {
-  return browseCategoryGroups.find(group => group.label === selectedBigCategory.value)?.items || []
-})
-const importSmallCategories = computed(() => {
-  return categoryGroups.find(group => group.label === importCategory.value)?.items || []
-})
 
 const filteredCharacters = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
@@ -248,18 +173,6 @@ const filteredCharacters = computed(() => {
     })
 })
 
-const selectedImportFileName = computed(() => selectedImportFile.value?.name || '')
-
-watch(
-  () => importCategory.value,
-  nextCategory => {
-    showImportSubCategoryMenu.value = false
-    if (!importSmallCategories.value.includes(importSubCategory.value)) {
-      importSubCategory.value = getFirstSubCategory(nextCategory)
-    }
-  },
-  { immediate: true }
-)
 
 onMounted(async () => {
   const library = loadStoryLibrary()
@@ -297,67 +210,126 @@ function goToDetail(id: string) {
   router.push(`/character/detail/${id}`)
 }
 
+function goToEdit(id: string) {
+  router.push(`/character/edit?id=${id}`)
+}
+
+async function cloneCharacter(character: ICharacter) {
+  uni.showModal({
+    title: '复制角色',
+    content: `确定要复制「${character.name}」吗？`,
+    success: async (res: { confirm: boolean }) => {
+      if (res.confirm) {
+        try {
+          const newId = await characterStore.cloneCharacter(character.id)
+          uni.showToast({ title: '复制成功', icon: 'success' })
+          setTimeout(() => {
+            router.push(`/character/edit?id=${newId}`)
+          }, 800)
+        } catch {
+          uni.showToast({ title: '复制失败', icon: 'none' })
+        }
+      }
+    },
+  })
+}
+
+// 长按菜单
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
+let longPressCharacter: ICharacter | null = null
+const LONG_PRESS_DELAY = 600
+
+function onCardTouchStart(character: ICharacter, _event: TouchEvent) {
+  longPressCharacter = character
+  longPressTimer = setTimeout(() => {
+    if (longPressCharacter) {
+      showCardActionSheet(longPressCharacter)
+      longPressCharacter = null
+    }
+  }, LONG_PRESS_DELAY)
+}
+
+function onCardTouchEnd() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  longPressCharacter = null
+}
+
+function onCardTouchMove() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  longPressCharacter = null
+}
+
+function onCardContextMenu(character: ICharacter, _event: MouseEvent) {
+  showCardActionSheet(character)
+}
+
+function showCardActionSheet(character: ICharacter) {
+  uni.showActionSheet({
+    title: `「${character.name}」`,
+    itemList: ['复制', '编辑', '删除'],
+    itemColor: '#38bdf8',
+    success: (res: { tapIndex: number }) => {
+      if (res.tapIndex === 0) cloneCharacter(character)
+      else if (res.tapIndex === 1) goToEdit(character.id)
+      else if (res.tapIndex === 2) confirmDelete(character)
+    },
+  })
+}
+
+function confirmDelete(character: ICharacter) {
+  uni.showModal({
+    title: '确认删除',
+    content: `确定要删除「${character.name}」吗？删除后无法恢复。`,
+    success: async (res: { confirm: boolean }) => {
+      if (res.confirm) {
+        try {
+          await characterStore.deleteCharacter(character.id)
+          uni.showToast({ title: '删除成功', icon: 'success' })
+        } catch {
+          uni.showToast({ title: '删除失败', icon: 'none' })
+        }
+      }
+    },
+  })
+}
+
 
 
 function openImportSheet() {
-  showImportSheet.value = true
-  showImportSubCategoryMenu.value = false
-}
-
-function closeImportSheet() {
-  showImportSheet.value = false
-  showImportSubCategoryMenu.value = false
-}
-
-function selectImportSubCategory(item: string) {
-  importSubCategory.value = item
-  showImportSubCategoryMenu.value = false
-}
-
-function triggerImportFile() {
   importFileInput.value?.click()
 }
 
 function onImportFileChange(event: Event) {
   const input = event.target as HTMLInputElement
-  selectedImportFile.value = input.files?.[0] || null
+  const file = input.files?.[0]
+  if (!file) return
+
+  handleImportFile(file)
+  input.value = ''
 }
 
-async function submitImportDocument() {
-  if (!selectedImportFile.value) {
-    uni.showToast({ title: '请先选择文档', icon: 'none' })
-    return
-  }
-
+async function handleImportFile(file: File) {
   try {
-    const importedCharacter = await dataManagementService.importCharacterDocument(
-      selectedImportFile.value,
-      importCategory.value,
-      importSubCategory.value
-    )
-
-    await characterStore.updateCharacter({
-      ...importedCharacter,
-      avatar: importedCharacter.avatar || createSilverAvatarDataUrl(importedCharacter.name),
-      background: importedCharacter.background || `${importCategory.value} / ${importSubCategory.value}`,
-      subCategory: importedCharacter.subCategory || importSubCategory.value,
-      avatarTone: importedCharacter.avatarTone || 'silver',
-      backgroundImage:
-        importedCharacter.backgroundImage ||
-        createSilverBackdropDataUrl(importedCharacter.name, `${importCategory.value} · ${importSubCategory.value}`),
-      tags: Array.from(new Set([...(importedCharacter.tags || []), importCategory.value, importSubCategory.value, '文档导入']))
-    })
-
-    await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
-    closeImportSheet()
-    selectedImportFile.value = null
-    if (importFileInput.value) {
-      importFileInput.value.value = ''
+    const imported = await importCharacterFromFile(file)
+    const character: Partial<ICharacter> = {
+      ...imported,
+      avatar: imported.avatar || createSilverAvatarDataUrl(imported.name),
+      backgroundImage: imported.backgroundImage || createSilverBackdropDataUrl(imported.name, '第三方导入'),
+      avatarTone: imported.avatarTone || 'silver',
     }
-    uni.showToast({ title: '文档角色已生成', icon: 'success' })
+
+    const newId = await characterStore.createCharacter(character)
+    uni.showToast({ title: `导入成功：${imported.name}`, icon: 'success' })
+    router.push(`/character/edit?id=${newId}`)
   } catch (error) {
     uni.showToast({
-      title: (error as Error).message || '导入文档失败',
+      title: (error as Error).message || '导入失败',
       icon: 'none'
     })
   }
@@ -377,7 +349,7 @@ $cyan: #67e8f9;
 
 .character-list-page {
   box-sizing: border-box;
-  height: 100vh;
+  min-height: 100vh;
   overflow-y: auto;
   padding: 0 0 96px;
   background:
@@ -386,6 +358,7 @@ $cyan: #67e8f9;
     linear-gradient(180deg, #050d14 0%, #071520 52%, #0a1e2c 100%);
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .character-list-page::-webkit-scrollbar,
@@ -484,7 +457,6 @@ $cyan: #67e8f9;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(28px) saturate(1.45);
   -webkit-backdrop-filter: blur(28px) saturate(1.45);
-  overflow: hidden;
 }
 
 .search-strip::before {
@@ -510,6 +482,8 @@ $cyan: #67e8f9;
   cursor: pointer;
   box-shadow: none;
   transition: transform var(--transition-base), opacity var(--transition-base);
+  position: relative;
+  z-index: 10;
 
   &:hover {
     opacity: 0.78;
@@ -671,6 +645,10 @@ $cyan: #67e8f9;
     border-color: rgba(255, 255, 255, 0.98);
     box-shadow: none;
   }
+
+  &:hover .card-actions {
+    opacity: 1;
+  }
 }
 
 .character-card:nth-child(odd):not(:last-child) {
@@ -723,6 +701,48 @@ $cyan: #67e8f9;
   color: var(--text-tertiary);
   font-size: 11px;
   letter-spacing: 0.04em;
+}
+
+.card-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.12);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    color: var(--text-secondary);
+    background: rgba(56, 189, 248, 0.06);
+  }
+
+  &.clone:hover {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(52, 211, 153, 0.06);
+    color: #6ee7b7;
+  }
+}
+
+@media (max-width: 640px) {
+  .card-actions {
+    opacity: 1;
+  }
 }
 
 .meta-chip {

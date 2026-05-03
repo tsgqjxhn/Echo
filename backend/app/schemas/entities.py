@@ -15,6 +15,74 @@ class TokenUsage(BaseModel):
     totalTokens: int = 0
 
 
+class CharacterPersona(BaseModel):
+    """结构化人设 — Anchor-Traits-Voice 框架"""
+
+    anchor: str
+    traits: list[str]
+    voice: str
+
+
+class DepthPrompt(BaseModel):
+    """深层角色提示, 注入在 prompt 不同深度"""
+
+    depth: int
+    prompt: str
+    role: Literal["system", "user", "assistant"]
+
+
+class LorebookEntry(BaseModel):
+    """Lorebook 条目 — 关键词触发的世界知识"""
+
+    id: str
+    keywords: list[str]
+    content: str
+    order: int
+    enabled: bool
+    characterName: str | None = None
+    position: Literal[0, 1]
+    depth: int
+    role: Literal["system", "user", "assistant"]
+
+
+class Lorebook(BaseModel):
+    """Lorebook 配置"""
+
+    entries: list[LorebookEntry]
+    scanRange: int
+
+
+class WorldBookEntry(BaseModel):
+    """World Book 词条"""
+
+    id: str
+    keywords: list[str]
+    content: str
+    order: int
+    enabled: bool
+    position: Literal[0, 1, 2, 3, 4, 5, 6, 7]
+    depth: int
+    role: Literal[0, 1, 2]
+    probability: int = 100
+    comment: str | None = None
+
+
+class WorldBook(BaseModel):
+    """World Book — 独立命名的可复用知识库"""
+
+    id: str
+    name: str
+    entries: list[WorldBookEntry]
+    scanRange: int
+
+
+class EmotionAnimation(BaseModel):
+    """角色情感表达动图"""
+
+    emotion: str
+    animationUrl: str
+
+
 class CharacterBase(BaseModel):
     id: str
     name: str
@@ -40,6 +108,18 @@ class CharacterBase(BaseModel):
     sceneTime: str | None = None
     isLiked: bool = False
     isFriend: bool = False
+    exampleDialogue: str | None = None
+    persona: CharacterPersona | None = None
+    scenario: str | None = None
+    depthPrompt: DepthPrompt | None = None
+    lorebook: Lorebook | None = None
+    alternateGreetings: list[str] | None = None
+    chatBackground: str | None = None
+    globalBackground: str | None = None
+    switchAnimation: str | None = None
+    emotionAnimations: list[EmotionAnimation] | None = None
+    gameData: str | None = None
+    worldBooks: list[WorldBook] | None = None
 
 
 class CharacterPayload(CharacterBase):

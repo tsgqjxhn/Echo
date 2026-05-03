@@ -10,6 +10,7 @@ import {
   type EntryConditionGroup,
 } from '@/types/prompt-template'
 import type { ChatMessage } from '@/types/chat'
+import { getActivePrompts } from './system-prompt'
 
 // ── Template variable macro replacement ──
 
@@ -166,91 +167,116 @@ export function injectChatEntries(
  * 构建默认模板 (兼容现有 chat.ts 的分层组装逻辑)
  */
 export function buildDefaultTemplate(): PromptTemplate {
+  const entries: PromptTemplate['entries'] = [
+    {
+      id: 'persona',
+      name: '角色身份 (Anchor-Traits-Voice)',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 100,
+      enabled: true,
+      content: '{{persona}}',
+    },
+    {
+      id: 'scenario',
+      name: '场景设定',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 90,
+      enabled: true,
+      content: '{{char.scenario}}',
+    },
+    {
+      id: 'description',
+      name: '角色描述',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 80,
+      enabled: true,
+      content: '{{char.desc}}',
+    },
+    {
+      id: 'memory',
+      name: '长期记忆',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 70,
+      enabled: true,
+      content: '{{memory}}',
+    },
+    {
+      id: 'summary',
+      name: '对话摘要',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 65,
+      enabled: true,
+      content: '{{summary}}',
+    },
+    {
+      id: 'lorebook',
+      name: '世界知识',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 60,
+      enabled: true,
+      content: '{{lorebook}}',
+    },
+    {
+      id: 'user_profile',
+      name: '用户画像',
+      role: 'system',
+      position: EntryPosition.RELATIVE,
+      depth: 0,
+      order: 50,
+      enabled: true,
+      content: '{{user.name}}',
+    },
+    {
+      id: 'reminder',
+      name: '角色维持提醒',
+      role: 'system',
+      position: EntryPosition.IN_CHAT,
+      depth: 2,
+      order: 10,
+      enabled: true,
+      content: '[系统提醒] 请继续保持{{char.name}}的语气和性格。记住你们的关系状态，用自然的口吻回复。不要总结、不要解释、不要跳出角色。',
+    },
+  ]
+
+  // 注入启用的系统提示词
+  try {
+    const activePrompts = getActivePrompts()
+    for (const prompt of activePrompts) {
+      const pos = prompt.injectionPosition
+      if (pos === 'system-top' || pos === 'system-middle' || pos === 'system-bottom') {
+        const text = prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+        entries.push({
+          id: `sys-${prompt.id}`,
+          name: prompt.name,
+          role: 'system',
+          position: EntryPosition.RELATIVE,
+          depth: 0,
+          order: prompt.priority * 10,
+          enabled: true,
+          content: text,
+        })
+      }
+    }
+  } catch {
+    // 向后兼容：系统提示词加载失败时不影响现有功能
+  }
+
   return {
     id: 'default',
     name: '默认模板',
     isDefault: true,
-    entries: [
-      {
-        id: 'persona',
-        name: '角色身份 (Anchor-Traits-Voice)',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 100,
-        enabled: true,
-        content: '{{persona}}',
-      },
-      {
-        id: 'scenario',
-        name: '场景设定',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 90,
-        enabled: true,
-        content: '{{char.scenario}}',
-      },
-      {
-        id: 'description',
-        name: '角色描述',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 80,
-        enabled: true,
-        content: '{{char.desc}}',
-      },
-      {
-        id: 'memory',
-        name: '长期记忆',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 70,
-        enabled: true,
-        content: '{{memory}}',
-      },
-      {
-        id: 'summary',
-        name: '对话摘要',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 65,
-        enabled: true,
-        content: '{{summary}}',
-      },
-      {
-        id: 'lorebook',
-        name: '世界知识',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 60,
-        enabled: true,
-        content: '{{lorebook}}',
-      },
-      {
-        id: 'user_profile',
-        name: '用户画像',
-        role: 'system',
-        position: EntryPosition.RELATIVE,
-        depth: 0,
-        order: 50,
-        enabled: true,
-        content: '{{user.name}}',
-      },
-      {
-        id: 'reminder',
-        name: '角色维持提醒',
-        role: 'system',
-        position: EntryPosition.IN_CHAT,
-        depth: 2,
-        order: 10,
-        enabled: true,
-        content: '[系统提醒] 请继续保持{{char.name}}的语气和性格。记住你们的关系状态，用自然的口吻回复。不要总结、不要解释、不要跳出角色。',
-      },
-    ],
+    entries,
   }
 }

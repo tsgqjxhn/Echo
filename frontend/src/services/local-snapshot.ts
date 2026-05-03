@@ -47,6 +47,8 @@ function defaultGameSettings(settings?: GameSettings | null): GameSettings {
   return {
     globalEnabled: settings?.globalEnabled ?? true,
     sessionEnabled: settings?.sessionEnabled || {},
+    difficultyLevel: settings?.difficultyLevel ?? 'normal',
+    baseSuccessRate: settings?.baseSuccessRate ?? 50,
   }
 }
 

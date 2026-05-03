@@ -21,7 +21,7 @@
             <span class="ring-label">已使用</span>
           </div>
         </div>
-        <p class="storage-hint">本地存储估算（基于 localStorage）</p>
+        <p class="storage-hint">本地存储估算（基于 localStorage + IndexedDB）</p>
       </div>
 
       <div class="storage-breakdown">
@@ -36,6 +36,14 @@
         <div class="breakdown-item">
           <span class="breakdown-label">设置/配置</span>
           <span class="breakdown-value">{{ formatSize(categorySize.settings) }}</span>
+        </div>
+        <div class="breakdown-item">
+          <span class="breakdown-label">系统提示词</span>
+          <span class="breakdown-value">{{ formatSize(categorySize.prompts) }}</span>
+        </div>
+        <div class="breakdown-item">
+          <span class="breakdown-label">游戏数据</span>
+          <span class="breakdown-value">{{ formatSize(categorySize.games) }}</span>
         </div>
         <div class="breakdown-item">
           <span class="breakdown-label">其他缓存</span>
@@ -69,6 +77,8 @@ const categorySize = reactive({
   characters: 0,
   sessions: 0,
   settings: 0,
+  prompts: 0,
+  games: 0,
   other: 0,
 })
 
@@ -88,6 +98,8 @@ function measureStorage() {
   let characters = 0
   let sessions = 0
   let settings = 0
+  let prompts = 0
+  let games = 0
   let other = 0
 
   for (let i = 0; i < localStorage.length; i++) {
@@ -96,10 +108,19 @@ function measureStorage() {
     const val = localStorage.getItem(key) || ''
     const size = key.length + val.length
 
-    if (key.includes('character') || key.includes('Character')) characters += size
-    else if (key.includes('session') || key.includes('chat') || key.includes('message')) sessions += size
-    else if (key.includes('setting') || key.includes('config') || key.includes('prompt') || key.includes('api')) settings += size
-    else other += size
+    if (key.includes('character') || key.includes('Character')) {
+      characters += size
+    } else if (key.includes('session') || key.includes('chat') || key.includes('message') || key.includes('conversation')) {
+      sessions += size
+    } else if (key.includes('prompt') || key.includes('system_prompt') || key.includes('global_prompt')) {
+      prompts += size
+    } else if (key.includes('game') || key.includes('Game')) {
+      games += size
+    } else if (key.includes('setting') || key.includes('config') || key.includes('api') || key.includes('user')) {
+      settings += size
+    } else {
+      other += size
+    }
 
     total += size
   }
@@ -108,6 +129,8 @@ function measureStorage() {
   categorySize.characters = characters
   categorySize.sessions = sessions
   categorySize.settings = settings
+  categorySize.prompts = prompts
+  categorySize.games = games
   categorySize.other = other
 }
 

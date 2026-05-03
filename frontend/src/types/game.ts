@@ -59,6 +59,8 @@ export interface EscapeActionResult extends GameActionResult {
 export interface GameSettings {
   globalEnabled: boolean;      // 全局开关
   sessionEnabled: Record<string, boolean>;  // 会话开关
+  difficultyLevel: 'easy' | 'normal' | 'hard'; // 难度等级
+  baseSuccessRate: number;     // 基础成功率 (0-100)
 }
 
 /**

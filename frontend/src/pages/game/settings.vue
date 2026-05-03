@@ -19,54 +19,22 @@
 
     <div class="settings-content">
       <div class="setting-section">
-        <h2 class="section-title">通用</h2>
-        <div class="setting-item">
-          <div class="item-left">
-            <span class="item-icon">🎮</span>
-            <span class="item-label">小游戏功能</span>
-          </div>
-          <div class="item-right">
-            <label class="switch">
-              <input v-model="globalEnabled" type="checkbox" @change="saveSettings" />
-              <span class="slider"></span>
-            </label>
-          </div>
+        <h2 class="section-title">难度设置</h2>
+        <div class="difficulty-options">
+          <button
+            v-for="opt in difficultyOptions"
+            :key="opt.key"
+            type="button"
+            class="difficulty-card"
+            :class="{ active: difficulty === opt.key }"
+            @click="setDifficulty(opt.key)"
+          >
+            <span class="difficulty-name">{{ opt.label }}</span>
+            <span class="difficulty-desc">{{ opt.desc }}</span>
+          </button>
         </div>
-      </div>
-
-      <div class="setting-section">
-        <h2 class="section-title">逃跑游戏</h2>
-        <div class="setting-item">
-          <div class="item-left">
-            <span class="item-label">基础成功率</span>
-          </div>
-          <div class="item-right">
-            <span class="item-value">50%</span>
-          </div>
-        </div>
-        <div class="setting-item">
-          <div class="item-left">
-            <span class="item-label">能力值范围</span>
-          </div>
-          <div class="item-right">
-            <span class="item-value">50-80</span>
-          </div>
-        </div>
-        <div class="setting-hint">
-          逃跑成功率 = 基础成功率 + 能力值 - 路线难度
-        </div>
-      </div>
-
-      <div class="setting-section">
-        <h2 class="section-title">关于</h2>
-        <div class="setting-item">
-          <div class="item-left">
-            <span class="item-label">说明</span>
-          </div>
-        </div>
-        <div class="about-text">
-          <p>小游戏可以在聊天过程中触发，影响剧情发展。</p>
-          <p>关闭小游戏功能后，聊天中将不会触发小游戏，但仍可在游戏中心游玩。</p>
+        <div class="difficulty-hint">
+          <p>当前效果：{{ currentHint }}</p>
         </div>
       </div>
     </div>
@@ -74,25 +42,47 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 
 const gameStore = useGameStore()
 const router = useRouter()
 
-const globalEnabled = ref(true)
+const difficulty = ref<'easy' | 'normal' | 'hard'>(gameStore.difficultyLevel || 'normal')
 
-onMounted(() => {
-  globalEnabled.value = gameStore.isGlobalEnabled
+const difficultyOptions = [
+  {
+    key: 'easy' as const,
+    label: '简单',
+    desc: '怪物数值减半，奖励减半',
+    hint: '敌人/成本更弱，获得奖励减半，适合轻松体验剧情。'
+  },
+  {
+    key: 'normal' as const,
+    label: '普通',
+    desc: '1倍基准',
+    hint: '标准数值，平衡的挑战与收益。'
+  },
+  {
+    key: 'hard' as const,
+    label: '困难',
+    desc: '怪物数值翻倍，自身奖励翻倍，自身数值不变',
+    hint: '敌人/成本更强，但通关奖励翻倍，自身属性不受难度影响。'
+  }
+]
+
+const currentHint = computed(() => {
+  return difficultyOptions.find(o => o.key === difficulty.value)?.hint || ''
 })
 
 function goBack() {
   router.back()
 }
 
-function saveSettings() {
-  gameStore.setGlobalEnabled(globalEnabled.value)
+async function setDifficulty(level: 'easy' | 'normal' | 'hard') {
+  difficulty.value = level
+  await gameStore.setDifficultyLevel(level)
 }
 </script>
 
@@ -200,107 +190,63 @@ function saveSettings() {
   text-transform: uppercase;
 }
 
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-color);
+.difficulty-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0 20px 16px;
+}
 
-  &:last-child {
-    border-bottom: none;
+.difficulty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), transform var(--transition-base);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(125, 211, 252, 0.25);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &.active {
+    border-color: rgba(125, 211, 252, 0.55);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(52, 211, 153, 0.12));
+    box-shadow: 0 10px 24px rgba(56, 189, 248, 0.12);
   }
 }
 
-.item-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.item-icon {
-  font-size: 20px;
-}
-
-.item-label {
+.difficulty-name {
   font-size: 15px;
-  color: var(--text-primary);
+  font-weight: 600;
 }
 
-.item-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.item-value {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.setting-hint {
-  padding: 14px 20px 20px;
+.difficulty-desc {
   font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.7;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  text-align: center;
 }
 
-.about-text {
+.difficulty-hint {
   padding: 0 20px 20px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.8;
+  line-height: 1.6;
 
   p {
-    margin-bottom: 8px;
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 52px;
-  height: 28px;
-
-  input {
-    width: 0;
-    height: 0;
-    opacity: 0;
-
-    &:checked + .slider {
-      background: var(--interactive-gradient);
-    }
-
-    &:checked + .slider:before {
-      transform: translateX(24px);
-    }
-  }
-
-  .slider {
-    position: absolute;
-    inset: 0;
-    cursor: pointer;
-    border: 1px solid var(--border-color);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    transition: 0.3s;
-
-    &:before {
-      position: absolute;
-      left: 3px;
-      bottom: 3px;
-      width: 20px;
-      height: 20px;
-      content: '';
-      border-radius: 50%;
-      background-color: #fff;
-      transition: 0.3s;
-    }
+    margin: 0;
   }
 }
 
@@ -319,9 +265,20 @@ function saveSettings() {
     width: calc(100% - 20px);
   }
 
-  .setting-item {
-    flex-direction: column;
-    align-items: flex-start;
+  .difficulty-options {
+    padding: 0 16px 14px;
+  }
+
+  .difficulty-card {
+    padding: 12px 6px;
+  }
+
+  .difficulty-name {
+    font-size: 14px;
+  }
+
+  .difficulty-desc {
+    font-size: 11px;
   }
 }
 </style>

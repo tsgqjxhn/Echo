@@ -40,6 +40,18 @@ def _to_response(record: CharacterRecord) -> CharacterResponse:
         sceneTime=record.scene_time,
         isLiked=record.is_liked,
         isFriend=record.is_friend,
+        exampleDialogue=record.example_dialogue,
+        persona=record.persona,
+        scenario=record.scenario,
+        depthPrompt=record.depth_prompt,
+        lorebook=record.lorebook,
+        alternateGreetings=record.alternate_greetings,
+        chatBackground=record.chat_background,
+        globalBackground=record.global_background,
+        switchAnimation=record.switch_animation,
+        emotionAnimations=record.emotion_animations,
+        gameData=record.game_data,
+        worldBooks=record.world_books,
     )
 
 
@@ -115,6 +127,18 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
             scene_time=payload.sceneTime,
             is_liked=payload.isLiked,
             is_friend=payload.isFriend,
+            example_dialogue=payload.exampleDialogue,
+            persona=payload.persona,
+            scenario=payload.scenario,
+            depth_prompt=payload.depthPrompt,
+            lorebook=payload.lorebook,
+            alternate_greetings=payload.alternateGreetings,
+            chat_background=payload.chatBackground,
+            global_background=payload.globalBackground,
+            switch_animation=payload.switchAnimation,
+            emotion_animations=payload.emotionAnimations,
+            game_data=payload.gameData,
+            world_books=payload.worldBooks,
         )
         db.add(record)
     else:
@@ -141,6 +165,18 @@ def save_character(payload: CharacterPayload, db: Session = Depends(get_db)) -> 
         record.scene_time = payload.sceneTime
         record.is_liked = payload.isLiked
         record.is_friend = payload.isFriend
+        record.example_dialogue = payload.exampleDialogue
+        record.persona = payload.persona
+        record.scenario = payload.scenario
+        record.depth_prompt = payload.depthPrompt
+        record.lorebook = payload.lorebook
+        record.alternate_greetings = payload.alternateGreetings
+        record.chat_background = payload.chatBackground
+        record.global_background = payload.globalBackground
+        record.switch_animation = payload.switchAnimation
+        record.emotion_animations = payload.emotionAnimations
+        record.game_data = payload.gameData
+        record.world_books = payload.worldBooks
     db.commit()
     db.refresh(record)
     return _to_response(record)

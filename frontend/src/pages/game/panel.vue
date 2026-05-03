@@ -4,13 +4,12 @@
       <button
         class="create-game-btn"
         type="button"
-        aria-label="创建游戏"
+        aria-label="新增游戏"
         @click="openCreateGame"
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
         </svg>
-        <span>创建游戏</span>
       </button>
       <h1 class="title">游戏中心</h1>
       <button
@@ -93,6 +92,68 @@
         </div>
       </div>
     </section>
+
+    <Teleport to="body">
+      <div v-if="showActionModal" class="modal-overlay" @click.self="showActionModal = false">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title">新增游戏</h3>
+            <button type="button" class="modal-close" @click="showActionModal = false">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+
+          <div class="modal-options">
+            <button type="button" class="modal-option-btn" @click="startCreateGameFlow">
+              <div class="option-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+              </div>
+              <div class="option-text">
+                <span class="option-title">创建游戏</span>
+                <span class="option-desc">发送规则，先生成大纲，再确认生成具体游戏</span>
+              </div>
+            </button>
+
+            <button type="button" class="modal-option-btn" @click="openImportGameFlow">
+              <div class="option-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </div>
+              <div class="option-text">
+                <span class="option-title">导入游戏</span>
+                <span class="option-desc">选择文件或文件夹，直接交给大模型生成游戏</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showImportChoiceModal" class="modal-overlay" @click.self="showImportChoiceModal = false">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title">导入游戏</h3>
+            <button type="button" class="modal-close" :disabled="isImportingGame" @click="showImportChoiceModal = false">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+
+          <div class="upload-btns import-choice-btns">
+            <button type="button" class="upload-action-btn" :disabled="isImportingGame" @click="openImportPicker('file')">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              导入文件
+            </button>
+            <button type="button" class="upload-action-btn" :disabled="isImportingGame" @click="openImportPicker('folder')">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              导入文件夹
+            </button>
+          </div>
+          <p v-if="isImportingGame" class="upload-hint">正在读取文件…</p>
+          <input ref="importFileInput" type="file" class="hidden-file-input" accept=".txt,.md,.json,.yaml,.yml,.html,.htm,.css,.js,.ts,.vue,.svg,.png,.jpg,.jpeg,.webp,.gif" multiple @change="onImportFilesSelected" />
+          <input ref="importFolderInput" type="file" class="hidden-file-input" webkitdirectory @change="onImportFilesSelected" />
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Import modal: choose method -->
     <Teleport to="body">
@@ -222,12 +283,15 @@ import { uni } from '@/utils/uni-polyfill'
 import { requestPermission } from '@/services/permissions'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
+import { readGameInputFiles } from '@/services/game-file-reader'
+import { useGameGenerationStore } from '@/stores/game-generation'
 import xiuxianGameAvatar from '@/static/images/game-center/game-center-xiuxian.webp'
 import empireGameAvatar from '@/static/images/game-center/game-center-empire.webp'
 import heroGameAvatar from '@/static/images/game-center/game-center-hero.webp'
 import darkDormGameAvatar from '@/static/images/game-center/game-center-dark-dorm.webp'
 
 const router = useRouter()
+const gameGenerationStore = useGameGenerationStore()
 
 interface PlayCategoryOption {
   key: string
@@ -362,6 +426,8 @@ const gameCatalog: GameCatalogItem[] = [
   },
 ]
 
+const showActionModal = ref(false)
+const showImportChoiceModal = ref(false)
 const showImportModal = ref(false)
 const showUploadModal = ref(false)
 const importMethod = ref<'rules' | 'full'>('rules')
@@ -370,6 +436,8 @@ const activePlayCategory = ref('all')
 const rulesText = ref('')
 const uploadInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
+const importFileInput = ref<HTMLInputElement | null>(null)
+const importFolderInput = ref<HTMLInputElement | null>(null)
 const uploadFileData = ref('')
 const uploadFileNames = ref<string[]>([])
 const uploadFileSize = ref('')
@@ -377,6 +445,7 @@ const showCreateWaiting = ref(false)
 const createGameDone = ref(false)
 const createGameResult = ref('')
 const createGameError = ref('')
+const isImportingGame = ref(false)
 
 const filteredGames = computed(() => {
   if (activePlayCategory.value === 'all') return gameCatalog
@@ -390,17 +459,57 @@ async function openFilePicker(refName: 'uploadInput' | 'folderInput') {
   input?.click()
 }
 
-function goToSettings() {
-  router.push('/game/settings')
-}
-
 function goToGameMenu() {
   router.push('/game/settings')
 }
 
 function openCreateGame() {
-  // Skip the picker and jump straight into the rules-based create flow.
-  selectImportMethod('rules')
+  showActionModal.value = true
+}
+
+function startCreateGameFlow() {
+  showActionModal.value = false
+  router.push('/game/generate?mode=create')
+}
+
+function openImportGameFlow() {
+  showActionModal.value = false
+  showImportChoiceModal.value = true
+}
+
+async function openImportPicker(kind: 'file' | 'folder') {
+  const perm = await requestPermission('storage')
+  if (!perm.granted) return
+  const input = kind === 'file' ? importFileInput.value : importFolderInput.value
+  input?.click()
+}
+
+async function onImportFilesSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (!files?.length || isImportingGame.value) return
+
+  isImportingGame.value = true
+
+  try {
+    const bundle = await readGameInputFiles(files)
+    const taskId = gameGenerationStore.startImport({
+      title: '导入游戏',
+      sourceText: [
+        `玩家导入了 ${bundle.fileNames.length} 个游戏文件。`,
+        '',
+        bundle.text,
+      ].join('\n'),
+      fileNames: bundle.fileNames,
+    })
+    showImportChoiceModal.value = false
+    router.push(`/game/generate?mode=import&task=${taskId}`)
+  } catch (error) {
+    uni.showToast({ title: (error as Error).message || '导入失败', icon: 'none' })
+  } finally {
+    input.value = ''
+    isImportingGame.value = false
+  }
 }
 
 function selectImportMethod(method: 'rules' | 'full') {
@@ -510,7 +619,6 @@ async function submitImport() {
   try {
     const config =
       (await apiConfigService.getDefaultConfig('text')) ||
-      (await apiConfigService.getDefaultConfig('chat')) ||
       (await apiConfigService.getDefaultConfig('voice'))
 
     if (!config) {
@@ -569,7 +677,7 @@ function formatFileSize(bytes: number): string {
   min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 18px;
   border-bottom: 1px solid var(--top-bar-border);
-  background: var(--top-bar-surface);
+  background: transparent;
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(28px) saturate(1.45);
   -webkit-backdrop-filter: blur(28px) saturate(1.45);
@@ -589,12 +697,13 @@ function formatFileSize(bytes: number): string {
   left: 18px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 36px;
-  padding: 0 12px 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(52, 211, 153, 0.22));
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-primary);
   font: inherit;
   font-size: 13px;
@@ -603,7 +712,7 @@ function formatFileSize(bytes: number): string {
   cursor: pointer;
   transition: opacity var(--transition-base), transform var(--transition-base), background var(--transition-base);
   -webkit-tap-highlight-color: transparent;
-  &:hover { opacity: 0.86; }
+  &:hover { opacity: 0.78; }
   &:active { transform: scale(0.96); }
 }
 
@@ -1041,6 +1150,7 @@ function formatFileSize(bytes: number): string {
 }
 
 .upload-btns { display: flex; gap: 10px; }
+.import-choice-btns { margin-top: 8px; }
 
 .upload-action-btn {
   flex: 1;

@@ -40,6 +40,18 @@ def init_db() -> None:
             "ALTER TABLE characters ADD COLUMN scene_time VARCHAR(128)",
             "ALTER TABLE characters ADD COLUMN is_liked INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE characters ADD COLUMN is_friend INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE characters ADD COLUMN example_dialogue TEXT",
+            "ALTER TABLE characters ADD COLUMN persona TEXT",
+            "ALTER TABLE characters ADD COLUMN scenario TEXT",
+            "ALTER TABLE characters ADD COLUMN depth_prompt TEXT",
+            "ALTER TABLE characters ADD COLUMN lorebook TEXT",
+            "ALTER TABLE characters ADD COLUMN alternate_greetings TEXT",
+            "ALTER TABLE characters ADD COLUMN chat_background TEXT",
+            "ALTER TABLE characters ADD COLUMN global_background TEXT",
+            "ALTER TABLE characters ADD COLUMN switch_animation TEXT",
+            "ALTER TABLE characters ADD COLUMN emotion_animations TEXT",
+            "ALTER TABLE characters ADD COLUMN game_data TEXT",
+            "ALTER TABLE characters ADD COLUMN world_books TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

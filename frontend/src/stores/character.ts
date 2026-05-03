@@ -139,6 +139,38 @@ export const useCharacterStore = defineStore('character', () => {
     }
   }
 
+  /**
+   * 克隆角色
+   */
+  async function cloneCharacter(id: string): Promise<string> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const source = await characterService.getById(id)
+      if (!source) throw new Error('角色不存在')
+
+      const cloned: Partial<ICharacter> = JSON.parse(JSON.stringify(source))
+      delete (cloned as any).id
+      delete (cloned as any).createdAt
+      delete (cloned as any).updatedAt
+
+      cloned.name = `${source.name} (复制)`
+      cloned.sourceType = 'manual'
+      cloned.tags = [...(source.tags || [])]
+      if (!cloned.tags.includes('克隆')) cloned.tags.push('克隆')
+
+      const newId = await characterService.create(cloned as ICharacter)
+      await loadCharacters()
+      return newId
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '克隆角色失败'
+      console.error('克隆角色失败:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
 
   async function toggleLike(id: string): Promise<boolean> {
     try {
@@ -213,6 +245,7 @@ export const useCharacterStore = defineStore('character', () => {
     createCharacter,
     updateCharacter,
     deleteCharacter,
+    cloneCharacter,
     toggleLike,
     toggleFriend,
     searchCharacters,

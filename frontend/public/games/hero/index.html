@@ -21,6 +21,20 @@
 
   <!-- Scripts in dependency order -->
   <script src="js/assets.js"></script>
+  <script>
+  (function(){
+    try {
+      var raw = localStorage.getItem('xiang_game_settings');
+      var s = raw ? JSON.parse(raw) : {};
+      var lv = s.difficultyLevel || 'normal';
+      window.__difficultyMonsterMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
+      window.__difficultyRewardMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
+    } catch(e) {
+      window.__difficultyMonsterMult = 1;
+      window.__difficultyRewardMult = 1;
+    }
+  })();
+  </script>
   <script src="js/data.js"></script>
   <script src="js/state.js"></script>
   <script src="js/research.js"></script>

@@ -279,7 +279,7 @@ const UI = {
         : null;
       if (stageClearBonus) {
         addResources(stageClearBonus);
-        const expGain = 8 + wave * 4;
+        const expGain = Math.floor((8 + wave * 4) * (window.__difficultyRewardMult || 1));
         if (gameState.selectedHero && typeof HeroManager !== 'undefined') {
           HeroManager.addExp(gameState.selectedHero, expGain);
         }

@@ -24,6 +24,8 @@ export type { ThemeType }
 export interface GameSettings {
   globalEnabled: boolean
   sessionEnabled: Record<string, boolean>
+  difficultyLevel: 'easy' | 'normal' | 'hard'
+  baseSuccessRate: number
 }
 
 export interface StorageDriver {
@@ -293,6 +295,8 @@ export class LocalStorageDriver implements StorageDriver {
       return {
         globalEnabled: parsed.globalEnabled ?? true,
         sessionEnabled: parsed.sessionEnabled || {},
+        difficultyLevel: parsed.difficultyLevel ?? 'normal',
+        baseSuccessRate: parsed.baseSuccessRate ?? 50,
       }
     } catch {
       return null

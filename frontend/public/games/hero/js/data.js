@@ -469,3 +469,16 @@ const DAILY_TASKS = [
   { id: 'dt3', name: '领取俸禄',  desc: '领取1次爵位俸禄',      target: 1, reward: { wood: 200, stone: 200 } },
   { id: 'dt4', name: '英雄培养',  desc: '升级1次英雄',          target: 1, reward: { gold: 200 } }
 ];
+
+// Apply difficulty multipliers
+(function(){
+  const dm = window.__difficultyMonsterMult || 1;
+  for (const k in ENEMY_TYPES) {
+    ENEMY_TYPES[k].hp = Math.max(1, Math.floor(ENEMY_TYPES[k].hp * dm));
+    ENEMY_TYPES[k].atk = Math.max(1, Math.floor(ENEMY_TYPES[k].atk * dm));
+  }
+  for (const b of BOSS_TYPES) {
+    b.hp = Math.max(1, Math.floor(b.hp * dm));
+    b.atk = Math.max(1, Math.floor(b.atk * dm));
+  }
+})();

@@ -23,6 +23,20 @@
 </div>
 <script src="js/assets.js"></script>
 <script>
+(function(){
+  try {
+    var raw = localStorage.getItem('xiang_game_settings');
+    var s = raw ? JSON.parse(raw) : {};
+    var lv = s.difficultyLevel || 'normal';
+    window.__difficultyMonsterMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
+    window.__difficultyRewardMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
+  } catch(e) {
+    window.__difficultyMonsterMult = 1;
+    window.__difficultyRewardMult = 1;
+  }
+})();
+</script>
+<script>
 // ===== data.js =====
 const CROP_DATA = {
   wheat:   { name: '小麦',   icon: '🌾', seedCost: 5,   growTime: 30,  rawSell: 8,   unlockLevel: 1  },
@@ -75,6 +89,32 @@ const BUFF_DATA = {
   customer_frenzy:  { name: '顾客热潮', icon: '👥', duration: 90,  effect: 'customer_rate',     value: 0.5,  description: '顾客进店率+50%',   cost: 250 },
   price_surge:      { name: '价格飙升', icon: '💰', duration: 60,  effect: 'price_multiplier',  value: 0.5,  description: '商品售价+50%',     cost: 400 },
   discount_fuel:    { name: '燃油折扣', icon: '⛽', duration: 120, effect: 'logistics_cost',    value: -0.3, description: '物流成本-30%',     cost: 150 },
+};
+
+// Apply difficulty multipliers
+(function(){
+  const dm = window.__difficultyMonsterMult || 1;
+  const dr = window.__difficultyRewardMult || 1;
+  for (const k in CROP_DATA) {
+    CROP_DATA[k].seedCost = Math.max(1, Math.floor(CROP_DATA[k].seedCost * dm));
+    CROP_DATA[k].rawSell = Math.max(1, Math.floor(CROP_DATA[k].rawSell * dr));
+  }
+  for (const k in RECIPE_DATA) {
+    RECIPE_DATA[k].factorySell = Math.max(1, Math.floor(RECIPE_DATA[k].factorySell * dr));
+    RECIPE_DATA[k].shopSell = Math.max(1, Math.floor(RECIPE_DATA[k].shopSell * dr));
+  }
+  for (const k in UPGRADE_DATA) {
+    UPGRADE_DATA[k].baseCost = Math.max(1, Math.floor(UPGRADE_DATA[k].baseCost * dm));
+  }
+  for (const k in BUFF_DATA) {
+    BUFF_DATA[k].cost = Math.max(1, Math.floor(BUFF_DATA[k].cost * dm));
+  }
+})();
+
+const BUILD_COSTS = {
+  factory: Math.max(1, Math.floor(1000 * (window.__difficultyMonsterMult || 1))),
+  shop: Math.max(1, Math.floor(3000 * (window.__difficultyMonsterMult || 1))),
+  logistics: Math.max(1, Math.floor(2000 * (window.__difficultyMonsterMult || 1)))
 };
 
 const PRESTIGE_THRESHOLD = 100000;
@@ -415,7 +455,7 @@ function buyFactoryMachine(s) {
 }
 
 function renderFactory(s) {
-  if (!s.factoryUnlocked) return '<div class="module-header factory-scene"><h2>加工厂</h2><p class="module-desc">将农产品加工为高价值商品</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('factory_unlock', 'lock-icon-img', '加工厂') + '</div><p>加工厂尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildFactory()" ' + (s.gold < 1000 ? 'disabled' : '') + '>建造加工厂 (1000G)</button></div>';
+  if (!s.factoryUnlocked) return '<div class="module-header factory-scene"><h2>加工厂</h2><p class="module-desc">将农产品加工为高价值商品</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('factory_unlock', 'lock-icon-img', '加工厂') + '</div><p>加工厂尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildFactory()" ' + (s.gold < BUILD_COSTS.factory ? 'disabled' : '') + '>建造加工厂 (' + BUILD_COSTS.factory + 'G)</button></div>';
   const ar = Object.entries(RECIPE_DATA).filter(([_, d]) => s.level >= d.unlockLevel).map(([k, d]) => ({ key: k, ...d }));
   const pm = getProductionSpeedMultiplier(s);
   let mh = s.factory.machines.map(m => {
@@ -487,7 +527,7 @@ function buyShopShelf(s) {
 }
 
 function renderShop(s) {
-  if (!s.shopUnlocked) return '<div class="module-header shop-scene"><h2>商店</h2><p class="module-desc">零售商品，获取最高利润</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('shop_unlock', 'lock-icon-img', '商店') + '</div><p>商店尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildShop()" ' + (s.gold < 3000 ? 'disabled' : '') + '>建造商店 (3000G)</button></div>';
+  if (!s.shopUnlocked) return '<div class="module-header shop-scene"><h2>商店</h2><p class="module-desc">零售商品，获取最高利润</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('shop_unlock', 'lock-icon-img', '商店') + '</div><p>商店尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildShop()" ' + (s.gold < BUILD_COSTS.shop ? 'disabled' : '') + '>建造商店 (' + BUILD_COSTS.shop + 'G)</button></div>';
   const sh = s.shop, pm = getPriceMultiplier(s), rm = getCustomerRateMultiplier(s);
   const slh = sh.shelves.map(sl => {
     if (sl.quantity > 0 && sl.product) {
@@ -543,7 +583,7 @@ function buyTruck(s) {
 }
 
 function renderLogistics(s) {
-  if (!s.logisticsUnlocked) return '<div class="module-header logistics-scene"><h2>物流中心</h2><p class="module-desc">自动化运输，连接全产业链</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('logistics_unlock', 'lock-icon-img', '物流中心') + '</div><p>物流中心尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildLogistics()" ' + (s.gold < 2000 ? 'disabled' : '') + '>建造物流中心 (2000G)</button></div>';
+  if (!s.logisticsUnlocked) return '<div class="module-header logistics-scene"><h2>物流中心</h2><p class="module-desc">自动化运输，连接全产业链</p></div><div class="locked-module"><div class="lock-icon">' + EmpireAssets.icon('logistics_unlock', 'lock-icon-img', '物流中心') + '</div><p>物流中心尚未建造</p><button class="btn-action btn-large" onclick="window.game.buildLogistics()" ' + (s.gold < BUILD_COSTS.logistics ? 'disabled' : '') + '>建造物流中心 (' + BUILD_COSTS.logistics + 'G)</button></div>';
   const tt = getTransportTime(s);
   const th = s.logistics.trucks.map(t => {
     if (!t.busy) return '<div class="truck idle"><span class="truck-icon">' + EmpireAssets.vehicle('truck', 0, 'truck-img') + '</span><span class="truck-status">空闲</span></div>';
@@ -724,17 +764,17 @@ var game;
     },
     sellRawCrop: function(k) { if (sellRawCrop(state, k)) render(); },
     buyFarmPlot: function() { if (buyFarmPlot(state)) render(); },
-    buildFactory: function() { if (hasGold(state, 1000)) { addGold(state, -1000); state.factoryUnlocked = true; notify(state, '加工厂建造完成！', 'success'); render(); } },
+    buildFactory: function() { if (hasGold(state, BUILD_COSTS.factory)) { addGold(state, -BUILD_COSTS.factory); state.factoryUnlocked = true; notify(state, '加工厂建造完成！', 'success'); render(); } },
     startProduction: function(id, k) { if (factoryStartProduction(state, id, k)) render(); },
     collectProduct: function(id) { if (factoryCollectProduct(state, id)) render(); },
     collectAllFactory: function() { factoryCollectAll(state); render(); },
     sellFactoryProduct: function(k) { if (sellFactoryProduct(state, k)) render(); },
     buyFactoryMachine: function() { if (buyFactoryMachine(state)) render(); },
-    buildShop: function() { if (hasGold(state, 3000)) { addGold(state, -3000); state.shopUnlocked = true; notify(state, '商店建造完成！', 'success'); render(); } },
+    buildShop: function() { if (hasGold(state, BUILD_COSTS.shop)) { addGold(state, -BUILD_COSTS.shop); state.shopUnlocked = true; notify(state, '商店建造完成！', 'success'); render(); } },
     stockShelf: function(id, k) { if (shopStockShelf(state, id, k)) render(); },
     autoStockShelves: function() { autoStockShelves(state); render(); },
     buyShopShelf: function() { if (buyShopShelf(state)) render(); },
-    buildLogistics: function() { if (hasGold(state, 2000)) { addGold(state, -2000); state.logisticsUnlocked = true; notify(state, '物流中心建造完成！', 'success'); render(); } },
+    buildLogistics: function() { if (hasGold(state, BUILD_COSTS.logistics)) { addGold(state, -BUILD_COSTS.logistics); state.logisticsUnlocked = true; notify(state, '物流中心建造完成！', 'success'); render(); } },
     manualShipment: function() { var re = document.getElementById('ship-route'), pe = document.getElementById('ship-product'), qe = document.getElementById('ship-qty'); if (!re || !pe || !qe) return; if (createShipment(state, re.value, pe.value, parseInt(qe.value) || 1)) render(); },
     addAutoRouteFromUI: function() { var re = document.getElementById('auto-route-type'), pe = document.getElementById('auto-route-product'), qe = document.getElementById('auto-route-qty'); if (!re || !pe || !qe) return; if (pe.value) { addAutoRoute(state, re.value, pe.value, parseInt(qe.value) || 5, 3); render(); } },
     removeAutoRoute: function(id) { removeAutoRoute(state, id); render(); },

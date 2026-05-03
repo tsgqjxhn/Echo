@@ -79,9 +79,10 @@ class ExplorationSystem {
     } else if (eventType === 'gather') {
       const zone = this.currentZone;
       const loot = {};
+      const dr = window.__difficultyRewardMult || 1;
       for (let i = 0; i < zone.drops.length; i++) {
         if (Math.random() < zone.dropRates[i]) {
-          const amount = BigNum.randInt(1, 3);
+          const amount = Math.floor(BigNum.randInt(1, 3) * dr);
           loot[zone.drops[i]] = amount;
         }
       }
@@ -112,9 +113,10 @@ class ExplorationSystem {
       } else {
         // Fallback to gathering
         const loot = {};
+        const dr = window.__difficultyRewardMult || 1;
         for (let i = 0; i < this.currentZone.drops.length; i++) {
           if (Math.random() < this.currentZone.dropRates[i]) {
-            loot[this.currentZone.drops[i]] = BigNum.randInt(1, 2);
+            loot[this.currentZone.drops[i]] = Math.floor(BigNum.randInt(1, 2) * dr);
           }
         }
         BigNum.give(this.player.inventory, loot);
@@ -183,8 +185,9 @@ class ExplorationSystem {
       // Cave exploration gives random loot
       const difficulty = choice.outcome === 'cave_explore_hard' ? 3 : 1;
       const loot = {};
-      if (Math.random() < 0.3 * difficulty) { loot.tiannian_lingyao = BigNum.randInt(1, 2 * difficulty); }
-      if (Math.random() < 0.15 * difficulty) { loot.kuangmai = BigNum.randInt(1, 3); }
+      const dr = window.__difficultyRewardMult || 1;
+      if (Math.random() < 0.3 * difficulty) { loot.tiannian_lingyao = Math.floor(BigNum.randInt(1, 2 * difficulty) * dr); }
+      if (Math.random() < 0.15 * difficulty) { loot.kuangmai = Math.floor(BigNum.randInt(1, 3) * dr); }
       if (Math.random() < 0.05 * difficulty) { loot.longwen_heijin = 1; }
       BigNum.give(this.player.inventory, loot);
       result.rewards = loot;
@@ -202,6 +205,7 @@ class ExplorationSystem {
     } else {
       // Normal reward
       if (choice.rewards) {
+        const dr = window.__difficultyRewardMult || 1;
         for (const [key, value] of Object.entries(choice.rewards)) {
           if (key === 'cultivation') {
             // Special: add cultivation based on rate * seconds
@@ -223,7 +227,7 @@ class ExplorationSystem {
               }
             }
           } else if (GameData.items[key]) {
-            const amount = typeof value === 'number' ? value : 1;
+            const amount = Math.floor((typeof value === 'number' ? value : 1) * dr);
             BigNum.give(this.player.inventory, { [key]: amount });
             result.rewards[key] = amount;
           }

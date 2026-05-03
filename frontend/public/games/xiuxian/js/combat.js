@@ -172,9 +172,10 @@ class CombatSystem {
   getLoot() {
     if (this.result !== 'win') return {};
     const loot = {};
+    const dr = window.__difficultyRewardMult || 1;
     if (this.enemy.drops) {
       for (const [item, [min, max]] of Object.entries(this.enemy.drops)) {
-        const amount = BigNum.randInt(min, max);
+        const amount = Math.floor(BigNum.randInt(min, max) * dr);
         if (amount > 0) {
           loot[item] = amount;
           BigNum.give(this.player.inventory, { [item]: amount });

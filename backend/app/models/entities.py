@@ -41,6 +41,20 @@ class CharacterRecord(Base, TimestampMixin):
     is_liked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     is_friend: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
 
+    # Advanced character fields aligned with frontend ICharacter
+    example_dialogue: Mapped[str | None] = mapped_column(Text, nullable=True)
+    persona: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    scenario: Mapped[str | None] = mapped_column(Text, nullable=True)
+    depth_prompt: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    lorebook: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    alternate_greetings: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    chat_background: Mapped[str | None] = mapped_column(Text, nullable=True)
+    global_background: Mapped[str | None] = mapped_column(Text, nullable=True)
+    switch_animation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    emotion_animations: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    game_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    world_books: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+
     sessions: Mapped[list["SessionRecord"]] = relationship(
         back_populates="character",
         cascade="all, delete-orphan",

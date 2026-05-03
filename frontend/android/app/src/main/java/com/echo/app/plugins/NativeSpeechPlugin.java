@@ -47,6 +47,8 @@ public class NativeSpeechPlugin extends Plugin {
     private boolean stopRequested = false;
     private PluginCall pendingStopCall;
     private Runnable pendingStopFallback;
+    private long recognitionStartTime = 0L;
+    private static final long MIN_RECOGNITION_DURATION_MS = 800L;
     private String latestTranscript = "";
     private String latestPartialTranscript = "";
     private MediaRecorder audioRecorder;
@@ -113,6 +115,7 @@ public class NativeSpeechPlugin extends Plugin {
                 }
 
                 isListening = true;
+                recognitionStartTime = System.currentTimeMillis();
                 emitState(STT_STATE_EVENT, "listening", null);
                 speechRecognizer.startListening(intent);
 
@@ -514,6 +517,18 @@ public class NativeSpeechPlugin extends Plugin {
             public void onError(int error) {
                 String code = String.valueOf(error);
                 String message = mapRecognitionError(error);
+
+                long elapsed = System.currentTimeMillis() - recognitionStartTime;
+                boolean tooShort = elapsed < MIN_RECOGNITION_DURATION_MS;
+
+                if (tooShort && (
+                    error == SpeechRecognizer.ERROR_CLIENT
+                    || error == SpeechRecognizer.ERROR_NO_MATCH
+                    || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                )) {
+                    resolveStopCall(bestTranscript());
+                    return;
+                }
 
                 if (stopRequested && (
                     error == SpeechRecognizer.ERROR_CLIENT

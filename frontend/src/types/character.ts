@@ -1,3 +1,5 @@
+import type { WorldBook } from './world-book'
+
 export interface GroupMember {
   name: string
   personality: string
@@ -44,9 +46,9 @@ export interface LorebookEntry {
   enabled: boolean
   /** 限定角色名 (空 = 全局) */
   characterName?: string
-  /** 位置: 0=in prompt, 1=in chat */
-  position: 0 | 1
-  /** 注入深度 (仅 position=1 时生效) */
+  /** 位置: 0=对话前,1=对话后,2=EM顶部,3=EM底部,4=AN顶部,5=AN底部,6=深度位置,7=出口 */
+  position: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
+  /** 注入深度 (仅 position=6 时生效) */
   depth: number
   /** 消息角色 */
   role: 'system' | 'user' | 'assistant'
@@ -114,6 +116,8 @@ export interface ICharacter {
   emotionAnimations?: EmotionAnimation[]
   /** 导入的游戏数据（规则、脚本、关卡等） */
   gameData?: string
+  /** 世界书列表 — 独立命名的可复用知识库 */
+  worldBooks?: WorldBook[]
 }
 
 export interface EmotionAnimation {
@@ -156,6 +160,7 @@ export interface CreateCharacterRequest {
   globalBackground?: string
   switchAnimation?: string
   emotionAnimations?: EmotionAnimation[]
+  worldBooks?: WorldBook[]
 }
 
 export interface UpdateCharacterRequest extends CreateCharacterRequest {

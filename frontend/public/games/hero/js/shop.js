@@ -21,7 +21,7 @@ const ShopManager = {
     if (r.stone) resReward.stone = r.stone;
     if (r.gold)  resReward.gold  = r.gold;
     if (r.gems)  resReward.gems  = r.gems;
-    if (Object.keys(resReward).length > 0) addResources(resReward);
+    if (Object.keys(resReward).length > 0) addResources(resReward, true);
     if (r.energyFull) {
       gameState.player.energy = gameState.player.maxEnergy;
       gameState.player.energyRefillTime = Date.now();

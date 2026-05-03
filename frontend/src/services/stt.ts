@@ -427,22 +427,25 @@ export class STTService {
       }
 
       recognition.onresult = (event: BrowserSpeechRecognitionEvent) => {
-        let finalTranscript = ''
-        let interimTranscript = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
+        const finalParts: string[] = []
+        const interimParts: string[] = []
+        for (let i = 0; i < event.results.length; i++) {
           const result = event.results[i]
+          const transcript = result[0]?.transcript?.trim()
+          if (!transcript) continue
           if (result.isFinal) {
-            finalTranscript += result[0].transcript
+            finalParts.push(transcript)
           } else {
-            interimTranscript += result[0].transcript
+            interimParts.push(transcript)
           }
         }
-        const text = finalTranscript || interimTranscript
+
+        const finalTranscript = finalParts.join(' ').trim()
+        const interimTranscript = interimParts.join(' ').trim()
+        const text = (finalTranscript || interimTranscript).trim()
         if (text) {
-          if (finalTranscript) {
-            this.localTranscript = finalTranscript.trim()
-          }
-          this.onResultCallback?.(text, !!finalTranscript)
+          this.localTranscript = text
+          this.onResultCallback?.(text, finalTranscript.length > 0)
         }
       }
 
@@ -468,13 +471,20 @@ export class STTService {
 
   private stopLocalRecognition(): Promise<string> {
     if (!this.recognition) return Promise.resolve('')
-    this.recognition.stop()
     this.state = RecordingState.PROCESSING
     return new Promise<string>((resolve) => {
-      setTimeout(() => {
+      const recognition = this.recognition!
+      let settled = false
+      const settle = () => {
+        if (settled) return
+        settled = true
         this.state = RecordingState.IDLE
-        resolve('')
-      }, 1000)
+        resolve(this.localTranscript.trim())
+      }
+
+      recognition.onend = settle
+      recognition.stop()
+      window.setTimeout(settle, 1500)
     })
   }
 
@@ -483,14 +493,13 @@ export class STTService {
     this.localTranscript = ''
     this.tempAudioPath = ''
     this.recordedBlob = null
+    const nativeStartTime = Date.now()
 
     const handles = await Promise.all([
       NativeSpeech.addListener('sttResult', (event: NativeSpeechSTTResultEvent) => {
         const text = event.text?.trim() || ''
         if (!text) return
-        if (event.final) {
-          this.localTranscript = text
-        }
+        this.localTranscript = text
         this.onResultCallback?.(text, !!event.final)
       }),
       NativeSpeech.addListener('sttState', (event: NativeSpeechStateEvent) => {
@@ -503,8 +512,23 @@ export class STTService {
         }
       }),
       NativeSpeech.addListener('sttError', (event: NativeSpeechErrorEvent) => {
+        const msg = event.message || ''
+        const elapsed = Date.now() - nativeStartTime
+        const tooShort = elapsed < 1000
+
+        // 过短录音期间的 CLIENT/NO_MATCH/SPEECH_TIMEOUT/aborted 视为正常取消
+        if (tooShort && /被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
+          return
+        }
+
+        // 已有识别文本时，过滤因正常 stopListening 触发的误报错
+        if (/被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
+          if (this.localTranscript && this.localTranscript.trim()) {
+            return
+          }
+        }
         this.state = RecordingState.ERROR
-        this.onErrorCallback?.(new Error(event.message || '系统语音识别失败'))
+        this.onErrorCallback?.(new Error(msg || '系统语音识别失败'))
       }),
     ])
 
@@ -536,8 +560,16 @@ export class STTService {
       }
       await this.detachNativeSpeechListeners()
       this.state = RecordingState.IDLE
-      return ''
+      return this.localTranscript.trim()
     } catch (error) {
+      const err = error as Error
+      // 若 stopRecognition 返回异常但已有识别文本，不再抛错，直接返回已有结果
+      const fallbackText = this.localTranscript.trim()
+      if (fallbackText && /aborted|abort|已中断|没有识别到|NO_MATCH|TIMEOUT/i.test(err.message || '')) {
+        await this.detachNativeSpeechListeners()
+        this.state = RecordingState.IDLE
+        return fallbackText
+      }
       this.state = RecordingState.ERROR
       await this.detachNativeSpeechListeners()
       this.useLocal = false

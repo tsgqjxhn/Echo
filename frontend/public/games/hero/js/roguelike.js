@@ -958,7 +958,7 @@ class RoguelikeGame {
       this.drops.push({ x: e.x, y: e.y, type: 'xp', value: Math.floor(e.xp * this.player.xpMult), life: 15, color: '#00e5ff' });
       if (Math.random() < 0.15 * (1 + (this.player.dropBonus || 0))) {
         const resTypes = ['wood', 'food', 'stone', 'gold'];
-        this.drops.push({ x: e.x + (Math.random() - 0.5) * 20, y: e.y + (Math.random() - 0.5) * 20, type: 'resource', resource: resTypes[Math.floor(Math.random() * 4)], value: Math.floor(3 + Math.random() * 8), life: 15, color: '#ffd740' });
+        this.drops.push({ x: e.x + (Math.random() - 0.5) * 20, y: e.y + (Math.random() - 0.5) * 20, type: 'resource', resource: resTypes[Math.floor(Math.random() * 4)], value: Math.floor((3 + Math.random() * 8) * (window.__difficultyRewardMult || 1)), life: 15, color: '#ffd740' });
       }
       // Death burst: themed particles scatter outward with gravity-like deceleration
       const ek = this._enemyKeyFor(e);
@@ -1292,7 +1292,7 @@ class RoguelikeGame {
         x: b.x + (Math.random() - 0.5) * 40,
         y: b.y + (Math.random() - 0.5) * 40,
         type: 'resource', resource: resTypes[Math.floor(Math.random() * 4)],
-        value: 15 + Math.floor(Math.random() * 20), life: 20, color: '#ffd740'
+        value: Math.floor((15 + Math.floor(Math.random() * 20)) * (window.__difficultyRewardMult || 1)), life: 20, color: '#ffd740'
       });
     }
     gameState.roguelike.totalBossKills++;

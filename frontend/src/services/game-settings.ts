@@ -13,7 +13,9 @@ export class GameSettingsService {
   private storage: StorageDriver;
   private settings: GameSettings = {
     globalEnabled: true,
-    sessionEnabled: {}
+    sessionEnabled: {},
+    difficultyLevel: 'normal',
+    baseSuccessRate: 50
   };
   private initialized = false;
 
@@ -46,7 +48,9 @@ export class GameSettingsService {
       // 使用默认设置
       this.settings = {
         globalEnabled: true,
-        sessionEnabled: {}
+        sessionEnabled: {},
+        difficultyLevel: 'normal',
+        baseSuccessRate: 50
       };
     }
   }
@@ -126,8 +130,40 @@ export class GameSettingsService {
   async reset(): Promise<void> {
     this.settings = {
       globalEnabled: true,
-      sessionEnabled: {}
+      sessionEnabled: {},
+      difficultyLevel: 'normal',
+      baseSuccessRate: 50
     };
     await this.saveSettings();
+  }
+
+  /**
+   * 设置难度等级
+   */
+  async setDifficultyLevel(level: 'easy' | 'normal' | 'hard'): Promise<void> {
+    this.settings.difficultyLevel = level;
+    await this.saveSettings();
+  }
+
+  /**
+   * 获取难度等级
+   */
+  getDifficultyLevel(): 'easy' | 'normal' | 'hard' {
+    return this.settings.difficultyLevel;
+  }
+
+  /**
+   * 设置基础成功率
+   */
+  async setBaseSuccessRate(rate: number): Promise<void> {
+    this.settings.baseSuccessRate = Math.max(0, Math.min(100, rate));
+    await this.saveSettings();
+  }
+
+  /**
+   * 获取基础成功率
+   */
+  getBaseSuccessRate(): number {
+    return this.settings.baseSuccessRate;
   }
 }
