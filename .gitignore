@@ -208,3 +208,10 @@ Temporary Items
 # =========================
 *.db-shm
 *.db-wal
+# =========================
+# Sherpa local STT (removed)
+# =========================
+frontend/android/app/libs/sherpa-*
+frontend/android/app/src/main/assets/sherpa-ncnn/
+frontend/android/app/src/main/java/com/k2fsa/
+frontend/android/app/libs/jniLibs/arm64-v8a/libsherpa-ncnn-jni.so

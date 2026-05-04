@@ -27,21 +27,12 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import com.k2fsa.sherpa.ncnn.SherpaNcnn;
-import com.k2fsa.sherpa.ncnn.RecognizerConfig;
-import com.k2fsa.sherpa.ncnn.FeatureExtractorConfig;
-import com.k2fsa.sherpa.ncnn.ModelConfig;
-
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin(name = "NativeSpeech")
 public class NativeSpeechPlugin extends Plugin {
@@ -78,13 +69,6 @@ public class NativeSpeechPlugin extends Plugin {
     private PluginCall pendingSpeakCall;
     private JSObject pendingSpeakOptions;
 
-    // sherpa-ncnn local STT
-    private SherpaNcnn sherpaRecognizer;
-    private Thread sherpaThread;
-    private AudioRecord sherpaAudioRecord;
-    private final AtomicBoolean sherpaRunning = new AtomicBoolean(false);
-    private boolean useSherpaNcnn = false;
-
     @Override
     public void load() {
         super.load();
@@ -95,8 +79,7 @@ public class NativeSpeechPlugin extends Plugin {
     public void checkAvailability(PluginCall call) {
         JSObject result = new JSObject();
         boolean systemStt = SpeechRecognizer.isRecognitionAvailable(getContext());
-        boolean sherpaReady = isSherpaModelReady();
-        result.put("sttAvailable", systemStt || sherpaReady);
+        result.put("sttAvailable", systemStt);
         result.put("ttsAvailable", textToSpeech != null || ttsReady || ttsInitializing);
         result.put("recordPermission", hasRecordPermission());
         call.resolve(result);
@@ -114,18 +97,11 @@ public class NativeSpeechPlugin extends Plugin {
             }
 
             boolean systemSttAvailable = SpeechRecognizer.isRecognitionAvailable(getContext());
-
-            // Use sherpa-ncnn when preferOffline or system STT unavailable
-            if (preferOffline || !systemSttAvailable) {
-                if (!isSherpaModelReady()) {
-                    call.reject("本地语音模型未就绪");
-                    return;
-                }
-                startSherpaRecognition(call, language);
+            if (!systemSttAvailable) {
+                call.reject("系统语音识别不可用");
                 return;
             }
 
-            // Fallback to system speech recognizer
             startSystemRecognition(call, language);
         });
     }
@@ -140,10 +116,6 @@ public class NativeSpeechPlugin extends Plugin {
     @PluginMethod
     public void stopRecognition(PluginCall call) {
         runOnMainThread(() -> {
-            if (useSherpaNcnn) {
-                stopSherpaRecognition(call);
-                return;
-            }
             stopSystemRecognition(call);
         });
     }
@@ -151,296 +123,9 @@ public class NativeSpeechPlugin extends Plugin {
     @PluginMethod
     public void cancelRecognition(PluginCall call) {
         runOnMainThread(() -> {
-            if (useSherpaNcnn) {
-                cancelSherpaRecognition();
-                call.resolve();
-                return;
-            }
             cancelRecognitionInternal(true);
             call.resolve();
         });
-    }
-
-    // ==================== sherpa-ncnn Local STT ====================
-
-    private boolean isSherpaModelReady() {
-        try {
-            String[] files = {
-                "sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.param",
-                "sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.bin",
-                "sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.param",
-                "sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.bin",
-                "sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.param",
-                "sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.bin",
-                "sherpa-ncnn/tokens.txt"
-            };
-            for (String name : files) {
-                getContext().getAssets().open(name).close();
-            }
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    private void startSherpaRecognition(PluginCall call, String language) {
-        cancelRecognitionInternal(false);
-        clearRecognitionText();
-        stopRequested = false;
-
-        try {
-            // Copy model files from assets to internal storage
-            File modelDir = new File(getContext().getFilesDir(), "sherpa-ncnn-model");
-            if (!modelDir.exists()) {
-                modelDir.mkdirs();
-            }
-            copyAssetIfNeeded("sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.param", new File(modelDir, "encoder_jit_trace-pnnx.ncnn.param"));
-            copyAssetIfNeeded("sherpa-ncnn/encoder_jit_trace-pnnx.ncnn.bin", new File(modelDir, "encoder_jit_trace-pnnx.ncnn.bin"));
-            copyAssetIfNeeded("sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.param", new File(modelDir, "decoder_jit_trace-pnnx.ncnn.param"));
-            copyAssetIfNeeded("sherpa-ncnn/decoder_jit_trace-pnnx.ncnn.bin", new File(modelDir, "decoder_jit_trace-pnnx.ncnn.bin"));
-            copyAssetIfNeeded("sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.param", new File(modelDir, "joiner_jit_trace-pnnx.ncnn.param"));
-            copyAssetIfNeeded("sherpa-ncnn/joiner_jit_trace-pnnx.ncnn.bin", new File(modelDir, "joiner_jit_trace-pnnx.ncnn.bin"));
-            copyAssetIfNeeded("sherpa-ncnn/tokens.txt", new File(modelDir, "tokens.txt"));
-
-            // Build recognizer config
-            RecognizerConfig config = new RecognizerConfig();
-            config.featConfig.sampleRate = 16000.0f;
-            config.featConfig.featureDim = 80;
-
-            config.modelConfig.encoderParam = new File(modelDir, "encoder_jit_trace-pnnx.ncnn.param").getAbsolutePath();
-            config.modelConfig.encoderBin = new File(modelDir, "encoder_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
-            config.modelConfig.decoderParam = new File(modelDir, "decoder_jit_trace-pnnx.ncnn.param").getAbsolutePath();
-            config.modelConfig.decoderBin = new File(modelDir, "decoder_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
-            config.modelConfig.joinerParam = new File(modelDir, "joiner_jit_trace-pnnx.ncnn.param").getAbsolutePath();
-            config.modelConfig.joinerBin = new File(modelDir, "joiner_jit_trace-pnnx.ncnn.bin").getAbsolutePath();
-            config.modelConfig.tokens = new File(modelDir, "tokens.txt").getAbsolutePath();
-            config.modelConfig.numThreads = 4;
-            config.modelConfig.useGPU = false;
-
-            config.enableEndpoint = true;
-            config.rule1MinTrailingSilence = 2.4f;
-            config.rule2MinTrailingSilence = 1.2f;
-            config.rule3MinUtteranceLength = 20.0f;
-
-            // Initialize sherpa-ncnn recognizer
-            if (sherpaRecognizer != null) {
-                sherpaRecognizer.release();
-            }
-
-            sherpaRecognizer = new SherpaNcnn(config);
-
-            useSherpaNcnn = true;
-            isListening = true;
-            recognitionStartTime = System.currentTimeMillis();
-            emitState(STT_STATE_EVENT, "listening", null);
-
-            // Start audio recording thread
-            startSherpaAudioThread();
-
-            JSObject result = new JSObject();
-            result.put("started", true);
-            call.resolve(result);
-        } catch (Exception error) {
-            releaseSherpaResources();
-            call.reject(error.getMessage() != null ? error.getMessage() : "启动本地语音识别失败");
-        }
-    }
-
-    private void copyAssetIfNeeded(String assetPath, File destFile) throws IOException {
-        if (destFile.exists() && destFile.length() > 0) {
-            return;
-        }
-        try (InputStream in = getContext().getAssets().open(assetPath);
-             OutputStream out = new FileOutputStream(destFile)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            out.flush();
-        }
-    }
-
-    private void startSherpaAudioThread() {
-        sherpaRunning.set(true);
-        emitState(STT_STATE_EVENT, "recording", null);
-
-        sherpaThread = new Thread(() -> {
-            int minBufferSize = AudioRecord.getMinBufferSize(
-                    SAMPLE_RATE,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
-            );
-            int bufferSize = Math.max(minBufferSize, SAMPLE_RATE / 10 * 2); // at least 100ms
-
-            sherpaAudioRecord = new AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    SAMPLE_RATE,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    bufferSize
-            );
-
-            if (sherpaAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                mainHandler.post(() -> {
-                    emitError(STT_ERROR_EVENT, "麦克风初始化失败", "audio_init_failed", null);
-                    stopSherpaInternal();
-                });
-                return;
-            }
-
-            sherpaAudioRecord.startRecording();
-            short[] buffer = new short[bufferSize / 2];
-
-            while (sherpaRunning.get() && !stopRequested) {
-                int read = sherpaAudioRecord.read(buffer, 0, buffer.length);
-                if (read > 0) {
-                    float[] samples = new float[read];
-                    for (int i = 0; i < read; i++) {
-                        samples[i] = buffer[i] / 32768.0f;
-                    }
-
-                    sherpaRecognizer.acceptWaveform(samples, SAMPLE_RATE);
-
-                    if (sherpaRecognizer.isReady()) {
-                        sherpaRecognizer.decode();
-                        String text = sherpaRecognizer.getText();
-                        if (text != null && !text.isEmpty()) {
-                            latestPartialTranscript = text;
-                            mainHandler.post(() -> emitSTTResult(text, false));
-                        }
-                    }
-                }
-            }
-
-            // Final decode
-            String finalText = "";
-            try {
-                sherpaRecognizer.inputFinished();
-                while (sherpaRecognizer.isReady()) {
-                    sherpaRecognizer.decode();
-                }
-                finalText = sherpaRecognizer.getText();
-            } catch (Exception e) {
-                // fall through to resolve with best transcript
-            }
-
-            if (finalText != null && !finalText.isEmpty()) {
-                latestTranscript = finalText;
-                final String textToEmit = finalText;
-                mainHandler.post(() -> {
-                    emitSTTResult(textToEmit, true);
-                    resolveSherpaStop(textToEmit);
-                });
-            } else {
-                String fallback = bestTranscript();
-                mainHandler.post(() -> resolveSherpaStop(fallback));
-            }
-
-            // Cleanup audio record
-            try {
-                sherpaAudioRecord.stop();
-            } catch (Exception ignored) {
-            }
-            try {
-                sherpaAudioRecord.release();
-            } catch (Exception ignored) {
-            }
-            sherpaAudioRecord = null;
-        });
-        sherpaThread.start();
-    }
-
-    private void stopSherpaRecognition(PluginCall call) {
-        if (!isListening || !useSherpaNcnn) {
-            call.resolve(new JSObject().put("text", bestTranscript()));
-            return;
-        }
-
-        if (pendingStopCall != null) {
-            pendingStopCall.resolve(new JSObject().put("text", bestTranscript()));
-        }
-        pendingStopCall = call;
-        stopRequested = true;
-
-        scheduleStopFallback();
-    }
-
-    private void resolveSherpaStop(String text) {
-        cancelStopFallback();
-        isListening = false;
-        stopRequested = false;
-        useSherpaNcnn = false;
-
-        PluginCall stopCall = pendingStopCall;
-        pendingStopCall = null;
-
-        emitState(STT_STATE_EVENT, "idle", null);
-        releaseSherpaResources();
-
-        if (stopCall != null) {
-            JSObject result = new JSObject();
-            result.put("text", text != null ? text : "");
-            stopCall.resolve(result);
-        }
-    }
-
-    private void cancelSherpaRecognition() {
-        sherpaRunning.set(false);
-        stopRequested = false;
-        isListening = false;
-        useSherpaNcnn = false;
-
-        PluginCall stopCall = pendingStopCall;
-        pendingStopCall = null;
-        if (stopCall != null) {
-            stopCall.resolve(new JSObject().put("text", ""));
-        }
-
-        cancelStopFallback();
-        emitState(STT_STATE_EVENT, "idle", null);
-
-        if (sherpaThread != null) {
-            try {
-                sherpaThread.join(500);
-            } catch (InterruptedException ignored) {
-            }
-            sherpaThread = null;
-        }
-
-        if (sherpaAudioRecord != null) {
-            try {
-                sherpaAudioRecord.stop();
-            } catch (Exception ignored) {
-            }
-            try {
-                sherpaAudioRecord.release();
-            } catch (Exception ignored) {
-            }
-            sherpaAudioRecord = null;
-        }
-
-        releaseSherpaResources();
-    }
-
-    private void stopSherpaInternal() {
-        sherpaRunning.set(false);
-        isListening = false;
-        stopRequested = false;
-        useSherpaNcnn = false;
-        cancelStopFallback();
-        emitState(STT_STATE_EVENT, "idle", null);
-        releaseSherpaResources();
-    }
-
-    private void releaseSherpaResources() {
-        if (sherpaRecognizer != null) {
-            try {
-                sherpaRecognizer.release();
-            } catch (Exception ignored) {
-            }
-            sherpaRecognizer = null;
-        }
     }
 
     // ==================== System STT ====================
@@ -498,11 +183,6 @@ public class NativeSpeechPlugin extends Plugin {
     }
 
     private void cancelRecognitionInternal(boolean emitStoppedState) {
-        if (useSherpaNcnn) {
-            cancelSherpaRecognition();
-            return;
-        }
-
         cancelStopFallback();
         stopRequested = false;
         isListening = false;
