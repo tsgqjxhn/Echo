@@ -1,6 +1,6 @@
 import type { APIProvider } from '@/types/api-config'
 import type { ProviderAdapter } from './types'
-import { localAdapter } from './local'
+import { localAdapter, localBuiltinAdapter, localGmsAdapter } from './local'
 import { openaiAdapter, openaiCompatibleAdapter } from './openai'
 import { anthropicAdapter } from './anthropic'
 import { dashscopeAdapter } from './dashscope'
@@ -21,6 +21,8 @@ function register(adapter: ProviderAdapter): void {
 }
 
 register(localAdapter)
+register(localBuiltinAdapter)
+register(localGmsAdapter)
 register(ollamaAdapter)
 register(openaiAdapter)
 register(openaiCompatibleAdapter)

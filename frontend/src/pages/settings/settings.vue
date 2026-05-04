@@ -98,13 +98,8 @@
             <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/voice')">
+          <button type="button" class="setting-item" @click="router.push('/settings/api-config')">
             <span class="setting-item-title">语音设置</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
-
-          <button type="button" class="setting-item" @click="router.push('/settings/global-prompt')">
-            <span class="setting-item-title">全局提示词</span>
             <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
           </button>
 

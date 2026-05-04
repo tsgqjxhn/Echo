@@ -5,6 +5,7 @@ import { requireAPIKey, resolveTranscriptionModel } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { base64ToBlob, isNativeRuntime } from './runtime-http'
 import { NativeSpeech } from './native-speech'
+import { isLocalProvider } from '@/types/api-config'
 import type {
   NativeSpeechErrorEvent,
   NativeSpeechSTTResultEvent,
@@ -229,14 +230,16 @@ export class STTService {
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
       : null
 
-    const hasRemoteSTTProvider = !!providerConfig && providerConfig.provider !== 'local'
+    const hasRemoteSTTProvider = !!providerConfig && !isLocalProvider(providerConfig.provider)
     const preferNativeSTT = !!nativeAvailability?.sttAvailable && !hasRemoteSTTProvider
 
     if (preferNativeSTT) {
       this.useLocal = true
       this.useNativeLocal = true
       try {
-        return await this.startNativeLocalRecognition()
+        // 如果配置为 local-gms，则 preferOffline 设为 false 走系统 GMS
+        const preferOffline = providerConfig?.provider !== 'local-gms'
+        return await this.startNativeLocalRecognition(preferOffline)
       } catch (nativeRecognitionError) {
         this.useLocal = false
         this.useNativeLocal = false
@@ -254,12 +257,13 @@ export class STTService {
       }
     }
 
-    if (providerConfig?.provider === 'local') {
+    if (providerConfig && isLocalProvider(providerConfig.provider)) {
       if (isNativeRuntime() && nativeAvailability?.sttAvailable) {
         this.useLocal = true
         this.useNativeLocal = true
         try {
-          return await this.startNativeLocalRecognition()
+          const preferOffline = providerConfig.provider !== 'local-gms'
+          return await this.startNativeLocalRecognition(preferOffline)
         } catch (nativeError) {
           this.useLocal = false
           this.useNativeLocal = false
@@ -488,7 +492,7 @@ export class STTService {
     })
   }
 
-  private async startNativeLocalRecognition(): Promise<void> {
+  private async startNativeLocalRecognition(preferOffline = true): Promise<void> {
     await this.detachNativeSpeechListeners()
     this.localTranscript = ''
     this.tempAudioPath = ''
@@ -537,7 +541,7 @@ export class STTService {
     try {
       await NativeSpeech.startRecognition({
         language: this.config.language,
-        preferOffline: true,
+        preferOffline,
       })
       this.state = RecordingState.RECORDING
     } catch (error) {
@@ -750,7 +754,7 @@ export class STTService {
 
     if (!providerConfig) throw new Error('请先在设置中配置 STT 提供商')
 
-    if (providerConfig.provider === 'local') {
+    if (isLocalProvider(providerConfig.provider)) {
       throw new Error('本地 STT 仅支持系统语音识别，无法对录音文件转写')
     }
 

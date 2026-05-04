@@ -61,10 +61,157 @@
       window.setInterval(persistDarkDorm, 60000);
     })();
   </script>
+  <script>
+    (function () {
+      var originalDocumentAdd = document.addEventListener.bind(document);
+      document.addEventListener = function (type, listener, options) {
+        if (type !== 'DOMContentLoaded' || typeof listener !== 'function') {
+          return originalDocumentAdd(type, listener, options);
+        }
+        return originalDocumentAdd(type, function (event) {
+          try {
+            return listener.call(document, event);
+          } catch (error) {
+            var message = String(error && error.message || error);
+            if (window.darkDormGame && message.indexOf('toString') !== -1) {
+              setTimeout(patchGameInstance, 0);
+              return undefined;
+            }
+            throw error;
+          }
+        }, options);
+      };
+
+      function prestigePoints(game) {
+        return (game && game.saveData && Number.isFinite(game.saveData.prestigePoints))
+          ? game.saveData.prestigePoints
+          : 0;
+      }
+
+      function patchGameInstance() {
+        var game = window.darkDormGame;
+        if (!game || game.__echoHostFixed) return;
+        game.__echoHostFixed = true;
+
+        if (typeof game.showMenu === 'function') {
+          var originalShowMenu = game.showMenu.bind(game);
+          game.showMenu = function (points) {
+            return originalShowMenu(points == null ? prestigePoints(game) : points);
+          };
+        }
+
+        if (typeof game.drawMap === 'function') {
+          var originalDrawMap = game.drawMap.bind(game);
+          game.drawMap = function (ctx) {
+            originalDrawMap(ctx);
+            if (!this.map || typeof this.map.getTile !== 'function') return;
+            var tileSize = this.tileSize || 48;
+            var cols = this.map.width || 9;
+            var rows = this.map.height || 13;
+            ctx.save();
+            ctx.fillStyle = '#000';
+            for (var y = 0; y < rows; y += 1) {
+              for (var x = 0; x < cols; x += 1) {
+                if (this.map.getTile(x, y) === 2) {
+                  ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                }
+              }
+            }
+            ctx.restore();
+          };
+        }
+
+        if (typeof game.render === 'function') {
+          var originalRender = game.render.bind(game);
+          game.render = function () {
+            originalRender();
+            if (!this.ctx) return;
+            var tileSize = this.tileSize || 48;
+            var cols = (this.map && this.map.width) || 9;
+            this.ctx.save();
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(1, tileSize + 1, cols * tileSize - 2, tileSize * 7 - 2);
+            this.ctx.restore();
+          };
+        }
+
+        try {
+          game.showMenu(prestigePoints(game));
+          if (typeof game.startLoop === 'function' && !game.running) game.startLoop();
+        } catch (_) {}
+      }
+
+      function activateButton(button) {
+        if (!button || button.disabled || button.classList.contains('locked')) return;
+        var game = window.darkDormGame;
+        if (!game || !game.ui) {
+          button.click();
+          return;
+        }
+
+        if (button.id === 'start-levels-btn') {
+          game.ui.showLevelSelect();
+          return;
+        }
+        if (button.id === 'level-select-back-btn') {
+          game.ui.hideLevelSelect();
+          return;
+        }
+        if (button.classList.contains('level-btn')) {
+          var level = parseInt(button.textContent, 10);
+          if (Number.isFinite(level) && typeof game.ui.onSelectLevel === 'function') {
+            game.ui.onSelectLevel(level);
+            return;
+          }
+        }
+        button.click();
+      }
+
+      var lastTouchAt = 0;
+      document.addEventListener('touchend', function (event) {
+        var target = event.target;
+        var button = target && target.closest && target.closest('#start-levels-btn, #level-select-back-btn, .level-btn');
+        if (!button) return;
+        var now = Date.now();
+        if (now - lastTouchAt < 280) return;
+        lastTouchAt = now;
+        event.preventDefault();
+        event.stopPropagation();
+        activateButton(button);
+      }, { passive: false });
+
+      window.addEventListener('DOMContentLoaded', function () {
+        patchGameInstance();
+        setTimeout(patchGameInstance, 0);
+        setTimeout(patchGameInstance, 120);
+      });
+    })();
+  </script>
   <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
 <div id="app">
+  <!-- Info Bar: added above player-info -->
+  <div id="info-bar" class="hidden">
+    <div class="info-col">
+      <span class="info-label">金币</span>
+      <span id="info-bar-gold" class="info-val">0</span>
+    </div>
+    <div class="info-col">
+      <span class="info-label">声望</span>
+      <span id="info-bar-prestige" class="info-val">0</span>
+    </div>
+    <div class="info-col">
+      <span class="info-label">波次</span>
+      <span id="info-bar-wave" class="info-val">-</span>
+    </div>
+    <div class="info-col">
+      <span class="info-label">倒计时</span>
+      <span id="info-bar-countdown" class="info-val">-</span>
+    </div>
+  </div>
+
   <div id="player-info" class="hidden">
     <div id="door-hp-bar">
       <div id="door-hp-fill"></div>
@@ -75,10 +222,23 @@
 
   <div id="canvas-wrap">
     <canvas id="canvas"></canvas>
+    <!-- Fence overlay SVG layer -->
+    <svg id="fence-overlay" viewBox="0 0 432 624" preserveAspectRatio="none" class="hidden">
+      <defs>
+        <pattern id="fencePattern" x="0" y="0" width="48" height="48" patternUnits="userSpaceOnUse">
+          <rect x="18" y="0" width="4" height="40" fill="#5a3a1a" opacity="0.6"/>
+          <rect x="0" y="36" width="48" height="4" fill="#5a3a1a" opacity="0.6"/>
+        </pattern>
+      </defs>
+      <rect x="48" y="48" width="336" height="336" fill="none" stroke="url(#fencePattern)" stroke-width="8" opacity="0.35"/>
+    </svg>
   </div>
 
+  <!-- Extended wave info with monster preview and HUD -->
   <div id="wave-info" class="hidden">
     <span id="wave-info-text">准备中...</span>
+    <div id="monster-preview"></div>
+    <div id="monster-hud-list"></div>
   </div>
 
   <div id="build-menu" class="hidden">
@@ -106,6 +266,21 @@
       <div class="btn-icon ice-icon"></div>
       <div class="btn-label">冰冻师</div>
       <div class="btn-cost">150</div>
+    </button>
+    <button class="build-btn" data-type="bomber">
+      <div class="btn-icon bomber-icon"></div>
+      <div class="btn-label">爆破塔</div>
+      <div class="btn-cost">200</div>
+    </button>
+    <button class="build-btn" data-type="sniper">
+      <div class="btn-icon sniper-icon"></div>
+      <div class="btn-label">狙击塔</div>
+      <div class="btn-cost">250</div>
+    </button>
+    <button class="build-btn" data-type="altar">
+      <div class="btn-icon altar-icon"></div>
+      <div class="btn-label">祭坛</div>
+      <div class="btn-cost">180</div>
     </button>
     <button id="upgrade-door-btn" class="build-btn">
       <div class="btn-icon door-icon"></div>
@@ -146,6 +321,7 @@
       <button id="start-endless-btn" class="menu-btn secondary">无尽模式</button>
       <button id="resume-endless-btn" class="menu-btn secondary hidden">继续无尽（第 <span id="resume-wave-val">1</span> 波）</button>
       <button id="prestige-btn" class="menu-btn secondary">声望升级</button>
+      <button id="codex-btn" class="menu-btn secondary">图鉴</button>
       <div id="menu-prestige">声望点：<span id="menu-prestige-val">0</span></div>
     </div>
     <div id="level-select-screen" class="hidden">
@@ -174,19 +350,80 @@
       <div id="shop-points">可用声望：<span id="shop-points-val">0</span></div>
       <div id="shop-items">
         <div class="shop-item" data-upgrade="goldMult">
-          <span>金币收益 +10%</span>
-          <button class="buy-btn">5</button>
+          <span class="shop-name">金币收益 +10%</span>
+          <span class="shop-level">(0)</span>
+          <button class="buy-btn">升级 (5)</button>
         </div>
         <div class="shop-item" data-upgrade="doorHp">
-          <span>门耐久 +20%</span>
-          <button class="buy-btn">3</button>
+          <span class="shop-name">门耐久 +20%</span>
+          <span class="shop-level">(0)</span>
+          <button class="buy-btn">升级 (3)</button>
         </div>
         <div class="shop-item" data-upgrade="towerDmg">
-          <span>塔伤害 +15%</span>
-          <button class="buy-btn">4</button>
+          <span class="shop-name">塔伤害 +15%</span>
+          <span class="shop-level">(0)</span>
+          <button class="buy-btn">升级 (4)</button>
         </div>
       </div>
       <button id="shop-close" class="menu-btn secondary">关闭</button>
+    </div>
+  </div>
+
+  <!-- Codex / Bestiary Panel -->
+  <div id="codex-screen" class="hidden">
+    <div id="codex-content">
+      <h2>怪物图鉴</h2>
+      <div class="codex-grid">
+        <div class="codex-card">
+          <div class="codex-icon ghost"></div>
+          <div class="codex-name">幽灵</div>
+          <div class="codex-desc">基础怪物，均衡的攻防。</div>
+        </div>
+        <div class="codex-card">
+          <div class="codex-icon ghostfemale"></div>
+          <div class="codex-name">女鬼</div>
+          <div class="codex-desc">低血量高攻击，持续回血，受击伤害×2。</div>
+        </div>
+        <div class="codex-card">
+          <div class="codex-icon zombie"></div>
+          <div class="codex-name">丧尸</div>
+          <div class="codex-desc">高血量高减伤，移速慢，撤退回血快。</div>
+        </div>
+        <div class="codex-card">
+          <div class="codex-icon shadow"></div>
+          <div class="codex-name">暗影</div>
+          <div class="codex-desc">高移速，定期拆毁床铺。</div>
+        </div>
+      </div>
+      <div class="codex-buildings">
+        <h3>建筑图鉴</h3>
+        <div class="codex-grid">
+          <div class="codex-card"><div class="codex-icon building bed"></div><div class="codex-name">床铺</div><div class="codex-desc">产生金币收入。</div></div>
+          <div class="codex-card"><div class="codex-icon building tower"></div><div class="codex-name">防御塔</div><div class="codex-desc">快速单体攻击。</div></div>
+          <div class="codex-card"><div class="codex-icon building generator"></div><div class="codex-name">发电机</div><div class="codex-desc">提升相邻建筑效率。</div></div>
+          <div class="codex-card"><div class="codex-icon building repairman"></div><div class="codex-name">修理工</div><div class="codex-desc">自动修复附近建筑。</div></div>
+          <div class="codex-card"><div class="codex-icon building ice_mage"></div><div class="codex-name">冰冻师</div><div class="codex-desc">减速敌人。</div></div>
+          <div class="codex-card"><div class="codex-icon building bomber"></div><div class="codex-name">爆破塔</div><div class="codex-desc">范围溅射伤害。</div></div>
+          <div class="codex-card"><div class="codex-icon building sniper"></div><div class="codex-name">狙击塔</div><div class="codex-desc">远程高伤害，可暴击。</div></div>
+          <div class="codex-card"><div class="codex-icon building altar"></div><div class="codex-name">祭坛</div><div class="codex-desc">范围内提升塔攻速，降低怪物移速。</div></div>
+        </div>
+      </div>
+      <button id="codex-close" class="menu-btn secondary">关闭</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Overlay -->
+  <div id="tutorial-overlay" class="hidden">
+    <div id="tutorial-content">
+      <h2>新手教程</h2>
+      <ol>
+        <li>白天在地板上建造床铺赚取金币。</li>
+        <li>建造防御塔、冰冻师保护宿舍。</li>
+        <li>夜晚怪物会沿着走廊进攻大门。</li>
+        <li>怪物血量过低会撤退回血，随后再次进攻。</li>
+        <li>使用祭坛和发电机优化你的防御布局。</li>
+      </ol>
+      <button id="tutorial-close" class="menu-btn">开始游戏</button>
     </div>
   </div>
 </div>

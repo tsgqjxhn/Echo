@@ -1,13 +1,137 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>幸存者防线</title>
+    <style>
+      button {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* 强制横屏与全屏适配 */
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #0a0a0a;
+      }
+      /* 竖屏提示 */
+      @media screen and (orientation: portrait) {
+        #root {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        #root > *:not(#echo-portrait-tip) {
+          display: none !important;
+        }
+      }
+      @media screen and (orientation: landscape) {
+        #echo-portrait-tip {
+          display: none !important;
+        }
+      }
+      /* 返回按钮 */
+      #echo-game-back-btn {
+        position: fixed;
+        top: max(env(safe-area-inset-top, 0px), 6px);
+        left: 6px;
+        z-index: 99998;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border: none;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        transition: transform 0.15s ease;
+      }
+      #echo-game-back-btn:active {
+        transform: scale(0.92);
+      }
+      #echo-portrait-tip {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a0a;
+        color: #ffd740;
+        font-size: 16px;
+        text-align: center;
+        padding: 20px;
+        gap: 12px;
+      }
+    </style>
     <script type="module" crossorigin src="./assets/index-CMpIraSm.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Dqswym4k.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="echo-portrait-tip">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+          <path d="M12 18h.01"/>
+        </svg>
+        <span>请旋转设备至横屏<br>以获得最佳游戏体验</span>
+      </div>
+    </div>
+    <button id="echo-game-back-btn" aria-label="返回">←</button>
+    <script>
+      (function () {
+        // 返回按钮
+        var backBtn = document.getElementById('echo-game-back-btn');
+        if (backBtn) {
+          backBtn.addEventListener('click', function () {
+            try {
+              window.parent.postMessage({ type: 'game-back' }, '*');
+            } catch (_) {}
+          });
+        }
+
+        // 触摸点击兼容
+        var lastTouchAt = 0;
+        document.addEventListener('touchend', function (event) {
+          var target = event.target;
+          var button = target && target.closest && target.closest('button');
+          if (!button || button.disabled) return;
+          var now = Date.now();
+          if (now - lastTouchAt < 280) return;
+          lastTouchAt = now;
+          event.preventDefault();
+          event.stopPropagation();
+          setTimeout(function () {
+            button.click();
+          }, 0);
+        }, { passive: false, capture: true });
+
+        // 存档桥接
+        window.addEventListener('message', function (event) {
+          var data = event.data;
+          if (!data || data.source !== 'survivor-defense-host' || data.type !== 'save-now') return;
+          try {
+            window.parent.postMessage({
+              source: 'survivor-defense-game',
+              type: 'save-complete',
+              requestId: data.requestId,
+              ok: true
+            }, '*');
+          } catch (_) {}
+        });
+      })();
+    </script>
   </body>
 </html>

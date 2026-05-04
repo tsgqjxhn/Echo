@@ -223,6 +223,7 @@ const CityManager = {
       const unlocked = firstStage <= highest;
       const clearedCount = Math.max(0, Math.min(10, highest - firstStage));
       return `<button class="campaign-map-card ${map.id === selectedId ? 'active' : ''} ${unlocked ? '' : 'locked'}"
+        data-map-id="${map.id}"
         ${unlocked ? `onclick="UI.selectBattleMap('${map.id}')"` : 'disabled'}
         style="background-image: linear-gradient(180deg, rgba(5,7,14,0.08), rgba(5,7,14,0.78)), url('${ASSETS.campaignMap(map.theme)}');">
         <span class="campaign-map-name">${map.name}</span>
@@ -239,6 +240,7 @@ const CityManager = {
       const isBoss = config?.boss;
       const cost = getBattleStageEnergyCost(globalStage);
       return `<button class="stage-btn campaign-stage-btn ${unlocked ? '' : 'locked'} ${cleared ? 'cleared' : ''} ${isBoss ? 'boss' : ''}"
+        data-stage-index="${globalStage}"
         ${unlocked ? `onclick="UI.startBattle(${globalStage})"` : 'disabled'}>
         ${i + 1}
         <span class="stage-label">${isBoss ? config.difficultyLabel : `${resIcon('energy')}${cost}`}</span>
@@ -249,7 +251,7 @@ const CityManager = {
       <div class="campaign-panel">
         <div class="campaign-header campaign-header-centered">
           <p class="campaign-tagline">选择尝试地图进入关卡、每座城市十关</p>
-          <button class="btn-gold btn-sm" onclick="UI.startBattle('infinite')">无限模式 ${resIcon('energy')}15</button>
+          <button class="btn-gold btn-sm" data-stage-index="infinite" onclick="UI.startBattle('infinite')">无限模式 ${resIcon('energy')}15</button>
         </div>
         <div class="campaign-map-strip">${mapCards}</div>
         <div class="campaign-detail">

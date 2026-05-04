@@ -1,6 +1,6 @@
 <template>
   <div class="play-page">
-    <div class="play-header" :class="{ 'play-header-tabs': hasOuterTabs }">
+    <div v-if="!hideTopBar" class="play-header" :class="{ 'play-header-tabs': hasOuterTabs }">
       <button class="back-btn" :disabled="isSavingBeforeLeave" @click="router.back()" aria-label="返回">
         <svg viewBox="0 0 24 24" width="22" height="22"><path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
       </button>
@@ -110,6 +110,9 @@ const tabConfigs: Record<string, { tabs: NavTab[]; hostSource: string; gameSourc
       { key: 'logistics', label: '物流' },
       { key: 'upgrades', label: '升级' },
       { key: 'buffs', label: '增益' },
+      { key: 'quests', label: '任务' },
+      { key: 'achievements', label: '成就' },
+      { key: 'npc', label: 'NPC' },
       { key: 'overview', label: '总览' },
     ],
     hostSource: 'empire-host',
@@ -121,6 +124,7 @@ const tabConfigs: Record<string, { tabs: NavTab[]; hostSource: string; gameSourc
       { key: 'cultivation', label: '修炼' },
       { key: 'world', label: '世界' },
       { key: 'cave', label: '洞府' },
+      { key: 'techniques', label: '功法' },
       { key: 'exploration', label: '探险' },
       { key: 'inventory', label: '背包' },
       { key: 'shop', label: '商店' },
@@ -140,9 +144,11 @@ const saveBridgeConfigs: Record<string, BridgeConfig> = {
   empire: { hostSource: 'empire-host', gameSource: 'empire-game' },
   hero: { hostSource: 'hero-host', gameSource: 'hero-game' },
   'dark-dorm': { hostSource: 'dark-dorm-host', gameSource: 'dark-dorm-game' },
+  'survivor-defense': { hostSource: 'survivor-defense-host', gameSource: 'survivor-defense-game' },
 }
 
 const hasOuterTabs = computed(() => Boolean(tabConfigs[gameId.value]))
+const hideTopBar = computed(() => gameId.value === 'survivor-defense')
 const activeTabs = computed<NavTab[]>(() => tabConfigs[gameId.value]?.tabs ?? [])
 const activeScreen = ref<string>('')
 const iframeRef = ref<HTMLIFrameElement | null>(null)
@@ -228,6 +234,10 @@ async function saveCurrentGameBeforeLeave() {
 function handleMessage(event: MessageEvent) {
   const data = event.data as { source?: string; type?: string; screen?: string } | null
   if (!data) return
+  if (data.type === 'game-back') {
+    router.back()
+    return
+  }
   if (data.type === 'save-complete' && pendingSaveRequest && data.source === pendingSaveRequest.source) {
     const requestId = (data as { requestId?: string }).requestId
     if (requestId === pendingSaveRequest.id) {

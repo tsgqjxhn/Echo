@@ -70,7 +70,7 @@
             </option>
           </select>
         </label>
-        <template v-if="form.provider !== 'local'">
+        <template v-if="!isLocalProvider(form.provider)">
           <label class="field">
             <span>Base URL</span>
             <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
@@ -90,7 +90,7 @@
         <div v-else class="local-info">
           <div class="local-info-item">
             <span class="local-info-label">引擎</span>
-            <span class="local-info-value">{{ voiceSubType === 'stt' ? '系统语音识别' : '系统语音合成' }}</span>
+            <span class="local-info-value">{{ localEngineLabel }}</span>
           </div>
           <div class="local-info-item">
             <span class="local-info-label">费用</span>
@@ -98,9 +98,9 @@
           </div>
           <div class="local-info-item">
             <span class="local-info-label">网络</span>
-            <span class="local-info-value">离线可用</span>
+            <span class="local-info-value">{{ localNetworkLabel }}</span>
           </div>
-          <p class="hint">使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。</p>
+          <p class="hint">{{ localEngineHint }}</p>
           <button
             type="button"
             class="default-btn"
@@ -128,7 +128,7 @@
       </div>
     </section>
 
-    <section v-if="form.provider !== 'local'" ref="modelSectionRef" class="model-section card">
+    <section v-if="!isLocalProvider(form.provider)" ref="modelSectionRef" class="model-section card">
       <div class="section-head">
         <span class="section-label">模型</span>
         <button type="button" class="connect-btn" :disabled="connecting || !canConnect" @click="connectModels">
@@ -191,18 +191,79 @@
         设为此类型默认配置
       </button>
     </section>
+
+    <section v-if="activeType === 'voice'" class="config-section card">
+      <div class="section-head">
+        <span class="section-label">语音偏好</span>
+        <button type="button" class="mini-btn" @click="resetVoiceSettings">重置</button>
+      </div>
+      <div class="voice-prefs-grid">
+        <article class="settings-card-voice">
+          <p class="section-title-voice">TTS 朗读</p>
+          <label class="range-row">
+            <span>语速</span>
+            <strong>{{ (ttsConfig.rate ?? 1).toFixed(1) }}x</strong>
+            <input v-model.number="ttsConfig.rate" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
+          </label>
+          <label class="range-row">
+            <span>音调</span>
+            <strong>{{ (ttsConfig.pitch ?? 1).toFixed(1) }}</strong>
+            <input v-model.number="ttsConfig.pitch" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
+          </label>
+          <label class="range-row">
+            <span>音量</span>
+            <strong>{{ Math.round((ttsConfig.volume ?? 1) * 100) }}%</strong>
+            <input v-model.number="ttsConfig.volume" type="range" min="0" max="1" step="0.05" @change="saveVoiceSettings" />
+          </label>
+          <button type="button" class="primary-btn voice-test-btn" @click="testTTS">
+            {{ isTesting ? '停止试听' : '试听朗读效果' }}
+          </button>
+        </article>
+        <article class="settings-card-voice">
+          <p class="section-title-voice">STT 语音输入</p>
+          <label class="field">
+            <span>识别语言</span>
+            <select v-model="sttConfig.language" class="field-select" @change="saveVoiceSettings">
+              <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>录音质量</span>
+            <select v-model="sttConfig.quality" class="field-select" @change="saveVoiceSettings">
+              <option v-for="opt in qualityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </label>
+          <label class="toggle-row">
+            <span>录音结束后自动发送</span>
+            <input v-model="sttConfig.autoSend" type="checkbox" @change="saveVoiceSettings" />
+          </label>
+          <label class="toggle-row">
+            <span>录音时显示波形动画</span>
+            <input v-model="sttConfig.showWaveform" type="checkbox" @change="saveVoiceSettings" />
+          </label>
+        </article>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { APIConfig, APIConfigType, APIProvider } from '@/types/api-config'
-import { PROVIDER_DISPLAY_NAMES } from '@/types/api-config'
+import { PROVIDER_DISPLAY_NAMES, isLocalProvider } from '@/types/api-config'
 import { apiConfigService } from '@/services/api-config'
 import { getAdapterOrDefault, adapters } from '@/services/providers/registry'
 import { generateUUID } from '@/utils/uuid'
 import { uni } from '@/utils/uni-polyfill'
+import { TTSService, type TTSConfig } from '@/services/tts'
+import {
+  DEFAULT_STT_CONFIG,
+  DEFAULT_TTS_CONFIG,
+  loadVoiceSettings,
+  saveSTTConfig,
+  saveTTSConfig
+} from '@/services/voice-settings'
 
 const router = useRouter()
 
@@ -236,6 +297,25 @@ const form = ref({ name: '', baseURL: '', apiKey: '', provider: 'openai-compatib
 const isLocalType = computed(() => {
   const t = effectiveConfigType.value
   return t === 'stt' || t === 'tts'
+})
+
+const localEngineLabel = computed(() => {
+  if (voiceSubType.value === 'tts') return '系统语音合成 (TTS)'
+  if (form.value.provider === 'local-builtin') return '软件内置 (sherpa-ncnn)'
+  if (form.value.provider === 'local-gms') return '谷歌服务安卓内置 (GMS SpeechRecognizer)'
+  return '系统语音识别'
+})
+
+const localNetworkLabel = computed(() => {
+  if (form.value.provider === 'local-gms') return '需要联网'
+  return '离线可用'
+})
+
+const localEngineHint = computed(() => {
+  if (voiceSubType.value === 'tts') return '使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。'
+  if (form.value.provider === 'local-builtin') return '使用软件内置 sherpa-ncnn 引擎，完全离线，无需 API Key。'
+  if (form.value.provider === 'local-gms') return '使用 Android 系统语音识别（依赖谷歌 GMS 服务），默认不含国内网络环境。无需 API Key。'
+  return '使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。'
 })
 
 const providerOptions = computed(() => {
@@ -322,8 +402,6 @@ const sectionLabel = computed(() => {
   return '配置动图/视频生成模型'
 })
 
-onMounted(loadAll)
-
 async function loadAll() {
   allConfigs.value = await apiConfigService.getAll()
 }
@@ -346,7 +424,8 @@ function switchType(type: APIConfigType) {
   noModelsAfterConnect.value = false
   clearForm()
   if (type === 'voice') {
-    form.value.provider = 'local'
+    // STT 默认软件内置 (sherpa-ncnn)；TTS 仍用系统 'local'
+    form.value.provider = voiceSubType.value === 'stt' ? 'local-builtin' : 'local'
   }
 }
 
@@ -359,7 +438,8 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   noModelsAfterConnect.value = false
   clearForm()
   if (isLocalType.value) {
-    form.value.provider = 'local'
+    // STT 默认软件内置；TTS 仍用系统 'local'
+    form.value.provider = sub === 'stt' ? 'local-builtin' : 'local'
   }
 }
 
@@ -450,7 +530,7 @@ async function saveConfig() {
     return
   }
 
-  if (form.value.provider !== 'local' && !form.value.apiKey.trim() && !selectedConfigId.value) {
+  if (!isLocalProvider(form.value.provider) && !form.value.apiKey.trim() && !selectedConfigId.value) {
     uni.showToast({ title: '请输入 API Key', icon: 'none' })
     return
   }
@@ -573,11 +653,11 @@ async function connectModels() {
 
 async function setAsDefault() {
   if (!selectedConfigId.value) return
-  if (form.value.provider !== 'local' && !selectedModel.value) return
+  if (!isLocalProvider(form.value.provider) && !selectedModel.value) return
 
   saving.value = true
   try {
-    const isLocal = form.value.provider === 'local'
+    const isLocal = isLocalProvider(form.value.provider)
     // Update all configs of this type: clear isDefault
     for (const c of configsForType.value) {
       if (c.isDefault || c.id === selectedConfigId.value) {
@@ -599,6 +679,77 @@ async function setAsDefault() {
     saving.value = false
   }
 }
+
+/* ---- Voice preferences (merged from voice.vue) ---- */
+const languageOptions = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'zh-TW', label: '繁体中文' },
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'ja-JP', label: '日本语' },
+  { value: 'ko-KR', label: '한국어' }
+]
+
+const qualityOptions = [
+  { value: 'low', label: '标准质量' },
+  { value: 'medium', label: '高质量' },
+  { value: 'high', label: '超高质量' }
+]
+
+const ttsConfig = ref<TTSConfig>({ ...DEFAULT_TTS_CONFIG })
+const sttConfig = ref({ ...DEFAULT_STT_CONFIG })
+const isTesting = ref(false)
+const ttsService = ref<TTSService | null>(null)
+
+onUnmounted(() => {
+  ttsService.value?.destroy()
+  ttsService.value = null
+})
+
+async function loadVoicePrefs() {
+  const settings = await loadVoiceSettings()
+  ttsConfig.value = { ...DEFAULT_TTS_CONFIG, ...settings.tts }
+  sttConfig.value = { ...DEFAULT_STT_CONFIG, ...settings.stt }
+}
+
+async function saveVoiceSettings() {
+  await Promise.all([
+    saveTTSConfig(ttsConfig.value),
+    saveSTTConfig(sttConfig.value)
+  ])
+}
+
+async function testTTS() {
+  if (isTesting.value) {
+    ttsService.value?.stop()
+    isTesting.value = false
+    return
+  }
+  isTesting.value = true
+  ttsService.value?.destroy()
+  ttsService.value = new TTSService(ttsConfig.value)
+  ttsService.value.onEnd(() => { isTesting.value = false })
+  ttsService.value.onError(() => {
+    isTesting.value = false
+    uni.showToast({ title: '试听失败', icon: 'none' })
+  })
+  try {
+    await ttsService.value.speak('您好，这是语音设置的试听文本。')
+  } catch {
+    isTesting.value = false
+  }
+}
+
+function resetVoiceSettings() {
+  ttsConfig.value = { ...DEFAULT_TTS_CONFIG }
+  sttConfig.value = { ...DEFAULT_STT_CONFIG }
+  void saveVoiceSettings()
+  uni.showToast({ title: '已恢复默认设置', icon: 'success' })
+}
+
+onMounted(() => {
+  loadAll()
+  loadVoicePrefs()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -1108,6 +1259,66 @@ $mint-light: #6ee7b7;
   .type-tabs,
   .card {
     width: calc(100% - 20px);
+  }
+}
+
+/* Voice preferences merged from voice.vue */
+.voice-prefs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.settings-card-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(52, 211, 153, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+}
+
+.section-title-voice {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.range-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.range-row strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.range-row input[type="range"] {
+  width: 100%;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.voice-test-btn {
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .voice-prefs-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

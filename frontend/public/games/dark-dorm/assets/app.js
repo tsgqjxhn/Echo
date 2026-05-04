@@ -1,11 +1,1041 @@
-const AudioEngine={ctx:null,bgmNodes:[],_inited:!1,init(){if(this._inited)return;this._inited=!0;try{const C=window.AudioContext||window.webkitAudioContext;if(C)this.ctx=new C}catch(e){this.ctx=null}},_tone(f,d,v){try{if(!this.ctx)return;const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.connect(g),g.connect(this.ctx.destination),o.frequency.value=f,o.start(),g.gain.setValueAtTime(v,this.ctx.currentTime),g.gain.exponentialRampToValueAtTime(.01,this.ctx.currentTime+d),o.stop(this.ctx.currentTime+d)}catch(e){}},_noise(f,d,v,ft){try{if(!this.ctx)return;const len=this.ctx.sampleRate*d,buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate),data=buf.getChannelData(0);for(let i=0;i<len;i++)data[i]=Math.random()*2-1;const s=this.ctx.createBufferSource(),g=this.ctx.createGain(),filter=this.ctx.createBiquadFilter();s.buffer=buf,filter.type=ft||"lowpass",filter.frequency.value=f,s.connect(filter),filter.connect(g),g.connect(this.ctx.destination),g.gain.setValueAtTime(v,this.ctx.currentTime),g.gain.exponentialRampToValueAtTime(.01,this.ctx.currentTime+d),s.start(),s.stop(this.ctx.currentTime+d)}catch(e){}},_sweep(f1,f2,d,v){try{if(!this.ctx)return;const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.connect(g),g.connect(this.ctx.destination),o.frequency.setValueAtTime(f1,this.ctx.currentTime),o.frequency.exponentialRampToValueAtTime(f2,this.ctx.currentTime+d),g.gain.setValueAtTime(v,this.ctx.currentTime),g.gain.exponentialRampToValueAtTime(.01,this.ctx.currentTime+d),o.start(),o.stop(this.ctx.currentTime+d)}catch(e){}},_chime(fs,d,v){if(!this.ctx)return;fs.forEach((f,i)=>setTimeout(()=>this._tone(f,d,v),i*80))},playBuildPlace(){this._noise(200,.15,.3,"lowpass"),this._tone(800,.05,.1)},playBuildUpgrade(){this._sweep(400,1200,.4,.2),this._tone(1500,.1,.15)},playBuildSell(){this._noise(300,.12,.2,"bandpass")},playBedCoin(){this._tone(1200,.05,.08),setTimeout(()=>this._tone(1600,.05,.06),50)},playTowerFire(){this._noise(600,.08,.15,"highpass"),this._tone(200,.03,.1)},playTowerFireHeavy(){this._sweep(100,50,.2,.3),setTimeout(()=>this._noise(150,.3,.4,"lowpass"),200)},playIceMageFire(){this._tone(2000,.1,.05),this._sweep(2500,1500,.15,.08)},playIceSlow(){this._sweep(3000,500,.2,.1)},playGhostSpawn(){this._noise(80,1,.3,"lowpass"),this._sweep(200,100,1.5,.15)},playGhostHit(){this._sweep(1500,800,.15,.1)},playGhostDeath(){this._sweep(1000,200,.8,.12),this._noise(400,.5,.08,"highpass")},playGhostDoorHit(){this._noise(120,.3,.4,"lowpass"),this._tone(80,.2,.25)},playDoorDamageLight(){this._noise(400,.2,.08,"bandpass")},playDoorDamageHeavy(){this._noise(250,.4,.15,"lowpass"),this._tone(150,.3,.2)},playDoorBreak(){this._noise(100,.6,.5,"lowpass"),this._tone(50,.5,.3),setTimeout(()=>this._noise(800,.3,.1,"highpass"),300)},playDoorUpgrade(){this._tone(500,.05,.1),setTimeout(()=>this._tone(700,.05,.12),80),setTimeout(()=>this._tone(900,.05,.08),160)},playDayStart(){this._tone(523,.15,.1),setTimeout(()=>this._tone(659,.15,.1),150),setTimeout(()=>this._tone(784,.2,.12),300)},playNightStart(){this._tone(200,.4,.2),setTimeout(()=>this._tone(150,.5,.25),400),setTimeout(()=>this._tone(100,.6,.2),900)},playWaveComplete(){this._tone(440,.15,.1),setTimeout(()=>this._tone(554,.15,.1),150),setTimeout(()=>this._tone(659,.3,.12),300),setTimeout(()=>this.playBedCoin(),500)},playGameOver(){this._tone(80,.5,.3),setTimeout(()=>this._tone(60,.8,.25),400),setTimeout(()=>this._tone(40,1,.2),1000)},playButtonClick(){this._tone(1500,.03,.05)},playNotEnoughGold(){this._tone(200,.1,.15),this._tone(150,.15,.1)},playPrestige(){this._sweep(400,2000,1.5,.15)},_stopBGM(){this.bgmNodes.forEach(n=>{try{n.stop&&n.stop(),n.disconnect&&n.disconnect()}catch(e){}}),this.bgmNodes=[]},startDayBGM(){try{this._stopBGM();if(!this.ctx)return;const notes=[392,440,349,392],dur=2000;let i=0;const l=()=>{try{if(!this.ctx)return;const o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type="triangle",o.connect(g),g.connect(this.ctx.destination),o.frequency.value=notes[i%4],g.gain.value=.02,o.start(),this.bgmNodes.push(o,g),i++}catch(e){}};l(),this._bgmInterval=setInterval(l,dur)}catch(e){}},startNightBGM(){try{this._stopBGM();if(!this.ctx)return;const osc=this.ctx.createOscillator();osc.type="sawtooth",osc.frequency.value=55;const g=this.ctx.createGain();g.gain.value=.03,osc.connect(g).connect(this.ctx.destination),osc.start(),this.bgmNodes.push(osc,g);this._bgmInterval=setInterval(()=>{try{if(!this.ctx)return;this._tone(60,.1,.1),setTimeout(()=>this._tone(50,.2,.08),150)}catch(e){}},800)}catch(e){}},startMenuBGM(){try{this._stopBGM();if(!this.ctx)return;const osc=this.ctx.createOscillator();osc.type="sine",osc.frequency.value=100;const g=this.ctx.createGain();g.gain.value=.015,osc.connect(g).connect(this.ctx.destination),osc.start(),this.bgmNodes.push(osc,g)}catch(e){}},stopBGM(){this._stopBGM(),this._bgmInterval&&(clearInterval(this._bgmInterval),this._bgmInterval=null)}};try{AudioEngine.init()}catch(e){}
-(function(){"use strict";var g=(n=>(n[n.EMPTY=0]="EMPTY",n[n.FLOOR=1]="FLOOR",n[n.WALL=2]="WALL",n[n.DOOR=3]="DOOR",n[n.CORRIDOR=4]="CORRIDOR",n))(g||{}),r=(n=>(n.BED="bed",n.TOWER="tower",n.GENERATOR="generator",n.REPAIRMAN="repairman",n.ICE_MAGE="ice_mage",n))(r||{}),d=(n=>(n.MENU="menu",n.DAY="day",n.NIGHT="night",n.WAVE_COMPLETE="wave_complete",n.GAME_OVER="game_over",n))(d||{}),p=(n=>(n.LEVELS="levels",n.ENDLESS="endless",n))(p||{}),m=(n=>(n.IDLE="idle",n.MOVING="moving",n.ATTACKING="attacking",n.RETREATING="retreating",n.DEAD="dead",n))(m||{});const i=48,y=9,R=13,_=4,A=6,O=100,Z=50,D=25,$=5,P=1.15,G={bed:{name:"床铺",baseCost:50,color:"#F5DEB3"},tower:{name:"防御塔",baseCost:100,color:"#4682B4"},generator:{name:"发电机",baseCost:150,color:"#DAA520"},repairman:{name:"修理工",baseCost:120,color:"#44AA44"},ice_mage:{name:"冰冻师",baseCost:150,color:"#88CCFF"}},J=2,Q=1.5,x=15,tt=5,et=3.5,st=.3,it=1,at=.5,ot=.1,C=300,V=50,U=80,nt=2,lt=1,rt=1,B=3,ht=.3,dt=2,ft=1.2,ct=200,pt=80,gt=10,mt=3,Y=1.8,ut=.8,wt=.08,Et=.04,vt=1e6,z=10,W={prestigePoints:0,prestigeUpgrades:{goldMult:0,doorHp:0,towerDmg:0},highestWave:0,totalGames:0,lastSaveTime:0,unlockedLevel:z};class bt{constructor(){this.tiles=[];for(let t=0;t<R;t++){this.tiles[t]=[];for(let e=0;e<y;e++)this.tiles[t][e]=this.classify(e,t)}}classify(t,e){return t===0||t===y-1||e===0?g.WALL:e>=1&&e<=5?g.FLOOR:e===A?t===_?g.DOOR:g.WALL:e>=7?g.CORRIDOR:g.WALL}getTile(t,e){return e<0||e>=R||t<0||t>=y?g.WALL:this.tiles[e][t]}isBuildable(t,e){return this.getTile(t,e)===g.FLOOR}isWalkable(t,e){const s=this.getTile(t,e);return s===g.CORRIDOR||s===g.DOOR}}class Tt{constructor(t,e){this.level=1,this.fireTimer=0,this.incomeTimer=0,this.animTimer=0,this.upgradeTimer=0,this.type=t,this.pos={...e},this.maxHp=this.baseHp(),this.hp=this.maxHp}baseHp(){switch(this.type){case r.BED:return 50;case r.TOWER:return 80;case r.GENERATOR:return 60;case r.REPAIRMAN:return 60;case r.ICE_MAGE:return 70}}getUpgradeCost(){const t=G[this.type].baseCost;return Math.floor(t*Math.pow(P,this.level))}upgrade(){this.level++,this.maxHp=this.baseHp()+this.level*15,this.hp=this.maxHp,this.upgradeTimer=.65}getSellValue(){let t=G[this.type].baseCost;for(let e=1;e<this.level;e++)t+=Math.floor(G[this.type].baseCost*Math.pow(P,e));return Math.floor(t*.6)}getIncomeRate(){return this.type!==r.BED?0:J+(this.level-1)*Q}getDamage(){return this.type!==r.TOWER&&this.type!==r.ICE_MAGE?0:x+(this.level-1)*tt}getRange(){return this.type!==r.TOWER&&this.type!==r.ICE_MAGE?0:et+(this.level-1)*st}getFireInterval(){return this.type===r.ICE_MAGE?ft:1/it}getBoostMultiplier(){return this.type!==r.GENERATOR?0:at+(this.level-1)*ot}getRepairRate(){return this.type!==r.REPAIRMAN?0:lt+(this.level-1)*rt}getSlowFactor(){return this.type!==r.ICE_MAGE?0:ht}isCombatBuilding(){return this.type===r.TOWER||this.type===r.ICE_MAGE}isAdjacentTo(t){const e=Math.abs(this.pos.col-t.pos.col),s=Math.abs(this.pos.row-t.pos.row);return e<=1&&s<=1&&!(e===0&&s===0)}takeDamage(t){return this.hp=Math.max(0,this.hp-t),this.hp<=0}}class X{constructor(){this.state=m.IDLE,this.x=0,this.y=0,this.hp=0,this.maxHp=0,this.atk=0,this.wave=0,this.atkTimer=0,this.alpha=0,this.glowPhase=0,this.hitFlash=0,this.spawnY=0,this.slowTimer=0,this.slowFactor=0}spawn(t){this.wave=t,this.maxHp=(ct+(t-1)*pt)*(window.__difficultyMonsterMult||1),this.hp=this.maxHp,this.atk=(gt+(t-1)*mt)*(window.__difficultyMonsterMult||1),this.x=_*i+i/2,this.spawnY=12*i+i/2,this.y=this.spawnY,this.state=m.MOVING,this.atkTimer=0,this.alpha=0,this.glowPhase=0,this.hitFlash=0,this.slowTimer=0,this.slowFactor=0}applySlow(t,e){this.slowFactor=Math.max(this.slowFactor,t),this.slowTimer=Math.max(this.slowTimer,e)}update(t){switch(this.glowPhase+=t*3,this.alpha<1&&(this.alpha=Math.min(1,this.alpha+t*2)),this.hitFlash>0&&(this.hitFlash=Math.max(0,this.hitFlash-t*5)),this.slowTimer>0&&(this.slowTimer=Math.max(0,this.slowTimer-t),this.slowTimer<=0&&(this.slowFactor=0)),this.state){case m.MOVING:this.doMoving(t);break;case m.ATTACKING:this.doAttacking(t);break;case m.RETREATING:this.doRetreating(t);break}}doMoving(t){const e=(A+1)*i+i/2,s=e-this.y;if(Math.abs(s)<3){this.y=e,this.state=m.ATTACKING;return}const a=1-this.slowFactor;this.y+=Math.sign(s)*Y*i*t*a}doAttacking(t){const e=1-this.slowFactor*.5;this.atkTimer+=t*e,this.hp/this.maxHp<=wt&&this.wave>=2&&(this.state=m.RETREATING)}doRetreating(t){const e=this.spawnY-this.y;if(Math.abs(e)<3){this.y=this.spawnY,this.hp+=this.maxHp*Et*t,this.hp>=this.maxHp&&(this.hp=this.maxHp,this.state=m.MOVING);return}const s=1-this.slowFactor;this.y+=Math.sign(e)*Y*i*t*1.5*s}canAttack(){return this.state===m.ATTACKING&&this.atkTimer>=ut}consumeAttack(){return this.atkTimer=0,this.atk}takeDamage(t){return this.hp=Math.max(0,this.hp-t),this.hitFlash=1,this.hp<=0?(this.state=m.DEAD,!0):!1}isDead(){return this.state===m.DEAD}isActive(){return this.state!==m.IDLE&&this.state!==m.DEAD}}const Mt=60,M=class M{constructor(){this.x=0,this.y=0,this.targetX=0,this.targetY=0,this.damage=0,this.speed=420,this.active=!1,this.frozen=!1}static init(){M.pool=[];for(let t=0;t<Mt;t++)M.pool.push(new M)}static spawn(t,e,s,a,o,l=!1){for(const h of M.pool)if(!h.active)return h.x=t,h.y=e,h.targetX=s,h.targetY=a,h.damage=o,h.frozen=l,h.active=!0,h;return null}update(t){if(!this.active)return!1;const e=this.targetX-this.x,s=this.targetY-this.y,a=Math.sqrt(e*e+s*s);if(a<6)return this.active=!1,!0;const o=this.speed*t;return this.x+=e/a*o,this.y+=s/a*o,!1}static getActive(){return M.pool.filter(t=>t.active)}};M.pool=[];let S=M;const q="dark_dorm_save_v1";function K(n){try{const t={...n,lastSaveTime:Date.now()};localStorage.setItem(q,JSON.stringify(t))}catch{}}function yt(){try{const n=localStorage.getItem(q);if(!n)return{...W};const t=JSON.parse(n);return{...W,...t}}catch{return{...W}}}function St(n){if(n<1e3)return 0;const t=Math.sqrt(1+8*n/vt);return Math.max(0,Math.floor((t-1)/2))}const u={sprites:{ghost:"assets/sprites/ghost_spritesheet.webp",player:null,ghostFemale:"assets/sprites/ghost_variant_female.webp",ghostZombie:"assets/sprites/ghost_variant_zombie.webp",ghostShadow:"assets/sprites/ghost_variant_shadow.webp"},buildings:{bed:"assets/buildings/building_bed.webp",tower:"assets/buildings/building_tower.webp",generator:"assets/buildings/building_generator.webp",repairman:"assets/buildings/building_repairman.webp",iceMage:"assets/buildings/building_ice_mage.webp",door:"assets/buildings/building_door.webp"},tiles:{dormitory:"assets/tiles/tileset_dormitory.webp",lightWarm:"assets/tiles/light_mask_warm.webp",lightCold:"assets/tiles/light_mask_cold.webp",lightFlicker:"assets/tiles/light_mask_flicker.webp"},fx:{projectiles:"assets/fx/fx_projectiles.webp",damageGold:"assets/fx/fx_damage_numbers_gold.webp",damageRed:"assets/fx/fx_damage_numbers_red.webp",upgradeGlow:"assets/fx/fx_upgrade_glow.webp",ghostHit:"assets/fx/fx_ghost_hit.webp",doorImpact:"assets/fx/fx_door_impact.webp",ghostDeath:"assets/fx/fx_ghost_death.webp",goldDrop:"assets/fx/fx_gold_drop.webp",generatorEnergy:"assets/fx/fx_generator_energy.webp",repair:"assets/fx/fx_repair.webp",iceSlow:"assets/fx/fx_ice_slow.webp",towerMuzzle:"assets/fx/fx_tower_muzzle.webp"},ui:{hud:"assets/ui/ui_hud_elements.webp",buildIcons:"assets/ui/ui_build_icons.webp",panel:"assets/ui/ui_panel_9patch.webp",panelWarning:"assets/ui/ui_panel_9patch_warning.webp",buttonsPrimary:"assets/ui/ui_buttons_primary.webp",buttonsSecondary:"assets/ui/ui_buttons_secondary.webp",buttonsDanger:"assets/ui/ui_buttons_danger.webp",waveBanner:"assets/ui/ui_wave_banner.webp"},backgrounds:{menu:"assets/backgrounds/bg_menu.webp",gameover:"assets/backgrounds/bg_gameover.webp",icon:"assets/backgrounds/icon_game_1024.webp",shareCard:"assets/backgrounds/share_card.webp",splash:"assets/backgrounds/splash_screen.webp"},fonts:{}},w={ghost:{src:u.sprites.ghost,frameW:32,frameH:32,cols:12},player:{src:u.sprites.player,frameW:32,frameH:32,cols:8},bed:{src:u.buildings.bed,frameW:48,frameH:48,cols:5},tower:{src:u.buildings.tower,frameW:48,frameH:48,cols:5},generator:{src:u.buildings.generator,frameW:48,frameH:48,cols:5},repairman:{src:u.buildings.repairman,frameW:48,frameH:48,cols:5},iceMage:{src:u.buildings.iceMage,frameW:48,frameH:48,cols:5},door:{src:u.buildings.door,frameW:48,frameH:48,cols:7},tiles:{src:u.tiles.dormitory,frameW:16,frameH:16,cols:10},projectiles:{src:u.fx.projectiles,frameW:16,frameH:16,cols:6},damageGold:{src:u.fx.damageGold,frameW:12,frameH:16,cols:10},damageRed:{src:u.fx.damageRed,frameW:12,frameH:16,cols:10},upgradeGlow:{src:u.fx.upgradeGlow,frameW:64,frameH:64,cols:1}},H=new Map;function F(n,t=new Set){return typeof n=="string"&&/\.(webp|ttf|fnt)$/i.test(n)?t.add(n):n&&typeof n=="object"&&Object.values(n).forEach(e=>F(e,t)),t}const N={preload(){for(const n of F(u)){if(!/\.(webp)$/i.test(n)||H.has(n))continue;const t=new Image;t.src=n,H.set(n,t)}},image(n){let t=H.get(n);return t||(t=new Image,t.src=n,H.set(n,t)),t.complete&&t.naturalWidth>0?t:null},allPaths(){return[...F(u)]}};class Lt{constructor(t,e){this.phase=d.MENU,this.mode=p.LEVELS,this.gold=O,this.maxGold=O,this.level=1,this.wave=1,this.doorHp=C,this.doorMaxHp=C,this.doorLevel=1,this.buildings=[],this.effects=[],this.dayTimer=0,this.shakeX=0,this.shakeY=0,this.shakeIntensity=0,this.nightAlpha=0,this.passiveGoldTimer=0,this.nightOverlay=null,this.lastTime=0,this.running=!1,this.canvas=t,this.ctx=t.getContext("2d"),this.ctx.imageSmoothingEnabled=!1,this.ui=e,this.map=new bt,this.ghost=new X;AudioEngine.playGhostSpawn(),this.saveData=yt(),S.init(),N.preload(),this.applyPrestige(),this.setupInput(),this.setupUICallbacks(),this.nightOverlay=document.createElement("div"),this.nightOverlay.className="night-overlay hidden",document.getElementById("app").appendChild(this.nightOverlay)}applyPrestige(){1+this.saveData.prestigeUpgrades.goldMult*.1;const t=1+this.saveData.prestigeUpgrades.doorHp*.2;this.doorMaxHp=C*t,this.doorHp=this.doorMaxHp}setupUICallbacks(){this.ui.onStart=t=>{this.mode=t,this.startGame()},this.ui.onSelectLevel=t=>{this.ui.hideLevelSelect(),this.mode=p.LEVELS,this.startGame(t)},this.ui.onRestart=()=>{this.mode===p.LEVELS?(this.ui.hideGameOver(),this.showMenu(this.saveData.prestigePoints),this.ui.showLevelSelect()):this.startGame()},this.ui.onGoMenu=()=>this.showMenu(),this.ui.onUpgrade=()=>this.upgradeSelected(),this.ui.onSell=()=>this.sellSelected(),this.ui.onUpgradeDoor=()=>this.upgradeDoor(),this.ui.onBuyPrestige=t=>this.buyPrestige(t),this.ui.onWaveContinue=()=>this.waveContinue();this.ui.onResumeEndless=()=>{if(this._resumeEndlessRun()){this.startLoop&&!this.running&&this.startLoop()}};this.ui.onTopExit=()=>{if(this.mode===p.ENDLESS&&this.phase!==d.MENU&&this.phase!==d.GAME_OVER){this._saveEndlessSnapshot()}this.showMenu()}}setupInput(){const t=(e,s)=>{if(this.phase!==d.DAY&&this.phase!==d.NIGHT)return;const a=this.canvas.getBoundingClientRect(),o=this.canvas.width/a.width,l=this.canvas.height/a.height,h=(e-a.left)*o,f=(s-a.top)*l,c=Math.floor(h/i),E=Math.floor(f/i),v=this.ui.getBuildType();if(v){this.placeBuilding(c,E,v);return}const b=this.buildings.find(L=>L.pos.col===c&&L.pos.row===E);b?this.ui.showInfoPanel(b,this.gold):this.ui.hideInfoPanel()};this.canvas.addEventListener("click",e=>{try{AudioEngine.init();}catch(_){};t(e.clientX,e.clientY)}),this.canvas.addEventListener("touchstart",e=>{e.preventDefault();const s=e.touches[0];try{AudioEngine.init();}catch(_){};t(s.clientX,s.clientY)},{passive:!1})}startGame(t){this.mode===p.LEVELS?(this.level=t??1,this.wave=0):(this.level=1,this.wave=1,this._clearEndlessRun&&this._clearEndlessRun(),this._endlessSurvivalT=0),this.phase=d.DAY;const e=1+this.saveData.prestigeUpgrades.goldMult*.1;let s=O,a=D;this.mode===p.LEVELS&&(s=O+(this.level-1)*Z,a=D+(this.level-1)*$),this.gold=s*e,this.maxGold=this.gold,this.buildings=[],this.effects=[],this.ghost=new X,this.passiveGoldTimer=0,S.init(),this.applyPrestige(),this.doorHp=this.doorMaxHp,this.doorLevel=1,this.dayTimer=a,this.nightAlpha=0,this.ui.showGameUI(),this.ui.updateGold(this.gold),this.ui.updateWave(this.mode===p.LEVELS?this.level:this.wave,this.mode),this.ui.updateDoorHp(this.doorHp,this.doorMaxHp),this.startDay()}showMenu(){AudioEngine.init();AudioEngine.startMenuBGM();this.phase=d.MENU,this.ui.showMenu(this.saveData.prestigePoints),this.hideNightOverlay()}startDay(){AudioEngine.init();AudioEngine.playDayStart();AudioEngine.startDayBGM();this.mode===p.LEVELS?this.dayTimer=D+(this.level-1)*$:this.dayTimer=D+this.wave*2,this.phase=d.DAY;const t=this.mode===p.LEVELS?this.level:this.wave;this.ui.updateWave(t,this.mode),this.ui.updatePhase(d.DAY,this.dayTimer);const e=this.mode===p.LEVELS?"Level":"Wave";this.ui.showWaveBanner(`${e} ${t} - 准备防御!`),this.hideNightOverlay()}startNight(){AudioEngine.init();AudioEngine.playNightStart();AudioEngine.startNightBGM();this.phase=d.NIGHT,this.ui.updatePhase(d.NIGHT,0);const t=this.mode===p.LEVELS?this.level:this.wave;this.ghost.spawn(t),this.showNightOverlay();const e=this.mode===p.LEVELS?"Night":"Wave";this.ui.showWaveBanner(`${e} ${t} - 鬼魂来袭!`)}onWaveComplete(){AudioEngine.init();AudioEngine.playWaveComplete();AudioEngine.startDayBGM();if(this.phase===d.WAVE_COMPLETE||this.phase===d.GAME_OVER)return;this.phase=d.WAVE_COMPLETE;const t=this.mode===p.LEVELS?this.level:this.wave,e=t*30*(window.__difficultyRewardMult||1);this.addGold(e),this._awardPrestige(Math.max(1,Math.ceil(t/2)),"clear"),this.saveData.highestWave=Math.max(this.saveData.highestWave,t),this.mode===p.ENDLESS&&this._saveEndlessSnapshot(),K(this.saveData),this.ui.showWaveComplete(t,e,this.doorHp,this.doorMaxHp,this.gold,this.mode),this.hideNightOverlay()}waveContinue(){this.phase===d.WAVE_COMPLETE&&(this.mode===p.LEVELS?this.startGame(this.level+1):(this.wave++,this.doorHp=Math.min(this.doorHp+this.doorMaxHp*.15,this.doorMaxHp),this.ui.updateDoorHp(this.doorHp,this.doorMaxHp),this.startDay()))}onGameOver(){this.phase=d.GAME_OVER;const t=this.mode===p.LEVELS?this.level:this.wave,e=St(this.maxGold);this.saveData.prestigePoints+=e,this.saveData.highestWave=Math.max(this.saveData.highestWave,t),this.saveData.totalGames++,this._clearEndlessRun&&this._clearEndlessRun(),K(this.saveData),this.ui.showGameOver(t,this.maxGold,e),this.hideNightOverlay()}placeBuilding(t,e,s){if(!this.map.isBuildable(t,e)){this.addFloatingText("无法建造",t*i+i/2,e*i,"#ff4444",14);return}if(this.buildings.some(l=>l.pos.col===t&&l.pos.row===e)){this.addFloatingText("已占用",t*i+i/2,e*i,"#ff4444",14);return}if(s===r.REPAIRMAN&&this.buildings.filter(h=>h.type===r.REPAIRMAN).length>=B){this.addFloatingText(`最多${B}台`,t*i+i/2,e*i,"#ff4444",14);return}const a=G[s].baseCost;if(this.gold<a){this.addFloatingText("金币不足",t*i+i/2,e*i,"#ff4444",14);return}this.spendGold(a);const o=new Tt(s,{col:t,row:e});try{AudioEngine.playBuildPlace();}catch(_){};this.buildings.push(o),this.ui.clearBuildType(),this.addFloatingText(`-${a}`,t*i+i/2,e*i,"#ff8844",14)}upgradeSelected(){const t=this.ui.getSelectedBuilding();if(!t)return;const e=t.getUpgradeCost();this.gold<e||(this.spendGold(e),t.upgrade(),AudioEngine.playBuildUpgrade(),this.ui.showInfoPanel(t,this.gold),this.addFloatingText(`Lv.${t.level}`,t.pos.col*i+i/2,t.pos.row*i,"#44ff44",16))}sellSelected(){const t=this.ui.getSelectedBuilding();if(!t)return;const e=t.getSellValue();this.addGold(e),this.buildings=this.buildings.filter(s=>s!==t),this.ui.hideInfoPanel(),this.addFloatingText(`+${e}`,t.pos.col*i+i/2,t.pos.row*i,"#ffd700",14)}upgradeDoor(){const t=Math.floor(U*Math.pow(P,this.doorLevel));if(this.gold<t)return;this.spendGold(t),this.doorLevel++;const e=1+this.saveData.prestigeUpgrades.doorHp*.2;this.doorMaxHp=(C+this.doorLevel*V)*e,this.doorHp=Math.min(this.doorHp+V*e,this.doorMaxHp),this.ui.updateDoorHp(this.doorHp,this.doorMaxHp),this.addFloatingText(`Door Lv.${this.doorLevel}`,_*i+i/2,A*i,"#44ff44",16)}addGold(t){this.gold+=t,this.maxGold=Math.max(this.maxGold,this.gold),this.ui.updateGold(this.gold)}spendGold(t){this.gold-=t,this.ui.updateGold(this.gold)}buyPrestige(t){const s={goldMult:5,doorHp:3,towerDmg:4}[t]??99;this.saveData.prestigePoints<s||(this.saveData.prestigePoints-=s,this.saveData.prestigeUpgrades[t]++,K(this.saveData),this.ui.showPrestigeShop(this.saveData.prestigePoints),this.ui.showMenu(this.saveData.prestigePoints))}update(t){if(this.phase===d.MENU||this.phase===d.GAME_OVER)return;t=Math.min(t,.05),this._tickEndlessSurvival(t),this.shakeIntensity>0&&(this.shakeIntensity*=.9,this.shakeX=(Math.random()-.5)*this.shakeIntensity,this.shakeY=(Math.random()-.5)*this.shakeIntensity,this.shakeIntensity<.3&&(this.shakeIntensity=0,this.shakeX=0,this.shakeY=0)),this.phase===d.NIGHT?this.nightAlpha=Math.min(.18,this.nightAlpha+t*.5):this.nightAlpha=Math.max(0,this.nightAlpha-t*.8),this.nightOverlay&&(this.nightOverlay.style.background=`rgba(0, 0, 40, ${this.nightAlpha})`),this.phase===d.DAY&&(this.dayTimer-=t,this.ui.updatePhase(d.DAY,this.dayTimer),this.dayTimer<=0&&this.startNight()),this.updateIncome(t),this.updateRepairmen(t),(this.phase===d.NIGHT||this.phase===d.WAVE_COMPLETE)&&(this.updateGhost(t),this.updateCombat(t),this.updateBullets(t));const e=Math.floor(U*Math.pow(P,this.doorLevel)),s=this.buildings.filter(a=>a.type===r.REPAIRMAN).length;this.ui.updateBuildCosts(this.gold,e,s),this.ui.updateDoorHp(this.doorHp,this.doorMaxHp),this.ui.updateWaveInfo(this.phase,this.mode===p.LEVELS?this.level:this.wave,this.dayTimer,this.ghost.hp,this.ghost.maxHp,this.ghost.isActive(),this.mode),this.updateEffects(t)}updateIncome(t){const e=1+this.saveData.prestigeUpgrades.goldMult*.1;this.passiveGoldTimer+=t,this.passiveGoldTimer>=1&&(this.passiveGoldTimer-=1,this.addGold(nt*e*(window.__difficultyRewardMult||1)));for(const s of this.buildings){if(s.upgradeTimer>0&&(s.upgradeTimer=Math.max(0,s.upgradeTimer-t)),s.type!==r.BED)continue;s.incomeTimer+=t;let a=s.getIncomeRate()*e;for(const o of this.buildings)o.type===r.GENERATOR&&o.isAdjacentTo(s)&&(a*=1+o.getBoostMultiplier());s.incomeTimer>=1&&(s.incomeTimer-=1,this.addGold(a*(window.__difficultyRewardMult||1)),s.animTimer=1,this.addFloatingText(`+${Math.floor(a)}`,s.pos.col*i+i/2,s.pos.row*i,"#ffd700",12)),s.animTimer>0&&(s.animTimer-=t)}}updateRepairmen(t){for(const e of this.buildings)if(e.type===r.REPAIRMAN){if(e.incomeTimer+=t,e.incomeTimer>=1&&this.doorHp<this.doorMaxHp){e.incomeTimer-=1;const s=e.getRepairRate();this.doorHp=Math.min(this.doorHp+s,this.doorMaxHp),e.animTimer=1,this.addFloatingText(`+${Math.floor(s)}`,_*i+i/2,A*i-10,"#44ff44",11)}e.animTimer>0&&(e.animTimer-=t)}}updateGhost(t){if(this.ghost.isDead()){this.onWaveComplete();return}if(this.ghost.isActive()&&(this.ghost.update(t),this.ghost.canAttack())){const e=this.ghost.consumeAttack();AudioEngine.playGhostDoorHit();this.doorHp-=e,this.shakeIntensity=6,this.addFloatingText(`-${Math.floor(e)}`,_*i+i/2,A*i,"#ff4444",16),this.ui.updateDoorHp(this.doorHp,this.doorMaxHp),this.doorHp<=0&&(this.doorHp=0,this.onGameOver())}}updateCombat(t){const e=1+this.saveData.prestigeUpgrades.towerDmg*.15;for(const s of this.buildings){if(!s.isCombatBuilding()||(s.fireTimer+=t,!this.ghost.isActive()))continue;const a=s.getFireInterval();if(s.fireTimer<a)continue;const o=s.pos.col*i+i/2,l=s.pos.row*i+i/2,h=this.ghost.x-o,f=this.ghost.y-l;if(Math.sqrt(h*h+f*f)/i<=s.getRange()){s.fireTimer=0;const E=s.getDamage()*e,v=s.type===r.ICE_MAGE;S.spawn(o,l,this.ghost.x,this.ghost.y,E,v),s.animTimer=.3}s.animTimer>0&&(s.animTimer-=t)}}updateBullets(t){for(const e of S.getActive())if(e.update(t)&&this.ghost.isActive()){e.frozen&&this.ghost.applySlow(e.damage>0?.3:0,dt);const a=this.ghost.takeDamage(e.damage);this.addFloatingText(`-${Math.floor(e.damage)}`,this.ghost.x+(Math.random()-.5)*20,this.ghost.y-20,e.frozen?"#88ccff":"#ffaa44",14),a&&this.addFloatingText("击杀!",this.ghost.x,this.ghost.y-40,"#ff4444",20)}}addFloatingText(t,e,s,a,o){this.effects.push({text:t,x:e,y:s,vy:-40,life:1.2,color:a,size:o})}updateEffects(t){for(let e=this.effects.length-1;e>=0;e--){const s=this.effects[e];s.y+=s.vy*t,s.life-=t,s.life<=0&&this.effects.splice(e,1)}}render(){const t=this.ctx;t.save(),t.translate(this.shakeX,this.shakeY),t.imageSmoothingEnabled=!1,t.fillStyle="#0d0d20",t.fillRect(-10,-10,y*i+20,R*i+20),this.drawMap(t),t.strokeStyle="#5a4f3a",t.lineWidth=2,t.strokeRect(0+1,1*i+1,y*i-2,5*i-2),this.drawDoor(t),this.drawBuildings(t),this.ghost.isActive()&&this.drawGhost(t),this.drawBullets(t),this.drawEffects(t),t.restore()}drawFrame(t,e,s,a,o,l=e.frameW,h=e.frameH){const f=N.image(e.src);if(!f)return!1;const c=s%e.cols*e.frameW,E=Math.floor(s/e.cols)*e.frameH;return t.drawImage(f,c,E,e.frameW,e.frameH,a,o,l,h),!0}drawTileFrame(t,e,s,a){return this.drawFrame(t,w.tiles,e,s,a,i,i)}drawMap(t){for(let e=0;e<R;e++)for(let s=0;s<y;s++){const a=this.map.getTile(s,e),o=s*i,l=e*i,h=a===g.WALL?(s*3+e)%20:a===g.FLOOR?20+(s*5+e)%15:a===g.CORRIDOR?24+(s*7+e)%11:29;if(a===g.FLOOR||!this.drawTileFrame(t,h,o,l))switch(a){case g.WALL:t.fillStyle="#1a1a3e",t.fillRect(o,l,i,i),t.fillStyle="#22224a",t.fillRect(o+2,l+2,i-4,i-4),t.strokeStyle="#1a1a3e",t.lineWidth=1,t.strokeRect(o+2,l+2,i-4,i-4);break;case g.FLOOR:t.fillStyle="#3d3520",t.fillRect(o,l,i,i),t.strokeStyle="#5a4f3a",t.lineWidth=1,t.strokeRect(o+.5,l+.5,i-1,i-1);break;case g.CORRIDOR:t.fillStyle="#151525",t.fillRect(o,l,i,i),t.strokeStyle="#1a1a35",t.lineWidth=.5,t.strokeRect(o+1,l+1,i-2,i-2);break;case g.DOOR:t.fillStyle="#151525",t.fillRect(o,l,i,i);break}}}drawDoor(t){const e=_*i,s=A*i,a=this.doorHp/this.doorMaxHp,o=Math.min(6,Math.max(0,Math.floor((1-a)*7)));this.drawFrame(t,w.door,o,e,s,i,i)||(t.fillStyle="#4a3020",t.fillRect(e+4,s+2,i-8,i-4),t.fillStyle="#8B5A2B",t.fillRect(e+6,s+4,i-12,i-8),t.fillStyle="#666",t.fillRect(e+6,s+i/2-2,i-12,4),a<.75&&(t.strokeStyle="#3a2010",t.lineWidth=2,t.beginPath(),t.moveTo(e+i*.3,s+4),t.lineTo(e+i*.5,s+i*.5),t.lineTo(e+i*.4,s+i-4),t.stroke()),a<.4&&(t.strokeStyle="#2a1005",t.lineWidth=2,t.beginPath(),t.moveTo(e+i*.7,s+8),t.lineTo(e+i*.55,s+i*.6),t.lineTo(e+i*.65,s+i-6),t.stroke()));const l=i-8,h=4,f=e+4,c=s-6;t.fillStyle="#333",t.fillRect(f,c,l,h),t.fillStyle=a>.5?"#4a4":a>.25?"#aa4":"#a22",t.fillRect(f,c,l*a,h)}drawBuildings(t){for(const e of this.buildings){const s=e.pos.col*i,a=e.pos.row*i,o=s+i/2,l=a+i/2;switch(this.ui.getSelectedBuilding()===e&&(t.strokeStyle="#ffcc00",t.lineWidth=2,t.strokeRect(s+1,a+1,i-2,i-2)),e.isCombatBuilding()&&this.ui.getSelectedBuilding()===e&&(t.strokeStyle=e.type===r.ICE_MAGE?"rgba(136, 204, 255, 0.3)":"rgba(70, 130, 180, 0.3)",t.lineWidth=1,t.beginPath(),t.arc(o,l,e.getRange()*i,0,Math.PI*2),t.stroke()),e.type){case r.BED:this.drawBed(t,s,a,e);break;case r.TOWER:this.drawTower(t,s,a,e);break;case r.GENERATOR:this.drawGenerator(t,s,a,e);break;case r.REPAIRMAN:this.drawRepairman(t,s,a,e);break;case r.ICE_MAGE:this.drawIceMage(t,s,a,e);break}if(e.upgradeTimer>0){const h=Math.min(5,Math.floor((1-e.upgradeTimer/.65)*6));this.drawFrame(t,w.upgradeGlow,h,s-8,a-8,64,64)}e.level>1&&(t.fillStyle="rgba(0,0,0,0.7)",t.fillRect(s+i-14,a+i-14,12,12),t.fillStyle="#ffd700",t.font="9px sans-serif",t.textAlign="center",t.fillText(`${e.level}`,s+i-8,a+i-5))}}drawBed(t,e,s,a){const o=a.animTimer>0?Math.sin(a.animTimer*10)*2:0;if(this.drawFrame(t,w.bed,Math.min(4,a.level-1),e,s+o,i,i)){t.fillStyle="#d7c2a0",t.fillRect(e+16,s+20+o,18,10),t.fillStyle="#f3e3c7",t.beginPath(),t.arc(e+20,s+17+o,5,0,Math.PI*2),t.fill();return}t.fillStyle="#5a3a1a",t.fillRect(e+6,s+28+o,36,12),t.fillRect(e+6,s+18+o,6,22),t.fillStyle="#f0e6d0",t.fillRect(e+12,s+24+o,28,12),t.fillStyle="#fffde0",t.fillRect(e+12,s+20+o,10,8),a.animTimer>0&&(t.fillStyle="#aaf",t.font=`${10+Math.floor(a.animTimer*4)}px monospace`,t.textAlign="left",t.fillText("z",e+32,s+16-(1-a.animTimer)*10))}drawTower(t,e,s,a){const o=a.animTimer>0?2:0;if(this.drawFrame(t,w.tower,Math.min(4,a.level-1),e,s+o,i,i)){a.animTimer>.15&&this.drawFrame(t,{src:"assets/fx/fx_tower_muzzle.webp",frameW:16,frameH:16,cols:3},1,e+16,s+2,16,16);return}t.fillStyle="#3a3a5a",t.fillRect(e+10,s+30,28,14),t.fillStyle="#4a6a9a",t.fillRect(e+14,s+18+o,20,16),t.fillStyle="#6a8aba",t.fillRect(e+22,s+10+o,4,12),a.animTimer>.15&&(t.fillStyle="#ffff44",t.beginPath(),t.arc(e+24,s+8,4,0,Math.PI*2),t.fill())}drawGenerator(t,e,s,a){const o=Math.sin(a.animTimer>0?a.animTimer*15:Date.now()/300)*.3+.7;if(this.drawFrame(t,w.generator,Math.min(4,a.level-1),e,s,i,i)){a.animTimer>0&&this.drawFrame(t,{src:"assets/fx/fx_generator_energy.webp",frameW:48,frameH:48,cols:4},Math.floor(Date.now()/90)%4,e,s,i,i);return}t.fillStyle=`rgba(180, 140, 30, ${o})`,t.fillRect(e+10,s+16,28,24),t.fillStyle="#1a1a2a",t.fillRect(e+14,s+20,20,10),t.fillStyle="#ffd700",t.beginPath(),t.moveTo(e+26,s+22),t.lineTo(e+22,s+26),t.lineTo(e+25,s+26),t.lineTo(e+21,s+30),t.lineTo(e+28,s+25),t.lineTo(e+25,s+25),t.closePath(),t.fill(),t.fillStyle=`rgba(255, 215, 0, ${o*.15})`,t.fillRect(e+4,s+10,40,34)}drawRepairman(t,e,s,a){const o=a.animTimer>0?Math.sin(a.animTimer*12)*3:0;if(this.drawFrame(t,w.repairman,Math.min(4,a.level-1),e,s,i,i)){a.animTimer>0&&this.drawFrame(t,{src:"assets/fx/fx_repair.webp",frameW:48,frameH:48,cols:4},Math.floor(Date.now()/100)%4,e,s-4,i,i);return}t.fillStyle="#2a6a2a",t.fillRect(e+16,s+22,16,18),t.fillStyle="#44aa44",t.beginPath(),t.arc(e+24,s+18,8,0,Math.PI*2),t.fill(),t.fillStyle="#aaa",t.fillRect(e+32+o,s+20,10,4),t.fillRect(e+38+o,s+16,4,12),a.animTimer>0&&(t.fillStyle="#44ff44",t.font="10px monospace",t.textAlign="center",t.fillText("+",e+24,s+12-(1-a.animTimer)*8))}drawIceMage(t,e,s,a){const o=Math.sin(Date.now()/200)*.15+.85;if(this.drawFrame(t,w.iceMage,Math.min(4,a.level-1),e,s,i,i)){a.animTimer>.1&&this.drawFrame(t,{src:"assets/fx/fx_ice_slow.webp",frameW:48,frameH:48,cols:4},Math.floor(Date.now()/100)%4,e,s,i,i);return}t.fillStyle=`rgba(60, 100, 160, ${o})`,t.fillRect(e+14,s+22,20,20),t.fillStyle="#4488cc",t.beginPath(),t.arc(e+24,s+18,8,0,Math.PI*2),t.fill(),t.fillStyle="#aaddff",t.fillRect(e+8,s+12,3,28),t.fillStyle=`rgba(136, 204, 255, ${o})`,t.beginPath(),t.moveTo(e+10,s+8),t.lineTo(e+6,s+14),t.lineTo(e+14,s+14),t.closePath(),t.fill(),a.animTimer>.1&&(t.fillStyle="rgba(136, 204, 255, 0.4)",t.beginPath(),t.arc(e+10,s+10,6,0,Math.PI*2),t.fill())}drawGhost(t){const e=this.ghost,s=e.alpha,a=Math.sin(e.glowPhase)*.2+.8,o=e.slowTimer>0?.3:0,l=Math.floor(Date.now()/125)%4,h=e.state===m.ATTACKING?5:e.state===m.RETREATING?7:e.state===m.DEAD?8:1;if(this.drawFrame(t,w.ghost,h*4+l,e.x-24,e.y-30,48,48)){e.hitFlash>0&&(t.fillStyle=`rgba(255, 50, 50, ${e.hitFlash*.35})`,t.beginPath(),t.arc(e.x,e.y,18,0,Math.PI*2),t.fill()),e.slowTimer>0&&this.drawFrame(t,{src:"assets/fx/fx_ice_slow.webp",frameW:48,frameH:48,cols:4},Math.floor(Date.now()/100)%4,e.x-24,e.y-26,48,48);const T=e.hp/e.maxHp,I=40,k=e.x-I/2,j=e.y-26;t.fillStyle="rgba(0,0,0,0.6)",t.fillRect(k,j,I,5),t.fillStyle=T>.5?"#4a8aff":T>.25?"#ffaa44":"#ff4444",t.fillRect(k,j,I*T,5);return}const f=t.createRadialGradient(e.x,e.y,5,e.x,e.y,30);f.addColorStop(0,`rgba(${100-o*50}, ${150+o*50}, 255, ${s*.4*a})`),f.addColorStop(1,"rgba(100, 150, 255, 0)"),t.fillStyle=f,t.beginPath(),t.arc(e.x,e.y,30,0,Math.PI*2),t.fill(),t.fillStyle=`rgba(${200-o*80}, ${220+o*20}, 255, ${s*.7*a})`,t.beginPath(),t.arc(e.x,e.y-6,14,Math.PI,0),t.lineTo(e.x+14,e.y+14);const c=Date.now()/200;for(let T=3;T>=-3;T--){const I=e.x+T*4.5,k=e.y+14+Math.sin(c+T)*3;t.lineTo(I,k)}t.closePath(),t.fill(),e.hitFlash>0&&(t.fillStyle=`rgba(255, 50, 50, ${e.hitFlash*.6})`,t.beginPath(),t.arc(e.x,e.y,16,0,Math.PI*2),t.fill()),e.slowTimer>0&&(t.fillStyle=`rgba(136, 204, 255, ${.15*e.slowTimer})`,t.beginPath(),t.arc(e.x,e.y,18,0,Math.PI*2),t.fill()),t.fillStyle=`rgba(255, 50, 50, ${s})`,t.beginPath(),t.arc(e.x-5,e.y-8,3,0,Math.PI*2),t.arc(e.x+5,e.y-8,3,0,Math.PI*2),t.fill();const E=e.hp/e.maxHp,v=40,b=e.x-v/2,L=e.y-26;t.fillStyle="rgba(0,0,0,0.6)",t.fillRect(b,L,v,5),t.fillStyle=E>.5?"#4a8aff":E>.25?"#ffaa44":"#ff4444",t.fillRect(b,L,v*E,5)}drawBullets(t){for(const e of S.getActive()){const a=(e.frozen?5:2)*6+Math.floor(Date.now()/80)%3;this.drawFrame(t,w.projectiles,a,e.x-8,e.y-8,16,16)||(e.frozen?(t.fillStyle="#88ccff",t.beginPath(),t.arc(e.x,e.y,3,0,Math.PI*2),t.fill(),t.fillStyle="rgba(136, 204, 255, 0.3)",t.beginPath(),t.arc(e.x,e.y,7,0,Math.PI*2),t.fill()):(t.fillStyle="#ffdd44",t.beginPath(),t.arc(e.x,e.y,3,0,Math.PI*2),t.fill(),t.fillStyle="rgba(255, 220, 60, 0.3)",t.beginPath(),t.arc(e.x,e.y,6,0,Math.PI*2),t.fill()))}}drawDamageDigits(t,e){const s=/^([+-]?)(\d+)$/.exec(e.text);if(!s)return!1;const[,a,o]=s,l=e.color==="#ffd700"||e.color==="#44ff44"?w.damageGold:w.damageRed;if(!N.image(l.src))return!1;const h=Math.max(1,e.size/14),f=Math.round(l.frameW*h),c=Math.round(l.frameH*h),E=a?Math.round(8*h):0,v=E+o.length*f;let b=e.x-v/2;const L=e.y-c;t.save(),t.globalAlpha=Math.min(1,e.life*2),a&&(t.fillStyle=e.color,t.font=`bold ${Math.round(e.size)}px sans-serif`,t.textAlign="left",t.fillText(a,b,e.y-2),b+=E);for(const T of o)this.drawFrame(t,l,Number(T),b,L,f,c),b+=f;return t.restore(),!0}drawEffects(t){for(const e of this.effects){if(this.drawDamageDigits(t,e))continue;const s=Math.min(1,e.life*2);t.globalAlpha=s,t.fillStyle=e.color,t.font=`bold ${e.size}px sans-serif`,t.textAlign="center",t.fillText(e.text,e.x,e.y)}t.globalAlpha=1}showNightOverlay(){var t;(t=this.nightOverlay)==null||t.classList.remove("hidden")}hideNightOverlay(){var t;(t=this.nightOverlay)==null||t.classList.add("hidden")}startLoop(){this.running=!0,this.lastTime=performance.now(),requestAnimationFrame(t=>this.loop(t))}loop(t){if(!this.running)return;const e=Math.min((t-this.lastTime)/1e3,.1);this.lastTime=t,this.update(e),this.render(),requestAnimationFrame(s=>this.loop(s))}resize(t,e){this.canvas.width=y*i,this.canvas.height=R*i}_awardPrestige(amt,source){if(!amt||amt<=0)return;this.saveData.prestigePoints=(this.saveData.prestigePoints||0)+amt;this._lastPrestigeFlash={amt,source,t:performance.now()};try{this.ui.flashPrestige&&this.ui.flashPrestige(amt,source)}catch(_){}}_tickEndlessSurvival(dt){if(this.mode!==p.ENDLESS||this.phase===d.WAVE_COMPLETE||this.phase===d.MENU||this.phase===d.GAME_OVER)return;this._endlessSurvivalT=(this._endlessSurvivalT||0)+dt;if(this._endlessSurvivalT>=120){const ticks=Math.floor(this._endlessSurvivalT/120);this._endlessSurvivalT-=ticks*120;this._awardPrestige(ticks,"survival");K(this.saveData);this._saveEndlessSnapshot()}}_saveEndlessSnapshot(){if(this.mode!==p.ENDLESS)return;this.saveData.endlessRun={wave:this.wave,gold:Math.floor(this.gold),maxGold:Math.floor(this.maxGold||this.gold),doorHp:this.doorHp,doorMaxHp:this.doorMaxHp,doorLevel:this.doorLevel||1,buildings:(this.buildings||[]).map(b=>({type:b.type,col:b.pos.col,row:b.pos.row,level:b.level,hp:b.hp,maxHp:b.maxHp})),savedAt:Date.now()};K(this.saveData)}_clearEndlessRun(){if(this.saveData&&this.saveData.endlessRun){delete this.saveData.endlessRun;K(this.saveData)}}_resumeEndlessRun(){const r=this.saveData&&this.saveData.endlessRun;if(!r)return!1;this.mode=p.ENDLESS;this.level=1;this.wave=r.wave||1;this.phase=d.DAY;this.gold=r.gold||O;this.maxGold=r.maxGold||this.gold;this.doorMaxHp=r.doorMaxHp||C;this.doorHp=Math.min(r.doorHp||this.doorMaxHp,this.doorMaxHp);this.doorLevel=r.doorLevel||1;this.buildings=[];for(const b of(r.buildings||[])){try{const obj=new Tt(b.type,{col:b.col,row:b.row});if(b.level>1){obj.level=b.level;obj.maxHp=b.maxHp||obj.maxHp}obj.hp=Math.min(b.hp||obj.hp,obj.maxHp);this.buildings.push(obj)}catch(_){}}this.effects=[];this.ghost=new X;this.passiveGoldTimer=0;S.init();this._endlessSurvivalT=0;this.dayTimer=D+this.wave*2;this.nightAlpha=0;this.ui.showGameUI();this.ui.updateGold(this.gold);this.ui.updateWave(this.wave,this.mode);this.ui.updateDoorHp(this.doorHp,this.doorMaxHp);this.ui.updatePhase(d.DAY,this.dayTimer);this.ui.showWaveBanner(`Wave ${this.wave} - 继续防御!`);this.hideNightOverlay();return!0}}const Rt={bed:"床铺",tower:"防御塔",generator:"发电机",repairman:"修理工",ice_mage:"冰冻师"};class _t{constructor(){this.onStart=()=>{},this.onSelectLevel=()=>{},this.onRestart=()=>{},this.onGoMenu=()=>{},this.onUpgrade=()=>{},this.onSell=()=>{},this.onUpgradeDoor=()=>{},this.onBuyPrestige=()=>{},this.onWaveContinue=()=>{},this.selectedBuilding=null,this.buildType=null;const t=e=>document.getElementById(e);this.goldEl=t("gold-display"),this.waveEl=t("wave-display"),this.phaseEl=t("phase-indicator"),this.timerEl=t("phase-timer"),this.doorHpFill=t("door-hp-fill"),this.doorHpText=t("door-hp-text"),this.playerInfo=t("player-info"),this.waveInfo=t("wave-info"),this.waveInfoText=t("wave-info-text"),this.hud=t("hud"),this.buildMenu=t("build-menu"),this.infoPanel=t("info-panel"),this.infoName=t("info-name"),this.infoStats=t("info-stats"),this.upgradeBtn=t("upgrade-btn"),this.sellBtn=t("sell-btn"),this.infoClose=t("info-close"),this.menuScreen=t("menu-screen"),this.menuContent=t("menu-content"),this.levelSelectScreen=t("level-select-screen"),this.levelGrid=t("level-grid"),this.levelSelectBackBtn=t("level-select-back-btn"),this.gameoverScreen=t("gameover-screen"),this.prestigeShop=t("prestige-shop"),this.waveBanner=t("wave-banner"),this.waveBannerText=t("wave-banner-text"),this.startLevelsBtn=t("start-levels-btn"),this.startEndlessBtn=t("start-endless-btn"),this.prestigeBtn=t("prestige-btn"),this.menuPrestigeVal=t("menu-prestige-val"),this.resumeEndlessBtn=t("resume-endless-btn"),this.resumeWaveVal=t("resume-wave-val"),this.topExitBtn=t("top-exit-btn"),this.topPrestigeVal=t("top-prestige-val"),this.topLevelBadge=t("top-level-badge"),this.restartBtn=t("restart-btn"),this.goMenuBtn=t("go-menu-btn"),this.shopCloseBtn=t("shop-close"),this.shopPointsVal=t("shop-points-val"),this.goWaves=t("go-waves"),this.goMaxGold=t("go-maxgold"),this.goPrestige=t("go-prestige"),this.waveCompletePopup=t("wave-complete-popup"),this.wcTitle=t("wc-title"),this.wcBonus=t("wc-bonus"),this.wcDoorHp=t("wc-door-hp"),this.wcGold=t("wc-gold"),this.wireUp()}wireUp(){this.startLevelsBtn.addEventListener("click",()=>this.showLevelSelect()),this.startEndlessBtn.addEventListener("click",()=>{this.onResumeEndlessClear&&this.onResumeEndlessClear();this.onStart(p.ENDLESS)});this.resumeEndlessBtn&&this.resumeEndlessBtn.addEventListener("click",()=>this.onResumeEndless&&this.onResumeEndless());this.topExitBtn&&this.topExitBtn.addEventListener("click",()=>this.onTopExit&&this.onTopExit()),this.prestigeBtn.addEventListener("click",()=>this.showPrestigeShop(0)),this.restartBtn.addEventListener("click",()=>this.onRestart()),this.goMenuBtn.addEventListener("click",()=>this.onGoMenu()),this.levelSelectBackBtn.addEventListener("click",()=>this.hideLevelSelect()),this.infoClose.addEventListener("click",()=>this.hideInfoPanel()),this.shopCloseBtn.addEventListener("click",()=>this.prestigeShop.classList.add("hidden")),this.upgradeBtn.addEventListener("click",()=>this.onUpgrade()),this.sellBtn.addEventListener("click",()=>this.onSell()),document.getElementById("wc-continue-btn").addEventListener("click",()=>{this.waveCompletePopup.classList.add("hidden"),this.onWaveContinue()}),document.getElementById("upgrade-door-btn").addEventListener("click",()=>{this.onUpgradeDoor()}),document.querySelectorAll(".build-btn[data-type]").forEach(t=>{t.addEventListener("click",()=>{const e=t.dataset.type;this.buildType=this.buildType===e?null:e,document.querySelectorAll(".build-btn").forEach(s=>{s.style.borderColor=""}),this.buildType&&(t.style.borderColor="#ffcc00")})}),document.querySelectorAll(".shop-item").forEach(t=>{const e=t.dataset.upgrade;t.querySelector(".buy-btn").addEventListener("click",()=>this.onBuyPrestige(e))})}updateGold(t){this.goldEl.textContent=Math.floor(t).toString()}updateWave(t,e){const s=e===p.LEVELS?"Level":"Wave";this.waveEl&&(this.waveEl.textContent=`${s} ${t}`);if(this.topLevelBadge){if(e===p.ENDLESS)this.topLevelBadge.textContent=`Wave ${t}`;else this.topLevelBadge.classList.add("hidden")}}updatePhase(t,e){}updateWaveInfo(t,e,s,a,o,l,h){const f=h===p.LEVELS?"Level":"Wave";if(t===d.DAY){const c=Math.ceil(s);this.waveInfoText.textContent=`下一波怪物到来: ${c}s`,this.waveInfoText.className=c<=5?"countdown":""}else if(t===d.NIGHT)if(l){const c=Math.ceil(a/o*100);this.waveInfoText.textContent=`鬼魂来袭! HP: ${Math.ceil(a)}/${Math.ceil(o)} (${c}%)`,this.waveInfoText.className="alert"}else this.waveInfoText.textContent=`${f} ${e} - 鬼魂逼近...`,this.waveInfoText.className="alert";else t===d.WAVE_COMPLETE?(this.waveInfoText.textContent=`${f} ${e} 完成! 准备下一波...`,this.waveInfoText.className=""):(this.waveInfoText.textContent="",this.waveInfoText.className="")}updateDoorHp(t,e){const s=t/e*100;this.doorHpFill.style.width=`${s}%`,this.doorHpText.textContent=`${Math.ceil(t)}/${Math.ceil(e)}`,this.doorHpFill.classList.remove("warning","critical"),s<25?this.doorHpFill.classList.add("critical"):s<50&&this.doorHpFill.classList.add("warning")}updateBuildCosts(t,e,s){document.querySelectorAll(".build-btn[data-type]").forEach(o=>{const l=o.dataset.type,h=this.getBaseCost(l);let f=t<h;l===r.REPAIRMAN&&s>=B&&(f=!0),o.disabled=f});const a=document.getElementById("upgrade-door-btn");a.disabled=t<e}getBaseCost(t){switch(t){case r.BED:return 50;case r.TOWER:return 100;case r.GENERATOR:return 150;case r.REPAIRMAN:return 120;case r.ICE_MAGE:return 150}}showGameUI(){this.playerInfo.classList.remove("hidden"),this.waveInfo.classList.remove("hidden"),this.buildMenu.classList.remove("hidden"),this.menuScreen.classList.add("hidden"),this.gameoverScreen.classList.add("hidden"),this.topLevelBadge&&this.topLevelBadge.classList.remove("hidden")}showMenu(t){this.playerInfo.classList.add("hidden"),this.waveInfo.classList.add("hidden"),this.buildMenu.classList.add("hidden"),this.infoPanel.classList.add("hidden"),this.waveCompletePopup.classList.add("hidden"),this.menuScreen.classList.remove("hidden"),this.gameoverScreen.classList.add("hidden"),this.menuPrestigeVal.textContent=t.toString();this.topPrestigeVal&&(this.topPrestigeVal.textContent=t.toString());this._refreshResumeBtn&&this._refreshResumeBtn()}showGameOver(t,e,s){this.gameoverScreen.classList.remove("hidden"),this.goWaves.textContent=t.toString(),this.goMaxGold.textContent=Math.floor(e).toString(),this.goPrestige.textContent=s.toString()}hideGameOver(){this.gameoverScreen.classList.add("hidden")}showWaveBanner(t){this.waveBannerText.textContent=t,this.waveBanner.classList.remove("hidden"),setTimeout(()=>this.waveBanner.classList.add("hidden"),2e3)}showPrestigeShop(t){this.prestigeShop.classList.remove("hidden"),this.shopPointsVal.textContent=t.toString()}showWaveComplete(t,e,s,a,o,l){const h=l===p.LEVELS?"Level":"Wave";this.wcTitle.textContent=`${h} ${t} 完成!`,this.wcBonus.textContent=e.toString(),this.wcDoorHp.textContent=`${Math.ceil(s)}/${Math.ceil(a)}`,this.wcGold.textContent=Math.floor(o).toString(),this.waveCompletePopup.classList.remove("hidden")}showInfoPanel(t,e){this.selectedBuilding=t,this.infoPanel.classList.remove("hidden");const s=Rt[t.type]??t.type;this.infoName.textContent=`${s} Lv.${t.level}`;let a=`HP: ${Math.ceil(t.hp)}/${t.maxHp}
-`;t.type===r.BED?a+=`收入: ${t.getIncomeRate().toFixed(1)}/s
-`:t.type===r.TOWER?(a+=`伤害: ${t.getDamage()}
-`,a+=`范围: ${t.getRange().toFixed(1)}
-`):t.type===r.GENERATOR?a+=`增幅: +${(t.getBoostMultiplier()*100).toFixed(0)}%
-`:t.type===r.REPAIRMAN?a+=`修复: ${t.getRepairRate().toFixed(0)} HP/s
-`:t.type===r.ICE_MAGE&&(a+=`伤害: ${t.getDamage()}
-`,a+=`范围: ${t.getRange().toFixed(1)}
-`,a+=`减速: ${(t.getSlowFactor()*100).toFixed(0)}%
-`),this.infoStats.textContent=a;const o=t.getUpgradeCost();this.upgradeBtn.disabled=e<o,this.upgradeBtn.textContent=`升级 (${o}G)`}hideInfoPanel(){this.infoPanel.classList.add("hidden"),this.selectedBuilding=null}getSelectedBuilding(){return this.selectedBuilding}getBuildType(){return this.buildType}clearBuildType(){this.buildType=null,document.querySelectorAll(".build-btn").forEach(t=>{t.style.borderColor=""})}_refreshResumeBtn(){if(!this.resumeEndlessBtn)return;try{const raw=localStorage.getItem("dark_dorm_save_v1");const sd=raw?JSON.parse(raw):null;const er=sd&&sd.endlessRun;if(er&&er.wave){this.resumeEndlessBtn.classList.remove("hidden");this.resumeWaveVal&&(this.resumeWaveVal.textContent=String(er.wave))}else{this.resumeEndlessBtn.classList.add("hidden")}}catch(_){this.resumeEndlessBtn.classList.add("hidden")}}flashPrestige(amt,source){if(this.topPrestigeVal){const cur=parseInt(this.topPrestigeVal.textContent||"0",10)||0;this.topPrestigeVal.textContent=String(cur+amt)}const tip=document.createElement("div");tip.textContent="+"+amt+" 声望"+(source==="survival"?" (坚守)":"");tip.style.cssText="position:fixed;top:50px;left:50%;transform:translateX(-50%);background:rgba(255,215,64,0.92);color:#1a1a2e;font-weight:bold;padding:6px 14px;border-radius:14px;font-size:13px;z-index:200;pointer-events:none;animation:bannerIn .25s ease-out";document.body.appendChild(tip);setTimeout(()=>{tip.style.transition="opacity .4s, transform .4s";tip.style.opacity="0";tip.style.transform="translate(-50%,-20px)"},900);setTimeout(()=>tip.remove(),1400)}showLevelSelect(){this.levelGrid.innerHTML="";for(let t=1;t<=z;t++){const e=document.createElement("button");e.className="level-btn unlocked",e.textContent=t.toString(),e.addEventListener("click",()=>this.onSelectLevel(t)),this.levelGrid.appendChild(e)}this.menuContent.classList.add("hidden"),this.levelSelectScreen.classList.remove("hidden")}hideLevelSelect(){this.levelSelectScreen.classList.add("hidden"),this.menuContent.classList.remove("hidden")}}window.__appLoaded__=!0;function At(){const n=document.getElementById("canvas"),t=document.getElementById("canvas-wrap");if(!n||!t)return;n.width=y*i,n.height=R*i;function e(){const o=t.clientWidth,l=t.clientHeight;if(o===0||l===0)return;const h=o/n.width,f=l/n.height,c=Math.min(h,f,2);n.style.width=`${n.width*c}px`,n.style.height=`${n.height*c}px`}e(),window.addEventListener("resize",e);const s=new _t,a=new Lt(n,s);window.darkDormGame=a,a.showMenu(),a.startLoop()}document.addEventListener("DOMContentLoaded",At)})();
+(function() {
+"use strict";
+
+/* ============================================================
+   Audio Engine
+   ============================================================ */
+const AudioEngine = {
+  ctx: null, bgmNodes: [], _inited: false,
+  init() {
+    if (this._inited) return; this._inited = true;
+    try { const C = window.AudioContext || window.webkitAudioContext; if (C) this.ctx = new C(); } catch (e) {}
+  },
+  _tone(f, d, v) {
+    try { if (!this.ctx) return;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.connect(g); g.connect(this.ctx.destination);
+      o.frequency.value = f; o.start();
+      g.gain.setValueAtTime(v, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + d);
+      o.stop(this.ctx.currentTime + d);
+    } catch(e) {}
+  },
+  _noise(f, d, v, ft) {
+    try { if (!this.ctx) return;
+      const len = this.ctx.sampleRate * d, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      const s = this.ctx.createBufferSource(), g = this.ctx.createGain(), filter = this.ctx.createBiquadFilter();
+      s.buffer = buf; filter.type = ft || 'lowpass'; filter.frequency.value = f;
+      s.connect(filter); filter.connect(g); g.connect(this.ctx.destination);
+      g.gain.setValueAtTime(v, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + d);
+      s.start(); s.stop(this.ctx.currentTime + d);
+    } catch(e) {}
+  },
+  _sweep(f1, f2, d, v) {
+    try { if (!this.ctx) return;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.connect(g); g.connect(this.ctx.destination);
+      o.frequency.setValueAtTime(f1, this.ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(f2, this.ctx.currentTime + d);
+      g.gain.setValueAtTime(v, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + d);
+      o.start(); o.stop(this.ctx.currentTime + d);
+    } catch(e) {}
+  },
+  playBuildPlace() { this._noise(200, 0.15, 0.3, 'lowpass'); this._tone(800, 0.05, 0.1); },
+  playBuildUpgrade() { this._sweep(400, 1200, 0.4, 0.2); this._tone(1500, 0.1, 0.15); },
+  playBuildSell() { this._noise(300, 0.12, 0.2, 'bandpass'); },
+  playBedCoin() { this._tone(1200, 0.05, 0.08); setTimeout(() => this._tone(1600, 0.05, 0.06), 50); },
+  playTowerFire() { this._noise(600, 0.08, 0.15, 'highpass'); this._tone(200, 0.03, 0.1); },
+  playMonsterHit() { this._noise(100, 0.1, 0.25, 'lowpass'); },
+  playDoorHit() { this._noise(80, 0.12, 0.3, 'lowpass'); },
+  playWaveStart() { this._sweep(200, 800, 0.6, 0.2); },
+  playGameOver() { this._sweep(600, 100, 1.2, 0.3); }
+};
+
+/* ============================================================
+   Constants
+   ============================================================ */
+const TILE_SIZE = 48;
+const MAP_COLS = 9;
+const MAP_ROWS = 13;
+const DOOR_COL = 4;
+const DOOR_ROW = 8;
+
+const Tile = { EMPTY: 0, FLOOR: 1, WALL: 2, DOOR: 3, CORRIDOR: 4 };
+const BuildingType = { BED: 'bed', TOWER: 'tower', GENERATOR: 'generator', REPAIRMAN: 'repairman', ICE_MAGE: 'ice_mage', BOMBER: 'bomber', SNIPER: 'sniper', ALTAR: 'altar' };
+const Phase = { MENU: 'menu', DAY: 'day', NIGHT: 'night', WAVE_COMPLETE: 'wave_complete', GAME_OVER: 'game_over' };
+const GameMode = { LEVELS: 'levels', ENDLESS: 'endless' };
+const MonsterState = { IDLE: 'idle', MOVING: 'moving', ATTACKING: 'attacking', RETREATING: 'retreating', DEAD: 'dead' };
+
+const BUILDING_DEFS = {
+  bed:          { name: '床铺',    baseCost: 50,  color: '#F5DEB3', hp: 50,  income: 2,   incomeInc: 1.5 },
+  tower:        { name: '防御塔',  baseCost: 100, color: '#4682B4', hp: 80,  dmg: 15,  dmgInc: 5,  range: 3.5, rangeInc: 0.3, interval: 1.0 },
+  generator:    { name: '发电机',  baseCost: 150, color: '#DAA520', hp: 60,  boost: 0.50 },
+  repairman:    { name: '修理工',  baseCost: 120, color: '#44AA44', hp: 60,  repair: 1,  repairInc: 1 },
+  ice_mage:     { name: '冰冻师',  baseCost: 150, color: '#88CCFF', hp: 70,  dmg: 15,  dmgInc: 5,  range: 3.5, rangeInc: 0.3, interval: 1.2, slow: 0.30 },
+  bomber:       { name: '爆破塔',  baseCost: 200, color: '#FF6B35', hp: 70,  dmg: 8,   dmgInc: 3,  range: 2.5, rangeInc: 0.2, interval: 2.0, splash: 0.5, splashRange: 1 },
+  sniper:       { name: '狙击塔',  baseCost: 250, color: '#9B59B6', hp: 50,  dmg: 30,  dmgInc: 8,  range: 4.5, rangeInc: 0.3, interval: 3.5, critRate: 0.30, critMult: 2 },
+  altar:        { name: '祭坛',    baseCost: 180, color: '#E74C3C', hp: 100, aspdAura: 0.15, speedAura: 0.10, auraRange: 2.5 }
+};
+
+const BASE_DOOR_HP = 150;
+const DOOR_UPGRADE_COST_BASE = 80;
+const MAX_LEVEL = 10;
+const PRESTIGE_COST_BASE = 1e6;
+const SAVE_KEY = 'dark_dorm_save_v1';
+
+/* ============================================================
+   Level Wave Configurations
+   ============================================================ */
+const LEVEL_WAVES = [
+  null,
+  [{ monsters: [{ type: 'ghost', count: 2 }] }],
+  [{ monsters: [{ type: 'ghost', count: 3 }] }, { monsters: [{ type: 'ghost', count: 2 }], delay: 8 }],
+  [{ monsters: [{ type: 'ghost', count: 4 }] }, { monsters: [{ type: 'ghostfemale', count: 2 }], delay: 10 }],
+  [{ monsters: [{ type: 'ghost', count: 3 }] }, { monsters: [{ type: 'zombie', count: 2 }], delay: 12 }],
+  [{ monsters: [{ type: 'ghost', count: 4 }] }, { monsters: [{ type: 'ghostfemale', count: 3 }], delay: 8 }, { monsters: [{ type: 'ghost', count: 3 }], delay: 16 }],
+  [{ monsters: [{ type: 'zombie', count: 3 }] }, { monsters: [{ type: 'ghostfemale', count: 3 }], delay: 10 }],
+  [{ monsters: [{ type: 'shadow', count: 2 }] }, { monsters: [{ type: 'ghost', count: 5 }], delay: 8 }],
+  [{ monsters: [{ type: 'ghostfemale', count: 4 }] }, { monsters: [{ type: 'zombie', count: 3 }], delay: 10 }, { monsters: [{ type: 'shadow', count: 2 }], delay: 18 }],
+  [{ monsters: [{ type: 'zombie', count: 4 }] }, { monsters: [{ type: 'shadow', count: 3 }], delay: 10 }, { monsters: [{ type: 'ghostfemale', count: 4 }], delay: 20 }],
+  [{ monsters: [{ type: 'ghost', count: 5 }] }, { monsters: [{ type: 'zombie', count: 4 }], delay: 8 }, { monsters: [{ type: 'shadow', count: 4 }, { type: 'ghostfemale', count: 3 }], delay: 16 }]
+];
+
+function defaultSave() {
+  return { prestigePoints: 0, prestigeUpgrades: { goldMult: 0, doorHp: 0, towerDmg: 0 }, highestWave: 0, totalGames: 0, lastSaveTime: 0, unlockedLevel: MAX_LEVEL, completedLevels: [], endlessRun: null };
+}
+
+function loadSave() {
+  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) { const d = JSON.parse(raw); return Object.assign(defaultSave(), d); } } catch (_) {}
+  return defaultSave();
+}
+
+function saveSave(data) {
+  try { data.lastSaveTime = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (_) {}
+}
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function rand(a, b) { return a + Math.random() * (b - a); }
+
+/* ============================================================
+   TileMap
+   ============================================================ */
+class TileMap {
+  constructor() {
+    this.width = MAP_COLS; this.height = MAP_ROWS; this.tiles = [];
+    for (let r = 0; r < MAP_ROWS; r++) { this.tiles[r] = []; for (let c = 0; c < MAP_COLS; c++) this.tiles[r][c] = this.classify(c, r); }
+  }
+  classify(c, r) {
+    if (c === 0 || c === MAP_COLS - 1 || r === 0) return Tile.WALL;
+    if (r >= 1 && r <= 7) return Tile.FLOOR;
+    if (r === DOOR_ROW) return c === DOOR_COL ? Tile.DOOR : Tile.WALL;
+    if (r > DOOR_ROW) return Tile.CORRIDOR;
+    return Tile.WALL;
+  }
+  getTile(c, r) { if (r < 0 || r >= MAP_ROWS || c < 0 || c >= MAP_COLS) return Tile.WALL; return this.tiles[r][c]; }
+  isBuildable(c, r) { return this.getTile(c, r) === Tile.FLOOR; }
+  isWalkable(c, r) { const t = this.getTile(c, r); return t === Tile.CORRIDOR || t === Tile.DOOR; }
+}
+
+/* ============================================================
+   Building
+   ============================================================ */
+class Building {
+  constructor(type, pos, prestigeUpgrades) {
+    this.type = type; this.pos = { ...pos }; this.level = 1;
+    const def = BUILDING_DEFS[type];
+    this.maxHp = def.hp; this.hp = this.maxHp;
+    this.totalInvested = def.baseCost;
+    this.fireTimer = 0; this.incomeTimer = 0; this.animTimer = 0; this.upgradeTimer = 0;
+    this.prestigeUpgrades = prestigeUpgrades || { towerDmg: 0 };
+  }
+  getUpgradeCost() { return Math.floor(BUILDING_DEFS[this.type].baseCost * Math.pow(1.6, this.level - 1)); }
+  upgrade() { this.level++; this.maxHp += Math.floor(this.maxHp * 0.2); this.hp = this.maxHp; }
+  getIncomeRate() { return BUILDING_DEFS[this.type].income + (this.level - 1) * BUILDING_DEFS[this.type].incomeInc; }
+  getDamage() { const base = BUILDING_DEFS[this.type].dmg + (this.level - 1) * BUILDING_DEFS[this.type].dmgInc; return Math.floor(base * (1 + this.prestigeUpgrades.towerDmg * 0.15)); }
+  getRange() { return BUILDING_DEFS[this.type].range + (this.level - 1) * BUILDING_DEFS[this.type].rangeInc; }
+  getInterval() { return BUILDING_DEFS[this.type].interval; }
+  getRepairRate() { return BUILDING_DEFS[this.type].repair + (this.level - 1) * BUILDING_DEFS[this.type].repairInc; }
+  getSlowFactor() { return BUILDING_DEFS[this.type].slow || 0; }
+  getSplash() { return BUILDING_DEFS[this.type].splash || 0; }
+  getSplashRange() { return BUILDING_DEFS[this.type].splashRange || 0; }
+  getCritRate() { return BUILDING_DEFS[this.type].critRate || 0; }
+  getCritMult() { return BUILDING_DEFS[this.type].critMult || 1; }
+  getBoostMultiplier() {
+    if (this.type !== 'generator') return 0;
+    return BUILDING_DEFS.generator.boost + (this.level - 1) * 0.08;
+  }
+  getAuraASPD() { return BUILDING_DEFS[this.type].aspdAura || 0; }
+  getAuraSpeed() { return BUILDING_DEFS[this.type].speedAura || 0; }
+  getAuraRange() { return BUILDING_DEFS[this.type].auraRange || 0; }
+}
+
+/* ============================================================
+   Monster Base Class
+   ============================================================ */
+class Monster {
+  constructor(wave, difficultyMult) {
+    this.wave = wave; this.difficultyMult = difficultyMult;
+    this.state = MonsterState.MOVING;
+    this.pos = { x: DOOR_COL + rand(-0.3, 0.3), y: MAP_ROWS - 0.5 };
+    this.targetPos = { x: DOOR_COL + 0.5, y: DOOR_ROW + 0.5 };
+    this.hp = 0; this.maxHp = 0; this.atk = 0; this.speed = 1.8;
+    this.attackInterval = 0.8; this.attackTimer = 0;
+    this.retreatThreshold = 0.08; this.retreatRegen = 0.04;
+    this.damageReduction = 0; this.type = 'ghost';
+    this.flashTimer = 0; this.slowTimer = 0; this.slowFactor = 1;
+    this.deadTimer = 0; this.animFrame = 0; this.animTimer2 = 0;
+    this._initStats();
+    this.hp = this.maxHp;
+  }
+  _initStats() {
+    this.maxHp = (200 + (this.wave - 1) * 80) * this.difficultyMult;
+    this.atk = (10 + (this.wave - 1) * 3) * this.difficultyMult;
+    this.speed = 1.8; this.attackInterval = 0.8;
+    this.retreatThreshold = 0.08; this.retreatRegen = 0.04;
+  }
+  getEffectiveSpeed() { return this.speed * (this.state === MonsterState.RETREATING ? 1.5 : 1) * this.slowFactor; }
+  update(dt, game) {
+    if (this.state === MonsterState.DEAD) { this.deadTimer += dt; return; }
+    this.flashTimer = Math.max(0, this.flashTimer - dt);
+    if (this.slowTimer > 0) { this.slowTimer -= dt; if (this.slowTimer <= 0) this.slowFactor = 1; }
+    // Apply altar slow aura globally via game calculation, handled separately
+    if (this.state === MonsterState.MOVING) {
+      const s = this.getEffectiveSpeed() * game.getGlobalMonsterSpeedMult();
+      const dx = this.targetPos.x - this.pos.x, dy = this.targetPos.y - this.pos.y;
+      const d = Math.hypot(dx, dy);
+      if (d <= s * dt) { this.pos.x = this.targetPos.x; this.pos.y = this.targetPos.y; this.state = MonsterState.ATTACKING; }
+      else { this.pos.x += (dx / d) * s * dt; this.pos.y += (dy / d) * s * dt; }
+    } else if (this.state === MonsterState.ATTACKING) {
+      this.attackTimer += dt;
+      if (this.attackTimer >= this.attackInterval) { this.attackTimer = 0; this._attackDoor(game); }
+      if (this.hp / this.maxHp <= this.retreatThreshold) this.state = MonsterState.RETREATING;
+    } else if (this.state === MonsterState.RETREATING) {
+      const s = this.getEffectiveSpeed() * game.getGlobalMonsterSpeedMult();
+      const retreatTarget = { x: DOOR_COL + 0.5, y: MAP_ROWS - 0.5 };
+      const dx = retreatTarget.x - this.pos.x, dy = retreatTarget.y - this.pos.y;
+      const d = Math.hypot(dx, dy);
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.retreatRegen * dt);
+      if (this.hp / this.maxHp >= 0.5) { this.state = MonsterState.MOVING; }
+      else if (d > 0.1) { this.pos.x += (dx / d) * s * dt; this.pos.y += (dy / d) * s * dt; }
+    }
+    this.animTimer2 += dt;
+    if (this.animTimer2 > 0.25) { this.animTimer2 -= 0.25; this.animFrame = (this.animFrame + 1) % 4; }
+  }
+  _attackDoor(game) {
+    const dmg = this.atk;
+    game.damageDoor(dmg);
+    AudioEngine.playDoorHit();
+  }
+  takeDamage(rawDmg) {
+    const dmg = rawDmg * (1 - this.damageReduction);
+    this.hp -= dmg; this.flashTimer = 0.1;
+    if (this.hp <= 0) { this.hp = 0; this.state = MonsterState.DEAD; this.deadTimer = 0; return true; }
+    return false;
+  }
+  applySlow(factor, duration) { if (factor < this.slowFactor) { this.slowFactor = factor; this.slowTimer = duration; } }
+}
+
+class Ghost extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'ghost'; }
+}
+
+class GhostFemale extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'ghostfemale'; }
+  _initStats() {
+    super._initStats();
+    this.maxHp *= 2 / 3; this.atk *= 2; this.speed = 1.8;
+    this.retreatRegen = 0.01; // 1% regen all time, handled in update via extra tick
+  }
+  update(dt, game) {
+    if (this.state !== MonsterState.DEAD) { this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.01 * dt); }
+    super.update(dt, game);
+  }
+  takeDamage(rawDmg) { return super.takeDamage(rawDmg * 2); }
+}
+
+class ZombieGhost extends Monster {
+  constructor(wave, difficultyMult, level) { super(wave, difficultyMult); this.type = 'zombie'; this.zombieLevel = level || 1; }
+  _initStats() {
+    super._initStats(); this.maxHp *= 2; this.atk *= 0.8; this.speed = 1.4;
+    this.damageReduction = Math.min(0.30 + this.zombieLevel * 0.02, 0.50);
+    this.retreatRegen = 0.05 + Math.min((this.wave - 1) * 0.005, 0.15);
+  }
+}
+
+class ShadowGhost extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'shadow'; }
+  _initStats() {
+    super._initStats(); this.maxHp *= 0.9; this.atk *= 1.1; this.speed = 2.0; this.damageReduction = 0.30;
+    this.retreatRegen = 0.04; this.sabotageTimer = 5;
+  }
+  update(dt, game) {
+    if (this.state !== MonsterState.DEAD) {
+      this.sabotageTimer -= dt;
+      if (this.sabotageTimer <= 0) { this.sabotageTimer = 5; this._sabotage(game); }
+    }
+    super.update(dt, game);
+  }
+  _sabotage(game) {
+    // Try to destroy a bed first, then random building
+    const beds = game.buildings.filter(b => b.type === 'bed');
+    let target = beds.length > 0 ? beds[Math.floor(Math.random() * beds.length)] : (game.buildings.length > 0 ? game.buildings[Math.floor(Math.random() * game.buildings.length)] : null);
+    if (target) {
+      target.hp -= target.maxHp * 0.3;
+      game.addParticle(target.pos.x * TILE_SIZE + TILE_SIZE / 2, target.pos.y * TILE_SIZE + TILE_SIZE / 2, '#e74c3c', 10);
+      if (target.hp <= 0) game.removeBuildingAt(target.pos.x, target.pos.y);
+    }
+  }
+}
+
+/* ============================================================
+   Projectile
+   ============================================================ */
+class Projectile {
+  constructor(from, to, damage, type, extra) {
+    this.from = { ...from }; this.to = { ...to }; this.damage = damage; this.type = type;
+    this.pos = { ...from }; this.speed = 10; this.dead = false; this.extra = extra || {};
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const d = Math.hypot(dx, dy) || 1;
+    this.vel = { x: (dx / d) * this.speed, y: (dy / d) * this.speed };
+  }
+  update(dt) {
+    this.pos.x += this.vel.x * TILE_SIZE * dt; this.pos.y += this.vel.y * TILE_SIZE * dt;
+    const dx = this.to.x * TILE_SIZE + TILE_SIZE / 2 - this.pos.x;
+    const dy = this.to.y * TILE_SIZE + TILE_SIZE / 2 - this.pos.y;
+    if (Math.hypot(dx, dy) < 10) this.dead = true;
+  }
+}
+
+/* ============================================================
+   Particle
+   ============================================================ */
+class Particle {
+  constructor(x, y, color, life) {
+    this.x = x; this.y = y; this.color = color; this.life = life; this.maxLife = life;
+    this.vx = rand(-30, 30); this.vy = rand(-30, 30); this.size = rand(2, 5);
+  }
+  update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt; this.size *= 0.98; }
+}
+
+/* ============================================================
+   WaveManager
+   ============================================================ */
+class WaveManager {
+  constructor(game) { this.game = game; this.wave = 0; this.subWaves = []; this.active = false; this.spawnQueue = []; this.spawnTimer = 0; this.countdown = 0; this.totalMonstersThisWave = 0; this.killedThisWave = 0; }
+  startLevelWave(level) { this.wave = 1; this.active = true; this.killedThisWave = 0; this._prepareSubWaves(LEVEL_WAVES[level]); }
+  startEndlessWave(wave) { this.wave = wave; this.active = true; this.killedThisWave = 0; const cfg = this._generateEndless(wave); this._prepareSubWaves(cfg); }
+  _prepareSubWaves(cfg) { this.subWaves = []; this.spawnQueue = []; this.totalMonstersThisWave = 0;
+    let baseDelay = 0;
+    for (const sw of cfg) {
+      const delay = (sw.delay || 0) + baseDelay;
+      for (const m of sw.monsters) { this.totalMonstersThisWave += m.count; }
+      this.subWaves.push({ monsters: sw.monsters, delay: delay, spawned: false });
+      baseDelay = delay;
+    }
+  }
+  _generateEndless(wave) {
+    const diff = window.__difficultyMonsterMult || 1;
+    let monsters = [];
+    if (wave <= 3) { monsters = [{ type: 'ghost', count: 2 + wave }]; }
+    else if (wave <= 6) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }]; }
+    else if (wave <= 9) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }, { type: 'shadow', count: Math.floor(wave / 3) }]; }
+    else {
+      const density = Math.min(3 + Math.floor((wave - 10) / 2), 8);
+      monsters = [{ type: 'ghost', count: density + 2 }, { type: 'zombie', count: density }, { type: 'shadow', count: Math.floor(density / 2) }, { type: 'ghostfemale', count: Math.floor(density / 2) }];
+    }
+    // Split into up to 3 sub-waves
+    const result = [];
+    const chunkSize = Math.ceil(monsters.length / 3);
+    for (let i = 0; i < monsters.length; i += chunkSize) {
+      const chunk = monsters.slice(i, i + chunkSize);
+      result.push({ monsters: chunk, delay: i === 0 ? 0 : 8 + (i / chunkSize) * 8 });
+    }
+    return result;
+  }
+  update(dt) {
+    if (!this.active) return;
+    // Countdown before first spawn
+    if (this.countdown > 0) { this.countdown -= dt; this.game.ui.setWaveInfoText('下一波 ' + Math.ceil(this.countdown) + 's'); return; }
+    // Spawn logic
+    for (const sw of this.subWaves) {
+      if (sw.spawned) continue;
+      sw.delay -= dt;
+      if (sw.delay <= 0) {
+        sw.spawned = true;
+        for (const m of sw.monsters) {
+          for (let i = 0; i < m.count; i++) this.spawnQueue.push({ type: m.type, timer: i * 0.6 });
+        }
+      }
+    }
+    if (this.spawnQueue.length > 0) {
+      this.spawnTimer += dt;
+      while (this.spawnQueue.length > 0 && this.spawnQueue[0].timer <= this.spawnTimer) {
+        const entry = this.spawnQueue.shift(); this.spawnTimer = 0;
+        this._spawn(entry.type);
+      }
+    }
+    // Check wave complete
+    const allSpawned = this.subWaves.every(sw => sw.spawned);
+    const alive = this.game.monsters.filter(m => m.state !== MonsterState.DEAD).length;
+    if (allSpawned && this.spawnQueue.length === 0 && alive === 0) { this._waveComplete(); }
+  }
+  _spawn(type) {
+    const diff = window.__difficultyMonsterMult || 1;
+    let m;
+    switch (type) {
+      case 'ghostfemale': m = new GhostFemale(this.wave, diff); break;
+      case 'zombie': m = new ZombieGhost(this.wave, diff, this.game.currentLevel || 1); break;
+      case 'shadow': m = new ShadowGhost(this.wave, diff); break;
+      default: m = new Ghost(this.wave, diff);
+    }
+    this.game.monsters.push(m);
+  }
+  _waveComplete() {
+    this.active = false;
+    this.game.onWaveComplete(this.wave);
+  }
+}
+
+/* ============================================================
+   Renderer
+   ============================================================ */
+class Renderer {
+  constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.nightAlpha = 0; }
+  resize() {
+    const wrap = document.getElementById('canvas-wrap');
+    const w = Math.min(wrap.clientWidth, MAP_COLS * TILE_SIZE);
+    const h = Math.min(wrap.clientHeight, MAP_ROWS * TILE_SIZE);
+    this.canvas.width = w; this.canvas.height = h;
+  }
+  clear() { this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); }
+  drawMap(game) {
+    const ctx = this.ctx;
+    for (let r = 0; r < MAP_ROWS; r++) {
+      for (let c = 0; c < MAP_COLS; c++) {
+        const t = game.map.getTile(c, r);
+        const x = c * TILE_SIZE, y = r * TILE_SIZE;
+        if (t === Tile.WALL) { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#2a2a4a'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
+        else if (t === Tile.FLOOR) { ctx.fillStyle = '#252540'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#333355'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
+        else if (t === Tile.DOOR) { ctx.fillStyle = '#5a3a1a'; ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); ctx.fillStyle = '#8b6914'; ctx.fillRect(x + 8, y + 10, TILE_SIZE - 16, TILE_SIZE - 20); ctx.strokeStyle = '#aa8844'; ctx.strokeRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); }
+        else if (t === Tile.CORRIDOR) { ctx.fillStyle = '#1e1e30'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#2a2a45'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
+      }
+    }
+  }
+  drawBuildings(game) {
+    const ctx = this.ctx;
+    for (const b of game.buildings) {
+      const x = b.pos.x * TILE_SIZE, y = b.pos.y * TILE_SIZE;
+      const def = BUILDING_DEFS[b.type];
+      ctx.fillStyle = def.color; ctx.fillRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+      ctx.strokeStyle = '#fff8'; ctx.strokeRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+      // Level badge
+      ctx.fillStyle = '#000a'; ctx.fillRect(x + 6, y + 6, 14, 14);
+      ctx.fillStyle = '#fff'; ctx.font = '10px sans-serif'; ctx.fillText(String(b.level), x + 9, y + 17);
+      // HP bar
+      const hpPct = b.hp / b.maxHp;
+      ctx.fillStyle = '#333'; ctx.fillRect(x + 6, y + TILE_SIZE - 10, TILE_SIZE - 12, 4);
+      ctx.fillStyle = hpPct > 0.5 ? '#4a4' : hpPct > 0.25 ? '#cc4' : '#c44';
+      ctx.fillRect(x + 6, y + TILE_SIZE - 10, (TILE_SIZE - 12) * hpPct, 4);
+    }
+  }
+  drawMonsters(game) {
+    const ctx = this.ctx;
+    for (const m of game.monsters) {
+      if (m.state === MonsterState.DEAD) continue;
+      const cx = m.pos.x * TILE_SIZE + TILE_SIZE / 2;
+      const cy = m.pos.y * TILE_SIZE + TILE_SIZE / 2;
+      const color = m.type === 'ghost' ? '#ccf' : m.type === 'ghostfemale' ? '#f8c' : m.type === 'zombie' ? '#8f8' : '#a6f';
+      if (m.flashTimer > 0) ctx.fillStyle = '#fff';
+      else ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx - 3, cy - 2, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 3, cy - 2, 2, 0, Math.PI * 2); ctx.fill();
+      // HP bar
+      const hpPct = m.hp / m.maxHp;
+      ctx.fillStyle = '#333'; ctx.fillRect(cx - 12, cy - 18, 24, 4);
+      ctx.fillStyle = hpPct > 0.5 ? '#4a4' : hpPct > 0.25 ? '#cc4' : '#c44';
+      ctx.fillRect(cx - 12, cy - 18, 24 * hpPct, 4);
+    }
+  }
+  drawProjectiles(game) {
+    const ctx = this.ctx;
+    for (const p of game.projectiles) {
+      ctx.fillStyle = p.type === 'ice' ? '#8cf' : p.type === 'sniper' ? '#a6f' : p.type === 'bomber' ? '#f84' : '#ff4';
+      ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, 4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  drawParticles(game) {
+    const ctx = this.ctx;
+    for (const p of game.particles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  drawNightOverlay(game) {
+    if (game.phase === Phase.NIGHT) this.nightAlpha = Math.min(this.nightAlpha + 0.02, 0.35);
+    else this.nightAlpha = Math.max(this.nightAlpha - 0.02, 0);
+    if (this.nightAlpha > 0) {
+      this.ctx.fillStyle = `rgba(0,0,40,${this.nightAlpha})`;
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+  drawFenceOverlay(game) {
+    // Draw a decorative fence around the buildable area (rows 1-7)
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = '#4a3a2a'; ctx.lineWidth = 3;
+    ctx.strokeRect(TILE_SIZE + 1, TILE_SIZE + 1, (MAP_COLS - 2) * TILE_SIZE - 2, 7 * TILE_SIZE - 2);
+    ctx.restore();
+  }
+  render(game) {
+    this.clear();
+    this.drawMap(game);
+    this.drawBuildings(game);
+    this.drawMonsters(game);
+    this.drawProjectiles(game);
+    this.drawParticles(game);
+    this.drawNightOverlay(game);
+    this.drawFenceOverlay(game);
+  }
+}
+
+/* ============================================================
+   UIController
+   ============================================================ */
+class UIController {
+  constructor(game) {
+    this.game = game;
+    this.buildType = null; this.selectedBuilding = null;
+    this._bindElements();
+    this._bindEvents();
+    this._refreshResumeBtn();
+  }
+  _bindElements() {
+    this.playerInfo = document.getElementById('player-info');
+    this.goldDisplay = document.getElementById('gold-display');
+    this.doorHpFill = document.getElementById('door-hp-fill');
+    this.doorHpText = document.getElementById('door-hp-text');
+    this.waveInfo = document.getElementById('wave-info');
+    this.waveInfoText = document.getElementById('wave-info-text');
+    this.buildMenu = document.getElementById('build-menu');
+    this.infoPanel = document.getElementById('info-panel');
+    this.infoName = document.getElementById('info-name');
+    this.infoStats = document.getElementById('info-stats');
+    this.upgradeBtn = document.getElementById('upgrade-btn');
+    this.sellBtn = document.getElementById('sell-btn');
+    this.waveBanner = document.getElementById('wave-banner');
+    this.waveBannerText = document.getElementById('wave-banner-text');
+    this.waveCompletePopup = document.getElementById('wave-complete-popup');
+    this.wcTitle = document.getElementById('wc-title');
+    this.wcBonus = document.getElementById('wc-bonus');
+    this.wcDoorHp = document.getElementById('wc-door-hp');
+    this.wcGold = document.getElementById('wc-gold');
+    this.wcContinueBtn = document.getElementById('wc-continue-btn');
+    this.menuScreen = document.getElementById('menu-screen');
+    this.menuContent = document.getElementById('menu-content');
+    this.startLevelsBtn = document.getElementById('start-levels-btn');
+    this.startEndlessBtn = document.getElementById('start-endless-btn');
+    this.resumeEndlessBtn = document.getElementById('resume-endless-btn');
+    this.resumeWaveVal = document.getElementById('resume-wave-val');
+    this.prestigeBtn = document.getElementById('prestige-btn');
+    this.menuPrestigeVal = document.getElementById('menu-prestige-val');
+    this.levelSelectScreen = document.getElementById('level-select-screen');
+    this.levelGrid = document.getElementById('level-grid');
+    this.levelSelectBackBtn = document.getElementById('level-select-back-btn');
+    this.gameoverScreen = document.getElementById('gameover-screen');
+    this.goWaves = document.getElementById('go-waves');
+    this.goMaxGold = document.getElementById('go-maxgold');
+    this.goPrestige = document.getElementById('go-prestige');
+    this.restartBtn = document.getElementById('restart-btn');
+    this.goMenuBtn = document.getElementById('go-menu-btn');
+    this.prestigeShop = document.getElementById('prestige-shop');
+    this.shopPointsVal = document.getElementById('shop-points-val');
+    this.shopItems = document.querySelectorAll('.shop-item');
+    this.shopClose = document.getElementById('shop-close');
+    this.topPrestigeVal = document.getElementById('top-prestige-val');
+    // Extended DOM elements (added in new index.html)
+    this.infoBar = document.getElementById('info-bar');
+    this.infoBarGold = document.getElementById('info-bar-gold');
+    this.infoBarPrestige = document.getElementById('info-bar-prestige');
+    this.infoBarWave = document.getElementById('info-bar-wave');
+    this.infoBarCountdown = document.getElementById('info-bar-countdown');
+    this.monsterPreview = document.getElementById('monster-preview');
+    this.monsterHudList = document.getElementById('monster-hud-list');
+    this.codexScreen = document.getElementById('codex-screen');
+    this.tutorialOverlay = document.getElementById('tutorial-overlay');
+  }
+  _bindEvents() {
+    this.startLevelsBtn && this.startLevelsBtn.addEventListener('click', () => this.showLevelSelect());
+    this.startEndlessBtn && this.startEndlessBtn.addEventListener('click', () => this.game.startEndless());
+    this.resumeEndlessBtn && this.resumeEndlessBtn.addEventListener('click', () => this.game.resumeEndless());
+    this.prestigeBtn && this.prestigeBtn.addEventListener('click', () => this.openPrestigeShop());
+    this.levelSelectBackBtn && this.levelSelectBackBtn.addEventListener('click', () => this.hideLevelSelect());
+    this.restartBtn && this.restartBtn.addEventListener('click', () => this.game.restart());
+    this.goMenuBtn && this.goMenuBtn.addEventListener('click', () => this.game.showMenu());
+    this.shopClose && this.shopClose.addEventListener('click', () => this.closePrestigeShop());
+    this.wcContinueBtn && this.wcContinueBtn.addEventListener('click', () => this.game.onContinueNextWave());
+    document.getElementById('info-close') && document.getElementById('info-close').addEventListener('click', () => this.hideInfoPanel());
+    this.upgradeBtn && this.upgradeBtn.addEventListener('click', () => this.game.upgradeSelected());
+    this.sellBtn && this.sellBtn.addEventListener('click', () => this.game.sellSelected());
+    document.getElementById('upgrade-door-btn') && document.getElementById('upgrade-door-btn').addEventListener('click', () => this.game.upgradeDoor());
+    document.querySelectorAll('.build-btn[data-type]').forEach(btn => {
+      btn.addEventListener('click', () => { this.setBuildType(btn.dataset.type); });
+    });
+    this.shopItems && this.shopItems.forEach(item => {
+      item.querySelector('.buy-btn').addEventListener('click', () => this.game.buyPrestigeUpgrade(item.dataset.upgrade));
+    });
+    const codexBtn = document.getElementById('codex-btn');
+    if (codexBtn) codexBtn.addEventListener('click', () => this.showCodex());
+    const codexClose = document.getElementById('codex-close');
+    if (codexClose) codexClose.addEventListener('click', () => this.hideCodex());
+    const tutorialClose = document.getElementById('tutorial-close');
+    if (tutorialClose) tutorialClose.addEventListener('click', () => this.hideTutorial());
+  }
+  setGold(v) { if (this.goldDisplay) this.goldDisplay.textContent = String(Math.floor(v)); if (this.infoBarGold) this.infoBarGold.textContent = String(Math.floor(v)); }
+  setDoorHp(cur, max) {
+    const pct = max > 0 ? (cur / max) * 100 : 0;
+    if (this.doorHpFill) { this.doorHpFill.style.width = pct + '%'; this.doorHpFill.className = pct < 20 ? 'critical' : pct < 50 ? 'warning' : ''; }
+    if (this.doorHpText) this.doorHpText.textContent = Math.ceil(cur) + '/' + Math.ceil(max);
+  }
+  setWaveInfoText(t) { if (this.waveInfoText) this.waveInfoText.textContent = t; if (this.infoBarWave) this.infoBarWave.textContent = t; }
+  setCountdown(t) { if (this.infoBarCountdown) this.infoBarCountdown.textContent = t; }
+  showBuildMenu() { this.buildMenu && this.buildMenu.classList.remove('hidden'); }
+  hideBuildMenu() { this.buildMenu && this.buildMenu.classList.add('hidden'); }
+  showPlayerInfo() { this.playerInfo && this.playerInfo.classList.remove('hidden'); this.waveInfo && this.waveInfo.classList.remove('hidden'); this.infoBar && this.infoBar.classList.remove('hidden'); }
+  hidePlayerInfo() { this.playerInfo && this.playerInfo.classList.add('hidden'); this.waveInfo && this.waveInfo.classList.add('hidden'); this.infoBar && this.infoBar.classList.add('hidden'); }
+  showMenu() { this.menuScreen && this.menuScreen.classList.remove('hidden'); this.hideBuildMenu(); this.hidePlayerInfo(); this.hideInfoPanel(); this._refreshResumeBtn(); }
+  hideMenu() { this.menuScreen && this.menuScreen.classList.add('hidden'); this.menuContent && this.menuContent.classList.remove('hidden'); this.levelSelectScreen && this.levelSelectScreen.classList.add('hidden'); }
+  showGameOver(waves, maxGold, prestige) {
+    this.goWaves && (this.goWaves.textContent = String(waves));
+    this.goMaxGold && (this.goMaxGold.textContent = String(maxGold));
+    this.goPrestige && (this.goPrestige.textContent = String(prestige));
+    this.gameoverScreen && this.gameoverScreen.classList.remove('hidden');
+  }
+  hideGameOver() { this.gameoverScreen && this.gameoverScreen.classList.add('hidden'); }
+  showWaveBanner(text) {
+    if (!this.waveBanner) return;
+    this.waveBannerText.textContent = text; this.waveBanner.classList.remove('hidden');
+    setTimeout(() => this.waveBanner.classList.add('hidden'), 2000);
+  }
+  showWaveComplete(wave, bonus, doorHp, doorMax, gold) {
+    this.wcTitle && (this.wcTitle.textContent = '第 ' + wave + ' 夜完成!');
+    this.wcBonus && (this.wcBonus.textContent = String(bonus));
+    this.wcDoorHp && (this.wcDoorHp.textContent = Math.ceil(doorHp) + '/' + Math.ceil(doorMax));
+    this.wcGold && (this.wcGold.textContent = String(Math.floor(gold)));
+    this.waveCompletePopup && this.waveCompletePopup.classList.remove('hidden');
+  }
+  hideWaveComplete() { this.waveCompletePopup && this.waveCompletePopup.classList.add('hidden'); }
+  showInfoPanel(building, gold) {
+    this.selectedBuilding = building; this.infoPanel && this.infoPanel.classList.remove('hidden');
+    const def = BUILDING_DEFS[building.type];
+    let stats = def.name + ' Lv.' + building.level + '\nHP: ' + Math.ceil(building.hp) + '/' + building.maxHp + '\n';
+    if (building.type === 'bed') stats += '收入: ' + building.getIncomeRate().toFixed(1) + '/s\n';
+    else if (building.type === 'tower') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n';
+    else if (building.type === 'generator') stats += '增幅: +' + (building.getBoostMultiplier() * 100).toFixed(0) + '%\n';
+    else if (building.type === 'repairman') stats += '修复: ' + building.getRepairRate().toFixed(0) + ' HP/s\n';
+    else if (building.type === 'ice_mage') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n减速: ' + (building.getSlowFactor() * 100).toFixed(0) + '%\n';
+    else if (building.type === 'bomber') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n溅射: ' + (building.getSplash() * 100).toFixed(0) + '%\n';
+    else if (building.type === 'sniper') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n暴击: ' + (building.getCritRate() * 100).toFixed(0) + '%\n';
+    else if (building.type === 'altar') stats += '攻速 aura: +' + (building.getAuraASPD() * 100).toFixed(0) + '%\n减速 aura: -' + (building.getAuraSpeed() * 100).toFixed(0) + '%\n';
+    this.infoName && (this.infoName.textContent = def.name + ' Lv.' + building.level);
+    this.infoStats && (this.infoStats.textContent = stats.trim());
+    const cost = building.getUpgradeCost();
+    if (this.upgradeBtn) { this.upgradeBtn.disabled = gold < cost; this.upgradeBtn.textContent = '升级 (' + cost + 'G)'; }
+  }
+  hideInfoPanel() { this.infoPanel && this.infoPanel.classList.add('hidden'); this.selectedBuilding = null; }
+  getSelectedBuilding() { return this.selectedBuilding; }
+  getBuildType() { return this.buildType; }
+  setBuildType(t) {
+    this.buildType = t; this.hideInfoPanel();
+    document.querySelectorAll('.build-btn[data-type]').forEach(b => { b.style.borderColor = (b.dataset.type === t) ? '#fc0' : ''; });
+  }
+  clearBuildType() { this.buildType = null; document.querySelectorAll('.build-btn[data-type]').forEach(b => { b.style.borderColor = ''; }); }
+  openPrestigeShop() {
+    if (!this.prestigeShop) return;
+    this.prestigeShop.classList.remove('hidden');
+    this.shopPointsVal && (this.shopPointsVal.textContent = String(this.game.saveData.prestigePoints));
+    this._refreshShopItems();
+  }
+  closePrestigeShop() { this.prestigeShop && this.prestigeShop.classList.add('hidden'); }
+  _refreshShopItems() {
+    const ups = this.game.saveData.prestigeUpgrades;
+    this.shopItems && this.shopItems.forEach(item => {
+      const key = item.dataset.upgrade;
+      const level = ups[key] || 0;
+      item.querySelector('.shop-level').textContent = '(' + level + ')';
+      const costs = { goldMult: 5, doorHp: 3, towerDmg: 4 };
+      const cost = costs[key];
+      const btn = item.querySelector('.buy-btn');
+      btn.textContent = '升级 (' + cost + ')';
+      btn.disabled = this.game.saveData.prestigePoints < cost;
+    });
+  }
+  flashPrestige(amt, source) {
+    if (this.topPrestigeVal) { const cur = parseInt(this.topPrestigeVal.textContent || '0', 10) || 0; this.topPrestigeVal.textContent = String(cur + amt); }
+    const tip = document.createElement('div');
+    tip.textContent = '+' + amt + ' 声望' + (source === 'survival' ? ' (坚守)' : '');
+    tip.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);background:rgba(255,215,64,0.92);color:#1a1a2e;font-weight:bold;padding:6px 14px;border-radius:14px;font-size:13px;z-index:200;pointer-events:none;animation:bannerIn .25s ease-out';
+    document.body.appendChild(tip);
+    setTimeout(() => { tip.style.transition = 'opacity .4s, transform .4s'; tip.style.opacity = '0'; tip.style.transform = 'translate(-50%,-20px)'; }, 900);
+    setTimeout(() => tip.remove(), 1400);
+  }
+  showLevelSelect() {
+    this.levelGrid.innerHTML = '';
+    const save = this.game.saveData;
+    for (let i = 1; i <= MAX_LEVEL; i++) {
+      const btn = document.createElement('button'); btn.className = 'level-btn unlocked'; btn.textContent = String(i);
+      if (save.completedLevels.includes(i)) btn.classList.add('selected');
+      btn.addEventListener('click', () => this.onSelectLevel(i));
+      this.levelGrid.appendChild(btn);
+    }
+    this.menuContent.classList.add('hidden'); this.levelSelectScreen.classList.remove('hidden');
+  }
+  hideLevelSelect() { this.levelSelectScreen.classList.add('hidden'); this.menuContent.classList.remove('hidden'); }
+  onSelectLevel(level) { this.game.startLevel(level); }
+  _refreshResumeBtn() {
+    if (!this.resumeEndlessBtn) return;
+    try { const raw = localStorage.getItem(SAVE_KEY); const sd = raw ? JSON.parse(raw) : null; const er = sd && sd.endlessRun;
+      if (er && er.wave) { this.resumeEndlessBtn.classList.remove('hidden'); this.resumeWaveVal && (this.resumeWaveVal.textContent = String(er.wave)); }
+      else { this.resumeEndlessBtn.classList.add('hidden'); }
+    } catch (_) { this.resumeEndlessBtn.classList.add('hidden'); }
+  }
+  showCodex() { if (this.codexScreen) this.codexScreen.classList.remove('hidden'); }
+  hideCodex() { if (this.codexScreen) this.codexScreen.classList.add('hidden'); }
+  showTutorial() { if (this.tutorialOverlay) this.tutorialOverlay.classList.remove('hidden'); }
+  hideTutorial() { if (this.tutorialOverlay) this.tutorialOverlay.classList.add('hidden'); }
+  updateMonsterPreview() {
+    if (!this.monsterPreview) return;
+    // Show upcoming monster types in current/next wave
+    let types = [];
+    if (this.game.waveManager && this.game.waveManager.active) {
+      for (const sw of this.game.waveManager.subWaves) {
+        if (!sw.spawned && sw.monsters) { for (const m of sw.monsters) if (!types.includes(m.type)) types.push(m.type); }
+      }
+    }
+    this.monsterPreview.innerHTML = types.map(t => `<span class="preview-tag ${t}">${this._monsterName(t)}</span>`).join('');
+  }
+  updateMonsterHud() {
+    if (!this.monsterHudList) return;
+    this.monsterHudList.innerHTML = '';
+    const alive = this.game.monsters.filter(m => m.state !== MonsterState.DEAD);
+    if (alive.length > 6) return; // Too many, skip HUD
+    for (const m of alive) {
+      const el = document.createElement('div'); el.className = 'monster-hud';
+      const pct = (m.hp / m.maxHp) * 100;
+      el.innerHTML = `<div class="mh-name">${this._monsterName(m.type)}</div><div class="mh-bar"><div class="mh-fill" style="width:${pct}%"></div></div>`;
+      this.monsterHudList.appendChild(el);
+    }
+  }
+  _monsterName(type) {
+    const map = { ghost: '幽灵', ghostfemale: '女鬼', zombie: '丧尸', shadow: '暗影' };
+    return map[type] || type;
+  }
+}
+
+/* ============================================================
+   DarkDormGame
+   ============================================================ */
+class DarkDormGame {
+  constructor() {
+    this.map = new TileMap();
+    this.buildings = [];
+    this.monsters = [];
+    this.projectiles = [];
+    this.particles = [];
+    this.waveManager = new WaveManager(this);
+    this.renderer = new Renderer(document.getElementById('canvas'));
+    this.ui = new UIController(this);
+    this.saveData = loadSave();
+    this.mode = null; this.phase = Phase.MENU;
+    this.gold = 0; this.maxGold = 0; this.doorHp = BASE_DOOR_HP; this.doorMaxHp = BASE_DOOR_HP; this.doorLevel = 1;
+    this.currentLevel = 0; this.wave = 0; this.running = false; this.lastTime = 0;
+    this.difficultyMult = window.__difficultyMonsterMult || 1;
+    this.rewardMult = window.__difficultyRewardMult || 1;
+    this.tileSize = TILE_SIZE;
+    this.ctx = this.renderer.ctx;
+    this._lastAutoSaveTick = 0;
+    this._initCanvasEvents();
+    this._firstRun = !this.saveData.totalGames;
+  }
+  _initCanvasEvents() {
+    const c = this.renderer.canvas;
+    c.addEventListener('click', e => this._onCanvasClick(e));
+    c.addEventListener('mousemove', e => this._onCanvasMove(e));
+  }
+  _getCanvasPos(e) {
+    const rect = this.renderer.canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (this.renderer.canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (this.renderer.canvas.height / rect.height);
+    return { c: Math.floor(x / TILE_SIZE), r: Math.floor(y / TILE_SIZE) };
+  }
+  _onCanvasClick(e) {
+    if (this.phase !== Phase.DAY && this.phase !== Phase.NIGHT) return;
+    const p = this._getCanvasPos(e);
+    const b = this.buildings.find(b => b.pos.x === p.c && b.pos.y === p.r);
+    if (b) { this.ui.showInfoPanel(b, this.gold); this.ui.clearBuildType(); return; }
+    const type = this.ui.getBuildType();
+    if (type && this.map.isBuildable(p.c, p.r)) {
+      const def = BUILDING_DEFS[type]; const cost = def.baseCost;
+      if (this.gold >= cost) { this.gold -= cost; this._addBuilding(type, p.c, p.r); AudioEngine.playBuildPlace(); this.ui.setGold(this.gold); this.ui.clearBuildType(); }
+    } else { this.ui.hideInfoPanel(); }
+  }
+  _onCanvasMove(e) {
+    // Optional: hover effects
+  }
+  _addBuilding(type, c, r) {
+    const b = new Building(type, { x: c, y: r }, this.saveData.prestigeUpgrades);
+    // Apply door HP prestige
+    if (type === 'bed' || type === 'tower' || type === 'repairman' || type === 'ice_mage' || type === 'bomber' || type === 'sniper' || type === 'altar') {
+      b.maxHp = Math.floor(b.maxHp * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20));
+      b.hp = b.maxHp;
+    }
+    this.buildings.push(b);
+  }
+  removeBuildingAt(c, r) {
+    const idx = this.buildings.findIndex(b => b.pos.x === c && b.pos.y === r);
+    if (idx >= 0) this.buildings.splice(idx, 1);
+  }
+  getGlobalMonsterSpeedMult() {
+    let mult = 1;
+    for (const b of this.buildings) {
+      if (b.type === 'altar') {
+        const aura = b.getAuraSpeed();
+        // Simple: altar slows all monsters globally for performance
+        mult *= (1 - aura);
+      }
+    }
+    return mult;
+  }
+  getAttackSpeedMult(b) {
+    let mult = 1;
+    for (const a of this.buildings) {
+      if (a.type === 'altar') {
+        const d = Math.hypot(a.pos.x - b.pos.x, a.pos.y - b.pos.y);
+        if (d <= a.getAuraRange()) mult *= (1 + a.getAuraASPD());
+      }
+    }
+    return mult;
+  }
+  damageDoor(dmg) { this.doorHp -= dmg; if (this.doorHp <= 0) { this.doorHp = 0; this._gameOver(); } this.ui.setDoorHp(this.doorHp, this.doorMaxHp); }
+  addParticle(x, y, color, life) { this.particles.push(new Particle(x, y, color, life)); }
+  startLevel(level) {
+    AudioEngine.init(); this.mode = GameMode.LEVELS; this.phase = Phase.DAY; this.currentLevel = level; this.wave = 1;
+    this.gold = 100 + (this.saveData.prestigeUpgrades.goldMult || 0) * 20;
+    this.maxGold = this.gold; this.doorHp = BASE_DOOR_HP * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20); this.doorMaxHp = this.doorHp; this.doorLevel = 1;
+    this.buildings = []; this.monsters = []; this.projectiles = []; this.particles = [];
+    this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+    this.ui.showWaveBanner('第 ' + level + ' 关 - 准备就绪');
+    this._startWave(level);
+    if (!this.running) this.startLoop();
+    if (this._firstRun) { this._firstRun = false; this.ui.showTutorial(); }
+  }
+  startEndless() {
+    AudioEngine.init(); this.mode = GameMode.ENDLESS; this.phase = Phase.DAY; this.currentLevel = 0; this.wave = 1;
+    this.gold = 100 + (this.saveData.prestigeUpgrades.goldMult || 0) * 20;
+    this.maxGold = this.gold; this.doorHp = BASE_DOOR_HP * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20); this.doorMaxHp = this.doorHp; this.doorLevel = 1;
+    this.buildings = []; this.monsters = []; this.projectiles = []; this.particles = [];
+    this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+    this.ui.showWaveBanner('无尽模式 - 第 1 夜');
+    this.waveManager.startEndlessWave(1); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+    if (!this.running) this.startLoop();
+  }
+  resumeEndless() {
+    try { const raw = localStorage.getItem(SAVE_KEY); const sd = raw ? JSON.parse(raw) : null; const er = sd && sd.endlessRun;
+      if (!er) return;
+      AudioEngine.init(); this.mode = GameMode.ENDLESS; this.phase = Phase.DAY; this.currentLevel = 0; this.wave = er.wave || 1;
+      this.gold = er.gold || 100; this.maxGold = this.gold; this.doorHp = er.doorHp || BASE_DOOR_HP; this.doorMaxHp = er.doorMaxHp || BASE_DOOR_HP; this.doorLevel = er.doorLevel || 1;
+      this.buildings = (er.buildings || []).map(bd => { const b = new Building(bd.type, { x: bd.x, y: bd.y }, this.saveData.prestigeUpgrades); b.level = bd.level || 1; b.hp = bd.hp || b.maxHp; b.totalInvested = bd.totalInvested || BUILDING_DEFS[bd.type].baseCost; return b; });
+      this.monsters = []; this.projectiles = []; this.particles = [];
+      this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+      this.ui.showWaveBanner('无尽模式 - 第 ' + this.wave + ' 夜');
+      this.waveManager.startEndlessWave(this.wave); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+      if (!this.running) this.startLoop();
+    } catch (_) {}
+  }
+  _startWave(level) { this.waveManager.startLevelWave(level); this.phase = Phase.NIGHT; AudioEngine.playWaveStart(); }
+  onWaveComplete(wave) {
+    this.phase = Phase.WAVE_COMPLETE;
+    const bonus = Math.floor((50 + wave * 10) * this.rewardMult);
+    this.gold += bonus; this.maxGold = Math.max(this.maxGold, this.gold);
+    if (this.mode === GameMode.LEVELS) {
+      const sw = LEVEL_WAVES[this.currentLevel];
+      const isLastWave = wave >= sw.length;
+      if (isLastWave) {
+        this.ui.showWaveComplete(wave, bonus, this.doorHp, this.doorMaxHp, this.gold);
+        if (!this.saveData.completedLevels.includes(this.currentLevel)) this.saveData.completedLevels.push(this.currentLevel);
+        if (this.currentLevel >= this.saveData.unlockedLevel) this.saveData.unlockedLevel = Math.min(MAX_LEVEL, this.currentLevel + 1);
+        saveSave(this.saveData);
+      } else {
+        this.wave++; this.ui.showWaveBanner('第 ' + this.wave + ' 夜'); this.waveManager.startLevelWave(this.currentLevel); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+      }
+    } else {
+      this.ui.showWaveComplete(wave, bonus, this.doorHp, this.doorMaxHp, this.gold);
+    }
+  }
+  onContinueNextWave() {
+    this.ui.hideWaveComplete();
+    if (this.mode === GameMode.ENDLESS) {
+      this.wave++; this.ui.showWaveBanner('第 ' + this.wave + ' 夜'); this.waveManager.startEndlessWave(this.wave); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+      this._saveEndlessSnapshot();
+    } else {
+      // Next level or back to menu for level mode after final wave
+      this.showMenu();
+    }
+  }
+  _gameOver() {
+    this.phase = Phase.GAME_OVER; this.saveData.totalGames++;
+    const prestige = this._calcPrestige(this.maxGold);
+    this.saveData.prestigePoints += prestige;
+    this.saveData.highestWave = Math.max(this.saveData.highestWave, this.wave);
+    if (this.mode === GameMode.ENDLESS) this.saveData.endlessRun = null;
+    saveSave(this.saveData);
+    this.ui.showGameOver(this.wave, Math.floor(this.maxGold), prestige);
+    this.ui.flashPrestige(prestige, 'survival');
+    AudioEngine.playGameOver();
+    this.ui.hideBuildMenu();
+  }
+  _calcPrestige(maxGold) {
+    return Math.floor((Math.sqrt(1 + 8 * maxGold / PRESTIGE_COST_BASE) - 1) / 2);
+  }
+  _saveEndlessSnapshot() {
+    if (this.mode !== GameMode.ENDLESS) return;
+    this.saveData.endlessRun = {
+      wave: this.wave, gold: this.gold, doorHp: this.doorHp, doorMaxHp: this.doorMaxHp, doorLevel: this.doorLevel,
+      buildings: this.buildings.map(b => ({ type: b.type, x: b.pos.x, y: b.pos.y, level: b.level, hp: b.hp, totalInvested: b.totalInvested }))
+    };
+    saveSave(this.saveData);
+  }
+  restart() {
+    this.ui.hideGameOver();
+    if (this.mode === GameMode.ENDLESS) this.startEndless();
+    else this.startLevel(this.currentLevel || 1);
+  }
+  showMenu(points) {
+    this.phase = Phase.MENU; this.mode = null; this.running = false;
+    if (typeof points === 'number' && Number.isFinite(points)) {
+      this.saveData.prestigePoints = points;
+    }
+    this.ui.showMenu();
+    this.ui.setGold(0); this.ui.setDoorHp(1, 1);
+    if (this.ui.menuPrestigeVal) this.ui.menuPrestigeVal.textContent = String(this.saveData.prestigePoints);
+  }
+  upgradeSelected() {
+    const b = this.ui.getSelectedBuilding(); if (!b) return;
+    const cost = b.getUpgradeCost(); if (this.gold < cost) return;
+    this.gold -= cost; b.upgrade(); b.totalInvested += cost; AudioEngine.playBuildUpgrade();
+    this.ui.setGold(this.gold); this.ui.showInfoPanel(b, this.gold);
+  }
+  sellSelected() {
+    const b = this.ui.getSelectedBuilding(); if (!b) return;
+    const refund = Math.floor(b.totalInvested * 0.5); this.gold += refund;
+    this.removeBuildingAt(b.pos.x, b.pos.y); AudioEngine.playBuildSell();
+    this.ui.setGold(this.gold); this.ui.hideInfoPanel();
+  }
+  upgradeDoor() {
+    const cost = Math.floor(DOOR_UPGRADE_COST_BASE * Math.pow(1.5, this.doorLevel - 1));
+    if (this.gold < cost) return;
+    this.gold -= cost; this.doorLevel++;
+    const inc = 50 * Math.pow(1.2, this.doorLevel - 1);
+    this.doorMaxHp += inc; this.doorHp += inc; AudioEngine.playBuildUpgrade();
+    this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+  }
+  buyPrestigeUpgrade(key) {
+    const costs = { goldMult: 5, doorHp: 3, towerDmg: 4 };
+    const cost = costs[key];
+    if (this.saveData.prestigePoints < cost) return;
+    this.saveData.prestigePoints -= cost; this.saveData.prestigeUpgrades[key] = (this.saveData.prestigeUpgrades[key] || 0) + 1;
+    saveSave(this.saveData); this.ui._refreshShopItems(); this.ui.shopPointsVal && (this.ui.shopPointsVal.textContent = String(this.saveData.prestigePoints));
+  }
+  drawMap(ctx) { this.renderer.drawMap(this); }
+  render() { this.renderer.render(this); }
+  startLoop() { if (this.running) return; this.running = true; this.lastTime = performance.now(); requestAnimationFrame(t => this._loop(t)); }
+  stopLoop() { this.running = false; }
+  _loop(t) { if (!this.running) return; const dt = Math.min((t - this.lastTime) / 1000, 0.1); this.lastTime = t; this.update(dt); this.render(); requestAnimationFrame(t2 => this._loop(t2)); }
+  update(dt) {
+    if (this.phase === Phase.NIGHT) {
+      this.waveManager.update(dt);
+      // Income
+      for (const b of this.buildings) {
+        if (b.type === 'bed') { b.incomeTimer += dt; const rate = b.getIncomeRate(); while (b.incomeTimer >= 1) { b.incomeTimer -= 1; const amt = rate * (1 + this.saveData.prestigeUpgrades.goldMult * 0.10); this.gold += amt; this.maxGold = Math.max(this.maxGold, this.gold); } }
+        else if (b.type === 'repairman') { b.fireTimer += dt; const r = b.getRepairRate(); while (b.fireTimer >= 1) { b.fireTimer -= 1; for (const o of this.buildings) { if (o !== b && o.hp < o.maxHp) { o.hp = Math.min(o.maxHp, o.hp + r); } } } }
+      }
+      // Generator boost calculation is dynamic during attacks
+      // Monsters
+      for (const m of this.monsters) { m.update(dt, this); }
+      this.monsters = this.monsters.filter(m => m.state !== MonsterState.DEAD || m.deadTimer < 1);
+      // Buildings attack
+      for (const b of this.buildings) {
+        if (b.hp <= 0) continue;
+        if (b.type === 'tower' || b.type === 'ice_mage' || b.type === 'bomber' || b.type === 'sniper') {
+          const iv = b.getInterval() / this.getAttackSpeedMult(b);
+          b.fireTimer += dt;
+          if (b.fireTimer >= iv) {
+            b.fireTimer -= iv;
+            const target = this._findTarget(b);
+            if (target) {
+              b.fireTimer = 0;
+              const dmg = b.type === 'sniper' && Math.random() < b.getCritRate() ? Math.floor(b.getDamage() * b.getCritMult()) : b.getDamage();
+              this.projectiles.push(new Projectile({ x: b.pos.x + 0.5, y: b.pos.y + 0.5 }, { x: target.pos.x, y: target.pos.y }, dmg, b.type === 'ice_mage' ? 'ice' : b.type === 'sniper' ? 'sniper' : b.type === 'bomber' ? 'bomber' : 'normal'));
+              AudioEngine.playTowerFire();
+            }
+          }
+        }
+      }
+      // Projectiles hit
+      for (const p of this.projectiles) {
+        p.update(dt);
+        if (p.dead) {
+          const targets = this.monsters.filter(m => m.state !== MonsterState.DEAD);
+          if (p.type === 'bomber') {
+            for (const m of targets) { const d = Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y); if (d <= 1) { const killed = m.takeDamage(p.damage * (d < 0.5 ? 1 : 0.5)); if (killed) this._onMonsterKill(m); } }
+            this.addParticle(p.to.x * TILE_SIZE + TILE_SIZE / 2, p.to.y * TILE_SIZE + TILE_SIZE / 2, '#f84', 0.5);
+          } else {
+            for (const m of targets) { if (Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y) < 0.6) { const killed = m.takeDamage(p.damage); if (killed) this._onMonsterKill(m); if (p.type === 'ice') m.applySlow(1 - 0.30, 2); break; } }
+          }
+        }
+      }
+      this.projectiles = this.projectiles.filter(p => !p.dead);
+      // Particles
+      for (const p of this.particles) p.update(dt);
+      this.particles = this.particles.filter(p => p.life > 0);
+      // Update HUD
+      this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+      this.ui.updateMonsterPreview(); this.ui.updateMonsterHud();
+      // Auto-save endless every 10s
+      if (this.mode === GameMode.ENDLESS && Math.floor(performance.now() / 10000) !== this._lastAutoSaveTick) { this._lastAutoSaveTick = Math.floor(performance.now() / 10000); this._saveEndlessSnapshot(); }
+    }
+  }
+  _findTarget(b) {
+    const range = b.getRange();
+    let best = null, bestD = Infinity;
+    for (const m of this.monsters) {
+      if (m.state === MonsterState.DEAD) continue;
+      const d = Math.hypot(m.pos.x - (b.pos.x + 0.5), m.pos.y - (b.pos.y + 0.5));
+      if (d <= range && d < bestD) { bestD = d; best = m; }
+    }
+    return best;
+  }
+  _onMonsterKill(m) {
+    const reward = Math.floor((5 + this.wave) * this.rewardMult);
+    this.gold += reward; this.maxGold = Math.max(this.maxGold, this.gold);
+    this.addParticle(m.pos.x * TILE_SIZE + TILE_SIZE / 2, m.pos.y * TILE_SIZE + TILE_SIZE / 2, '#ffd740', 0.6);
+    AudioEngine.playMonsterHit();
+  }
+}
+
+/* ============================================================
+   Initialize
+   ============================================================ */
+const game = new DarkDormGame();
+window.darkDormGame = game;
+AudioEngine.init();
+
+})();

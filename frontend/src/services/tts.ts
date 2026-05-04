@@ -6,6 +6,7 @@ import { NativeSpeech } from './native-speech'
 import type { NativeSpeechErrorEvent, NativeSpeechStateEvent } from './native-speech'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { isNativeRuntime } from './runtime-http'
+import { isLocalProvider } from '@/types/api-config'
 
 export enum TTSState {
   IDLE = 'idle',
@@ -72,7 +73,7 @@ export class TTSService {
       (await apiConfigService.getDefaultConfig('tts')) ||
       (await apiConfigService.getDefaultConfig('voice'))
 
-    const hasRemoteTTSProvider = !!providerConfig && providerConfig.provider !== 'local'
+    const hasRemoteTTSProvider = !!providerConfig && !isLocalProvider(providerConfig.provider)
 
     const nativeAvailability = isNativeRuntime()
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))

@@ -214,7 +214,7 @@ window.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || data.source !== 'xiuxian-host') return;
   if (data.type === 'switch-screen') {
-    const allowed = ['cultivation', 'world', 'cave', 'exploration', 'inventory', 'shop', 'sect', 'favor', 'auction', 'settings'];
+    const allowed = ['cultivation', 'world', 'cave', 'techniques', 'exploration', 'inventory', 'shop', 'sect', 'favor', 'auction', 'settings'];
     if (allowed.includes(data.screen)) {
       try { window.game && window.game.ui && window.game.ui.switchPanel(data.screen); } catch (_) {}
     }

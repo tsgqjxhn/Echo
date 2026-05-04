@@ -589,9 +589,47 @@ const UI = {
   }
 };
 
+function bindCampaignTouchFallback() {
+  let lastTouchAt = 0;
+  document.addEventListener('touchend', (event) => {
+    const target = event.target;
+    const button = target?.closest?.('[data-stage-index], [data-map-id]');
+    if (!button || button.disabled || button.classList.contains('locked')) return;
+
+    const now = Date.now();
+    if (now - lastTouchAt < 280) return;
+    lastTouchAt = now;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (button.dataset.stageIndex != null) {
+      const stage = button.dataset.stageIndex === 'infinite' ? 'infinite' : Number(button.dataset.stageIndex);
+      UI.startBattle(stage);
+      return;
+    }
+    if (button.dataset.mapId) {
+      UI.selectBattleMap(button.dataset.mapId);
+    }
+  }, { passive: false });
+}
+
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
-  UI.init();
+  try {
+    if (typeof window.__heroCheckInit === 'function' && !window.__heroCheckInit()) return;
+    UI.init();
+    bindCampaignTouchFallback();
+  } catch (e) {
+    var app = document.getElementById('app');
+    var msg = (e && e.message) ? String(e.message) : '初始化失败';
+    if (app) {
+      app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ff6b6b;font-size:16px;padding:20px;text-align:center;">初始化失败: ' + msg + '<br>请刷新重试</div>';
+    }
+    try {
+      window.parent.postMessage({ source: 'hero-game', type: 'init-error', error: msg }, '*');
+    } catch(_) {}
+  }
 });
 
 // Accept screen-switch commands from the outer Vue wrapper (play.vue).

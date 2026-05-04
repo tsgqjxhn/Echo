@@ -57,11 +57,6 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '编辑个人资料' }
   },
   {
-    path: '/settings/global-prompt',
-    component: () => import('./pages/settings/global-prompt.vue'),
-    meta: { title: '配置提示词' }
-  },
-  {
     path: '/settings/system-prompt',
     component: () => import('./pages/settings/system-prompt.vue'),
     meta: { title: '系统提示词管理' }
@@ -69,17 +64,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/settings/api-config',
     component: () => import('./pages/settings/api-config.vue'),
-    meta: { title: '配置全局大模型' }
+    meta: { title: '语音与模型配置' }
   },
   {
     path: '/settings/export',
     component: () => import('./pages/settings/export.vue'),
     meta: { title: '数据管理' }
-  },
-  {
-    path: '/settings/voice',
-    component: () => import('./pages/settings/voice.vue'),
-    meta: { title: '语音设置' }
   },
   {
     path: '/settings/notification',

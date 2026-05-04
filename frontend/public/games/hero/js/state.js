@@ -62,7 +62,7 @@ function createDefaultState() {
 }
 
 function saveGame(options = {}) {
-  const force = options === true || options.force === true;
+  const force = options === true || options.force === true || Object.keys(options || {}).length === 0;
   if (!force) return true;
 
   try {

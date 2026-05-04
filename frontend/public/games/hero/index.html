@@ -10,6 +10,37 @@
     html, body { overscroll-behavior: none; }
     body { touch-action: manipulation; }
   </style>
+  <script>
+  (function(){
+    window.__heroLoadErrors = [];
+    window.__heroScriptsExpected = 9;
+    window.__heroScriptsLoaded = 0;
+    function showLoadError(msg) {
+      var app = document.getElementById('app');
+      if (app) {
+        app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ff6b6b;font-size:16px;padding:20px;text-align:center;">' + msg + '</div>';
+      }
+      try {
+        window.parent.postMessage({ source: 'hero-game', type: 'init-error', error: msg }, '*');
+      } catch(_) {}
+    }
+    window.__heroOnScriptLoad = function() {
+      window.__heroScriptsLoaded++;
+    };
+    window.__heroOnScriptError = function(e) {
+      var src = (e && e.target && e.target.src) || 'unknown';
+      window.__heroLoadErrors.push(src);
+      showLoadError('加载失败: ' + src.split('/').pop() + '<br>请刷新重试');
+    };
+    window.__heroCheckInit = function() {
+      if (typeof UI === 'undefined' || typeof UI.init !== 'function') {
+        showLoadError('游戏脚本未正确加载，请检查网络后刷新重试');
+        return false;
+      }
+      return true;
+    };
+  })();
+  </script>
 </head>
 <body>
   <div id="app">
@@ -20,7 +51,7 @@
   </div>
 
   <!-- Scripts in dependency order -->
-  <script src="js/assets.js"></script>
+  <script defer src="js/assets.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
   <script>
   (function(){
     try {
@@ -35,25 +66,25 @@
     }
   })();
   </script>
-  <script src="js/audio.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/state.js"></script>
-  <script src="js/research.js"></script>
-  <script src="js/roguelike.js"></script>
-  <script src="js/city.js"></script>
-  <script src="js/hero.js"></script>
-  <script src="js/shop.js"></script>
-  <script src="js/main.js"></script>
-<script>
-  // Initialize Web Audio API on first user interaction
-  document.addEventListener('click', function initAudio() {
-    if (typeof HeroAudio !== 'undefined') HeroAudio.init();
-    document.removeEventListener('click', initAudio);
-  }, { once: true });
-  document.addEventListener('touchstart', function initAudioTouch() {
-    if (typeof HeroAudio !== 'undefined') HeroAudio.init();
-    document.removeEventListener('touchstart', initAudioTouch);
-  }, { once: true });
+  <script defer src="js/audio.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/data.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/state.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/research.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/roguelike.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/city.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/hero.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/shop.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script defer src="js/main.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
+  <script>
+    // Initialize Web Audio API on first user interaction
+    document.addEventListener('click', function initAudio() {
+      if (typeof HeroAudio !== 'undefined') HeroAudio.init();
+      document.removeEventListener('click', initAudio);
+    }, { once: true });
+    document.addEventListener('touchstart', function initAudioTouch() {
+      if (typeof HeroAudio !== 'undefined') HeroAudio.init();
+      document.removeEventListener('touchstart', initAudioTouch);
+    }, { once: true });
   </script>
 </body>
 </html>

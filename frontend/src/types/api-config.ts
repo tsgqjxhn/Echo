@@ -1,5 +1,7 @@
 export type APIProvider =
   | 'local'
+  | 'local-builtin'
+  | 'local-gms'
   | 'ollama'
   | 'openai'
   | 'openai-compatible'
@@ -13,6 +15,12 @@ export type APIProvider =
   | 'zhipu'
   | 'baidu'
   | 'minimax'
+
+export const LOCAL_PROVIDERS: APIProvider[] = ['local', 'local-builtin', 'local-gms']
+
+export function isLocalProvider(provider: string | undefined | null): boolean {
+  return !!provider && (LOCAL_PROVIDERS as string[]).includes(provider)
+}
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -42,6 +50,8 @@ export interface TestResult {
 
 export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
   local: '内置/系统模型',
+  'local-builtin': '软件内置',
+  'local-gms': '谷歌服务安卓内置（默认不含国内）',
   ollama: '本地/Ollama',
   openai: 'OpenAI/ChatGPT',
   'openai-compatible': 'OpenAI/兼容协议',
