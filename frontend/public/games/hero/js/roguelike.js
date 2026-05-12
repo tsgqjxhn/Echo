@@ -1,38 +1,4 @@
 // ============================================================
-// Audio Manager - Synth-based sound effects via Web Audio API.
-// Produces short procedural tones/noise bursts for every game event
-// without needing external audio files.
-// ============================================================
-
-// AudioManager uses HeroAudio engine when available
-class AudioManager {
-  constructor() {
-    this.enabled = true;
-  }
-  _ensure() { return typeof HeroAudio !== 'undefined' && HeroAudio.init(); }
-  get masterVolume() { return typeof HeroAudio !== 'undefined' ? HeroAudio.masterVolume : 0.3; }
-
-  shoot()      { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackSword(); }
-  shootBow()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackBow(); }
-  shootMagic() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playAttackMagic(); }
-  hit()        { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
-  critHit()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playCritHit(); }
-  playerHurt() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playHitPlayer(); }
-  enemyDeath() { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
-  bossDeath()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playEnemyDeath(); }
-  levelUp()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playLevelUp(); }
-  pickup()     { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playPickup(); }
-  skillUse()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playSkillCast(); }
-  bossSkill()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playBossEntrance(); }
-  waveStart()  { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playWaveStart(); }
-  shieldBlock(){ if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playShieldBlock(); }
-  gameOver()   { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playGameOver(); }
-  victory()    { if (this.enabled && typeof HeroAudio !== 'undefined') HeroAudio.playVictory(); }
-}
-
-const sfx = new AudioManager();
-
-// ============================================================
 // Roguelike Combat Engine
 // Enhanced with screen shake, flash overlays, slow-motion,
 // spawn animations, boss warning telegraphs, trail particles,
@@ -1631,6 +1597,7 @@ class RoguelikeGame {
   }
 
   spawnDamageNumber(x, y, text, color, kind) {
+    if (window.__heroDamageDisplayEnabled === false) return;
     const displayText = typeof text === 'number' ? String(Math.max(0, Math.floor(text))) : String(text);
     this.damageNumbers.push({
       x: x + (Math.random() - 0.5) * 20,
@@ -2021,23 +1988,25 @@ class RoguelikeGame {
     }
 
     // Damage numbers with scale-up pop and outline for readability
-    for (const dn of this.damageNumbers) {
-      const sx = dn.x - cam.x, sy = dn.y - cam.y;
-      if (this._drawDamageNumberSprite(ctx, dn, sx, sy)) continue;
-      ctx.globalAlpha = dn.life;
-      // Pop effect: damage numbers start larger and shrink to normal size
-      const popScale = 1 + Math.max(0, (dn.life - 0.5)) * 0.8;
-      const fontSize = Math.floor(14 * popScale);
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      // Dark outline for readability against any background
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      ctx.lineWidth = 3;
-      ctx.strokeText(dn.text, sx, sy);
-      ctx.fillStyle = dn.color;
-      ctx.fillText(dn.text, sx, sy);
+    if (window.__heroDamageDisplayEnabled !== false) {
+      for (const dn of this.damageNumbers) {
+        const sx = dn.x - cam.x, sy = dn.y - cam.y;
+        if (this._drawDamageNumberSprite(ctx, dn, sx, sy)) continue;
+        ctx.globalAlpha = dn.life;
+        // Pop effect: damage numbers start larger and shrink to normal size
+        const popScale = 1 + Math.max(0, (dn.life - 0.5)) * 0.8;
+        const fontSize = Math.floor(14 * popScale);
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.textAlign = 'center';
+        // Dark outline for readability against any background
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 3;
+        ctx.strokeText(dn.text, sx, sy);
+        ctx.fillStyle = dn.color;
+        ctx.fillText(dn.text, sx, sy);
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
     // HUD
     this.renderHUD(ctx, w, h);

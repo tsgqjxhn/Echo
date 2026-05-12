@@ -22,6 +22,16 @@ const UI = {
     } else {
       this.showWelcome();
     }
+    // Load settings
+    const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
+    if (typeof HeroAudio !== 'undefined') {
+      if (hs.bgmEnabled !== undefined) HeroAudio.bgmEnabled = hs.bgmEnabled;
+      if (hs.sfxEnabled !== undefined) HeroAudio.sfxEnabled = hs.sfxEnabled;
+    }
+    if (hs.difficultyLevel) {
+      try { window.__difficultyMonsterMult = hs.difficultyLevel === 'easy' ? 0.5 : hs.difficultyLevel === 'hard' ? 2 : 1; } catch(e) {}
+      try { window.__difficultyRewardMult = hs.difficultyLevel === 'easy' ? 0.5 : hs.difficultyLevel === 'hard' ? 2 : 1; } catch(e) {}
+    }
   },
 
 
@@ -463,6 +473,14 @@ const UI = {
         <span style="font-size:10px;">${b.desc}</span>
       </div>`;
     }).join('');
+
+    // Settings
+    const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
+    const bgmOn = typeof HeroAudio !== 'undefined' ? HeroAudio.bgmEnabled : (hs.bgmEnabled !== false);
+    const sfxOn = typeof HeroAudio !== 'undefined' ? HeroAudio.sfxEnabled : (hs.sfxEnabled !== false);
+    const diff = hs.difficultyLevel || gameState.difficultyLevel || 'normal';
+    const diffNames = { easy: '简单', normal: '普通', hard: '困难' };
+
     el.innerHTML = `
       <div class="game-panel">
         <h3>领主信息</h3>
@@ -490,11 +508,79 @@ const UI = {
         ${buffHtml}
       </div>
 
+      <div class="game-panel">
+        <h3>设置</h3>
+        <div class="stat-row">
+          <span>背景音乐</span>
+          <button class="btn-secondary btn-sm" id="hero-bgm-toggle">${bgmOn ? '🔊 开启' : '🔇 关闭'}</button>
+        </div>
+        <div class="stat-row">
+          <span>音效</span>
+          <button class="btn-secondary btn-sm" id="hero-sfx-toggle">${sfxOn ? '🔊 开启' : '🔇 关闭'}</button>
+        </div>
+        <div class="stat-row">
+          <span>难度</span>
+          <span id="hero-diff-display">${diffNames[diff] || diff}</span>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" id="hero-diff-easy" ${diff === 'easy' ? 'disabled' : ''}>简单</button>
+          <button class="btn-secondary btn-sm" id="hero-diff-normal" ${diff === 'normal' ? 'disabled' : ''}>普通</button>
+          <button class="btn-secondary btn-sm" id="hero-diff-hard" ${diff === 'hard' ? 'disabled' : ''}>困难</button>
+        </div>
+        <p style="font-size:10px;color:#888;margin-top:6px">难度变更将在下次加载游戏时生效</p>
+      </div>
+
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn-secondary btn-sm" onclick="UI.renderScreen('city')">查看俸禄</button>
         <button class="btn-danger btn-sm" onclick="UI.confirmResetSave()">重置存档</button>
       </div>
     `;
+
+    // Bind settings handlers
+    setTimeout(() => {
+      const bgmBtn = document.getElementById('hero-bgm-toggle');
+      if (bgmBtn) bgmBtn.addEventListener('click', () => this.toggleHeroBGM());
+      const sfxBtn = document.getElementById('hero-sfx-toggle');
+      if (sfxBtn) sfxBtn.addEventListener('click', () => this.toggleHeroSFX());
+      const diffEasy = document.getElementById('hero-diff-easy');
+      if (diffEasy) diffEasy.addEventListener('click', () => this.setHeroDifficulty('easy'));
+      const diffNormal = document.getElementById('hero-diff-normal');
+      if (diffNormal) diffNormal.addEventListener('click', () => this.setHeroDifficulty('normal'));
+      const diffHard = document.getElementById('hero-diff-hard');
+      if (diffHard) diffHard.addEventListener('click', () => this.setHeroDifficulty('hard'));
+    }, 0);
+  },
+
+  toggleHeroBGM() {
+    if (typeof HeroAudio !== 'undefined') {
+      const on = HeroAudio.toggleBGM();
+      this.showToast(on ? '背景音乐已开启' : '背景音乐已关闭');
+    }
+    const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
+    hs.bgmEnabled = typeof HeroAudio !== 'undefined' ? HeroAudio.bgmEnabled : true;
+    if (typeof saveHeroSettings === 'function') saveHeroSettings(hs);
+    this.renderMenuScreen();
+  },
+
+  toggleHeroSFX() {
+    if (typeof HeroAudio !== 'undefined') {
+      const on = HeroAudio.toggleSFX();
+      this.showToast(on ? '音效已开启' : '音效已关闭');
+    }
+    const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
+    hs.sfxEnabled = typeof HeroAudio !== 'undefined' ? HeroAudio.sfxEnabled : true;
+    if (typeof saveHeroSettings === 'function') saveHeroSettings(hs);
+    this.renderMenuScreen();
+  },
+
+  setHeroDifficulty(lv) {
+    const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
+    hs.difficultyLevel = lv;
+    gameState.difficultyLevel = lv;
+    if (typeof saveHeroSettings === 'function') saveHeroSettings(hs);
+    if (typeof saveGame === 'function') saveGame({ force: true });
+    this.showToast('难度已设置为' + (lv === 'easy' ? '简单' : lv === 'hard' ? '困难' : '普通') + '，下次加载生效');
+    this.renderMenuScreen();
   },
 
   confirmResetSave() {
@@ -636,7 +722,47 @@ document.addEventListener('DOMContentLoaded', () => {
 // Allowed screens mirror the original 5-tab nav.
 window.addEventListener('message', (event) => {
   const data = event.data;
-  if (!data || data.source !== 'hero-host') return;
+  if (!data) return;
+
+  // Echo Game Settings Bridge
+  if (data.type === 'game-settings-changed') {
+    const p = data.payload || {};
+    if (typeof p.globalSoundEnabled === 'boolean' && typeof HeroAudio !== 'undefined') {
+      HeroAudio.sfxEnabled = p.globalSoundEnabled;
+    }
+    if (typeof p.globalBgmEnabled === 'boolean' && typeof HeroAudio !== 'undefined') {
+      HeroAudio.bgmEnabled = p.globalBgmEnabled;
+      if (!p.globalBgmEnabled) HeroAudio.stopBGM();
+    }
+    if (typeof p.damageDisplayEnabled === 'boolean') {
+      window.__heroDamageDisplayEnabled = p.damageDisplayEnabled;
+    }
+    return;
+  }
+  if (data.type === 'game-export-request') {
+    var saveData = null;
+    try { saveData = localStorage.getItem('evony_roguelike_save'); } catch (_) {}
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'game-export-data', requestId: data.requestId, data: { saveData: saveData } }, '*');
+    }
+    return;
+  }
+  if (data.type === 'game-import-request') {
+    var success = false;
+    try {
+      if (data.saveData) {
+        localStorage.setItem('evony_roguelike_save', data.saveData);
+        success = true;
+        setTimeout(function() { location.reload(); }, 100);
+      }
+    } catch (_) {}
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'game-import-result', requestId: data.requestId, success: success }, '*');
+    }
+    return;
+  }
+
+  if (data.source !== 'hero-host') return;
   if (data.type === 'switch-screen') {
     const allowed = ['city', 'hero', 'research', 'shop', 'menu'];
     if (allowed.includes(data.screen)) {

@@ -20,11 +20,7 @@
       <h1 v-else class="play-title">{{ gameTitle }}</h1>
     </div>
     <div class="play-body">
-      <ChessGame v-if="gameId === 'chess'" />
-      <GomokuGame v-else-if="gameId === 'gomoku'" />
-      <Match3Game v-else-if="gameId === 'match3'" />
-      <CutRopeGame v-else-if="gameId === 'cut-rope'" />
-      <PuzzleGame v-else-if="gameId === 'puzzle'" :standalone="true" @exit="router.back()" />
+      <PuzzleGame v-if="gameId === 'puzzle'" :standalone="true" @exit="router.back()" />
       <iframe
         v-else-if="h5Src"
         ref="iframeRef"
@@ -48,18 +44,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import ChessGame from './mini/chess.vue'
-import GomokuGame from './mini/gomoku.vue'
-import Match3Game from './mini/match3.vue'
-import CutRopeGame from './mini/cut-rope.vue'
 import PuzzleGame from './mini/puzzle.vue'
+import { setLandscapeDisplayMode } from '@/services/native-display'
+import { GameSettingsService } from '@/services/game-settings'
+import { getStorageDriver } from '@/services/storage'
+import { useGameStore } from '@/stores/game'
 
 const route = useRoute()
 const router = useRouter()
 
 const gameId = computed(() => route.params.id as string)
+const gameStore = useGameStore()
+
+// 游戏设置服务（用于 iframe 通信桥）
+const settingsService = new GameSettingsService(getStorageDriver())
 
 const gameTitles: Record<string, string> = {
   chess: '国际象棋',
@@ -68,6 +68,7 @@ const gameTitles: Record<string, string> = {
   'cut-rope': '糖果绳索',
   puzzle: '残缺的逻辑',
   xiuxian: '问道长生',
+  'xiuxian-v2': '问道长生',
   empire: '圣王国',
   hero: '勇士',
   'dark-dorm': '暗黑宿舍',
@@ -75,7 +76,12 @@ const gameTitles: Record<string, string> = {
 }
 
 const h5GamePaths: Record<string, string> = {
-  xiuxian: '/games/xiuxian/index.html',
+  chess: '/games/chess/index.html',
+  gomoku: '/games/gomoku/index.html',
+  match3: '/games/match3/index.html',
+  'cut-rope': '/games/cut-rope/index.html',
+  xiuxian: '/games/xiuxian-v2/dist/index.html',
+  'xiuxian-v2': '/games/xiuxian-v2/dist/index.html',
   empire: '/games/empire/index.html',
   hero: '/games/hero/index.html',
   'dark-dorm': '/games/dark-dorm/index.html',
@@ -84,6 +90,8 @@ const h5GamePaths: Record<string, string> = {
 
 const gameTitle = computed(() => gameTitles[gameId.value] || '游戏')
 const h5Src = computed(() => h5GamePaths[gameId.value] || '')
+const landscapeH5GameIds = new Set(['survivor-defense', 'xiuxian', 'xiuxian-v2'])
+const isLandscapeH5Game = computed(() => landscapeH5GameIds.has(gameId.value))
 
 // ── Outer top-bar tab integration for hero / empire / xiuxian ──
 interface NavTab { key: string; label: string }
@@ -137,10 +145,29 @@ const tabConfigs: Record<string, { tabs: NavTab[]; hostSource: string; gameSourc
     gameSource: 'xiuxian-game',
     defaultKey: 'cultivation',
   },
+  'xiuxian-v2': {
+    tabs: [
+      { key: 'cultivation', label: '修炼' },
+      { key: 'world', label: '世界' },
+      { key: 'cave', label: '洞府' },
+      { key: 'techniques', label: '功法' },
+      { key: 'exploration', label: '探险' },
+      { key: 'inventory', label: '背包' },
+      { key: 'shop', label: '商店' },
+      { key: 'sect', label: '宗门' },
+      { key: 'favor', label: '人脉' },
+      { key: 'auction', label: '拍卖' },
+      { key: 'settings', label: '设置' },
+    ],
+    hostSource: 'xiuxian-host',
+    gameSource: 'xiuxian-game',
+    defaultKey: 'cultivation',
+  },
 }
 
 const saveBridgeConfigs: Record<string, BridgeConfig> = {
   xiuxian: { hostSource: 'xiuxian-host', gameSource: 'xiuxian-game' },
+  'xiuxian-v2': { hostSource: 'xiuxian-host', gameSource: 'xiuxian-game' },
   empire: { hostSource: 'empire-host', gameSource: 'empire-game' },
   hero: { hostSource: 'hero-host', gameSource: 'hero-game' },
   'dark-dorm': { hostSource: 'dark-dorm-host', gameSource: 'dark-dorm-game' },
@@ -148,7 +175,7 @@ const saveBridgeConfigs: Record<string, BridgeConfig> = {
 }
 
 const hasOuterTabs = computed(() => Boolean(tabConfigs[gameId.value]))
-const hideTopBar = computed(() => gameId.value === 'survivor-defense')
+const hideTopBar = computed(() => isLandscapeH5Game.value)
 const activeTabs = computed<NavTab[]>(() => tabConfigs[gameId.value]?.tabs ?? [])
 const activeScreen = ref<string>('')
 const iframeRef = ref<HTMLIFrameElement | null>(null)
@@ -181,6 +208,24 @@ function onIframeLoad() {
   if (!cfg) return
   if (!activeScreen.value) activeScreen.value = cfg.defaultKey
   setTimeout(() => postToGame({ type: 'request-state' }), 100)
+
+  // 注册 iframe 到 settingsService 并同步设置
+  registerIframeForSettings()
+  syncSettingsToGame()
+}
+
+/** 注册当前 iframe 到 GameSettingsService */
+function registerIframeForSettings() {
+  const el = iframeRef.value
+  if (!el) return
+  const cfg = tabConfigs[gameId.value] || saveBridgeConfigs[gameId.value]
+  if (!cfg) return
+  settingsService.registerIframe(gameId.value, el, cfg.hostSource)
+}
+
+/** 同步当前设置到 iframe 内的游戏 */
+function syncSettingsToGame() {
+  settingsService.syncSettingsToGame(gameId.value)
 }
 
 function wait(ms: number) {
@@ -232,7 +277,7 @@ async function saveCurrentGameBeforeLeave() {
 }
 
 function handleMessage(event: MessageEvent) {
-  const data = event.data as { source?: string; type?: string; screen?: string } | null
+  const data = event.data as { source?: string; type?: string; screen?: string; data?: any; success?: boolean } | null
   if (!data) return
   if (data.type === 'game-back') {
     router.back()
@@ -249,6 +294,23 @@ function handleMessage(event: MessageEvent) {
     return
   }
 
+  // 处理游戏导出响应
+  if (data.type === 'game-export-data' && data.data) {
+    settingsService.handleExportResponse(gameId.value, data.data)
+    return
+  }
+
+  // 处理游戏导入响应
+  if (data.type === 'game-import-result') {
+    settingsService.handleImportResponse(gameId.value, data.success !== false)
+    return
+  }
+
+  // 处理游戏就绪信号，同步设置
+  if (data.type === 'game-ready') {
+    syncSettingsToGame()
+  }
+
   const cfg = tabConfigs[gameId.value]
   if (!cfg || data.source !== cfg.gameSource) return
   if (data.type === 'screen' && data.screen) {
@@ -256,8 +318,32 @@ function handleMessage(event: MessageEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('message', handleMessage))
+function syncLandscapeDisplayMode() {
+  void setLandscapeDisplayMode(isLandscapeH5Game.value)
+}
+
+onMounted(async () => {
+  window.addEventListener('message', handleMessage)
+  syncLandscapeDisplayMode()
+  // 初始化设置服务
+  await settingsService.initialize()
+  // 注册 iframe（延迟等待 iframe 加载）
+  setTimeout(() => {
+    registerIframeForSettings()
+    syncSettingsToGame()
+  }, 300)
+})
+
+watch(isLandscapeH5Game, syncLandscapeDisplayMode)
+
+// 监听设置变更，同步到游戏
+watch(() => gameStore.gameSettings, () => {
+  syncSettingsToGame()
+}, { deep: true })
+
 onBeforeUnmount(() => {
+  void setLandscapeDisplayMode(false)
+  settingsService.unregisterIframe(gameId.value)
   if (pendingSaveRequest) {
     window.clearTimeout(pendingSaveRequest.timer)
     pendingSaveRequest.resolve(false)
@@ -267,6 +353,7 @@ onBeforeUnmount(() => {
 })
 onBeforeRouteLeave(async () => {
   await saveCurrentGameBeforeLeave()
+  void setLandscapeDisplayMode(false)
   return true
 })
 </script>

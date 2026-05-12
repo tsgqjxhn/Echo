@@ -7,28 +7,7 @@ const localCapabilities: ProviderCapabilities = {
   tts: true,
   stt: true,
   imageGeneration: false,
-  videoGeneration: false,
-  modelListing: false,
-}
-
-// sherpa-ncnn 软件内置（仅 STT），TTS 仍走系统 TTS
-const localBuiltinCapabilities: ProviderCapabilities = {
-  chat: false,
-  chatStream: false,
-  tts: false,
-  stt: true,
-  imageGeneration: false,
-  videoGeneration: false,
-  modelListing: false,
-}
-
-// 谷歌服务安卓内置 GMS SpeechRecognizer（仅 STT）
-const localGmsCapabilities: ProviderCapabilities = {
-  chat: false,
-  chatStream: false,
-  tts: false,
-  stt: true,
-  imageGeneration: false,
+  imageUnderstanding: true,
   videoGeneration: false,
   modelListing: false,
 }
@@ -83,22 +62,7 @@ export const localAdapter: ProviderAdapter = {
   ...baseLocalAdapter,
   providerId: 'local',
   capabilities: localCapabilities,
-}
-
-export const localBuiltinAdapter: ProviderAdapter = {
-  ...baseLocalAdapter,
-  providerId: 'local-builtin',
-  capabilities: localBuiltinCapabilities,
   parseTestResponse(): TestResult {
-    return { success: true, message: '软件内置语音引擎已就绪 (sherpa-ncnn)' }
-  },
-}
-
-export const localGmsAdapter: ProviderAdapter = {
-  ...baseLocalAdapter,
-  providerId: 'local-gms',
-  capabilities: localGmsCapabilities,
-  parseTestResponse(): TestResult {
-    return { success: true, message: '谷歌服务安卓内置语音引擎已就绪 (GMS)' }
+    return { success: true, message: '系统语音引擎已就绪' }
   },
 }

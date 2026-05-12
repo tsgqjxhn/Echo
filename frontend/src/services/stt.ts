@@ -237,8 +237,8 @@ export class STTService {
       this.useLocal = true
       this.useNativeLocal = true
       try {
-        // 如果配置为 local-gms，则 preferOffline 设为 false 走系统 GMS
-        const preferOffline = providerConfig?.provider !== 'local-gms'
+        // local provider 优先使用离线语音识别
+        const preferOffline = true
         return await this.startNativeLocalRecognition(preferOffline)
       } catch (nativeRecognitionError) {
         this.useLocal = false
@@ -262,7 +262,7 @@ export class STTService {
         this.useLocal = true
         this.useNativeLocal = true
         try {
-          const preferOffline = providerConfig.provider !== 'local-gms'
+          const preferOffline = true
           return await this.startNativeLocalRecognition(preferOffline)
         } catch (nativeError) {
           this.useLocal = false

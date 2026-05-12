@@ -6,6 +6,7 @@ import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
 import com.echo.app.plugins.NativeChatStreamPlugin;
+import com.echo.app.plugins.NativeDisplayPlugin;
 import com.echo.app.plugins.NativeHttpPlugin;
 import com.echo.app.plugins.NativePermissionPlugin;
 import com.echo.app.plugins.NativeSpeechPlugin;
@@ -16,10 +17,25 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeHttpPlugin.class);
         registerPlugin(NativeChatStreamPlugin.class);
+        registerPlugin(NativeDisplayPlugin.class);
         registerPlugin(NativePermissionPlugin.class);
         registerPlugin(NativeSpeechPlugin.class);
         super.onCreate(savedInstanceState);
         installPermissiveChromeClient();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        NativeDisplayPlugin.applyCurrentMode(this);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            NativeDisplayPlugin.applyCurrentMode(this);
+        }
     }
 
     @Override

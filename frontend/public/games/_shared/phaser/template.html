@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f1923">
+  <title>Phaser 模板游戏</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior: none; touch-action: none; background: #0f1923; }
+    body { display: flex; align-items: center; justify-content: center; color: #cfe6ff; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    #game { width: 100vw; height: 100vh; }
+    .loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0f1923; z-index: 1; }
+    .loading-spinner { width: 36px; height: 36px; border: 3px solid #2a3a4a; border-top-color: #22d3ee; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="loading" class="loading"><div class="loading-spinner"></div></div>
+
+  <!-- 引用本仓库内置的 Phaser，离线可用，禁止改成 CDN -->
+  <script src="/games/_shared/phaser/phaser.min.js"></script>
+
+  <script>
+  // ───── 1. 与 Echo 宿主的桥接（save / restore） ────────────────────────────
+  const SAVE_KEY = 'echo_game_template_save';
+  const HOST_SOURCE = 'template-host';
+  const GAME_SOURCE = 'template-game';
+
+  const Bridge = {
+    load() {
+      try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); }
+      catch { return null; }
+    },
+    save(state) {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); return true; }
+      catch { return false; }
+    },
+    notifyScreen(screen) {
+      window.parent?.postMessage({ source: GAME_SOURCE, type: 'screen', screen }, '*');
+    },
+    requestBack() {
+      window.parent?.postMessage({ type: 'game-back' }, '*');
+    },
+    bind(handlers) {
+      window.addEventListener('message', e => {
+        const data = e.data;
+        if (!data || data.source !== HOST_SOURCE) return;
+        if (data.type === 'switch-screen') handlers.switchScreen?.(data.screen);
+        if (data.type === 'save-now') {
+          const ok = handlers.saveNow?.() ?? true;
+          window.parent?.postMessage({ source: GAME_SOURCE, type: 'save-complete', requestId: data.requestId, ok }, '*');
+        }
+        if (data.type === 'request-state') handlers.requestState?.();
+      });
+    },
+  };
+
+  // ───── 2. Phaser 场景 ─────────────────────────────────────────────────────
+  class BootScene extends Phaser.Scene {
+    constructor() { super('Boot'); }
+    preload() {
+      // 用 Graphics 直接画方块当主角，避免依赖外部图片
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(0x22d3ee, 1).fillRoundedRect(0, 0, 48, 48, 10);
+      g.generateTexture('hero', 48, 48);
+      g.clear();
+      g.fillStyle(0xff6b6b, 1).fillCircle(20, 20, 18);
+      g.generateTexture('enemy', 40, 40);
+    }
+    create() { this.scene.start('Play'); }
+  }
+
+  class PlayScene extends Phaser.Scene {
+    constructor() { super('Play'); }
+    create() {
+      const { width, height } = this.scale;
+      this.score = 0;
+
+      // 背景
+      this.add.rectangle(width / 2, height / 2, width, height, 0x0f1923);
+
+      // 主角
+      this.hero = this.physics.add.image(width / 2, height - 80, 'hero').setCollideWorldBounds(true);
+
+      // 敌人组
+      this.enemies = this.physics.add.group();
+      this.time.addEvent({
+        delay: 800, loop: true, callback: () => {
+          const x = Phaser.Math.Between(20, width - 20);
+          const e = this.enemies.create(x, -20, 'enemy');
+          e.setVelocityY(120 + this.score * 4);
+        },
+      });
+
+      // 输入：触屏拖动 / 鼠标移动 / 键盘左右
+      this.input.on('pointermove', p => { if (p.isDown || p.event.type === 'mousemove') this.hero.x = p.x; });
+      this.input.on('pointerdown', p => this.hero.x = p.x);
+      this.cursors = this.input.keyboard.createCursorKeys();
+
+      // 碰撞
+      this.physics.add.overlap(this.hero, this.enemies, () => this.gameOver());
+
+      // UI
+      this.scoreText = this.add.text(16, 16, '得分 0', { color: '#cfe6ff', fontSize: '20px' }).setScrollFactor(0);
+
+      // 自动回报当前界面给宿主（如果有 Tab）
+      Bridge.notifyScreen('play');
+
+      // 还原存档
+      const saved = Bridge.load();
+      if (saved?.score) { this.score = saved.score; this.refreshScore(); }
+    }
+    update(_, dt) {
+      if (this.cursors?.left.isDown) this.hero.x -= dt * 0.4;
+      if (this.cursors?.right.isDown) this.hero.x += dt * 0.4;
+
+      this.enemies.children.iterate(e => {
+        if (e && e.y > this.scale.height + 40) {
+          e.destroy();
+          this.score += 1;
+          this.refreshScore();
+        }
+      });
+    }
+    refreshScore() { this.scoreText.setText('得分 ' + this.score); }
+    gameOver() {
+      Bridge.save({ score: this.score });
+      this.scene.start('Over', { score: this.score });
+    }
+    snapshot() { return { score: this.score }; }
+  }
+
+  class OverScene extends Phaser.Scene {
+    constructor() { super('Over'); }
+    create(data) {
+      const { width, height } = this.scale;
+      this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7);
+      this.add.text(width / 2, height / 2 - 40, '游戏结束', { color: '#ffffff', fontSize: '28px' }).setOrigin(0.5);
+      this.add.text(width / 2, height / 2, '得分：' + (data?.score ?? 0), { color: '#22d3ee', fontSize: '20px' }).setOrigin(0.5);
+      const btn = this.add.text(width / 2, height / 2 + 60, '再来一次', { color: '#0f1923', backgroundColor: '#22d3ee', padding: { x: 16, y: 8 }, fontSize: '18px' })
+        .setOrigin(0.5).setInteractive({ useHandCursor: true });
+      btn.on('pointerdown', () => this.scene.start('Play'));
+    }
+  }
+
+  // ───── 3. 启动 Phaser ─────────────────────────────────────────────────────
+  const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'game',
+    backgroundColor: '#0f1923',
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: 480,
+      height: 800,
+    },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    scene: [BootScene, PlayScene, OverScene],
+  });
+
+  // 宿主桥接：保存 / 切换 Tab
+  Bridge.bind({
+    saveNow() {
+      const playScene = game.scene.getScene('Play');
+      if (playScene?.snapshot) Bridge.save(playScene.snapshot());
+      return true;
+    },
+    requestState() { Bridge.notifyScreen(game.scene.scenes.find(s => s.scene.isActive())?.scene.key.toLowerCase() || 'play'); },
+    switchScreen(screen) {
+      const target = { play: 'Play', over: 'Over' }[screen];
+      if (target) game.scene.start(target);
+    },
+  });
+
+  // 加载完成后隐藏遮罩
+  game.events.once(Phaser.Core.Events.READY, () => {
+    document.getElementById('loading')?.remove();
+  });
+  </script>
+</body>
+</html>

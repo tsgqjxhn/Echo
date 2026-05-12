@@ -398,10 +398,11 @@ function enlargeImage(src: string, caption: string) {
 .post-avatar {
   width: 42px;
   height: 42px;
-  border-radius: 12px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.10);
+  overflow: hidden;
 }
 
 .post-meta {

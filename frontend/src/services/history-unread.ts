@@ -102,7 +102,7 @@ export function hasUnreadMoments(posts: MomentPost[], state = loadHistoryReadSta
 }
 
 export function isGroupCharacterForUnread(character: ICharacter): boolean {
-  return character.mode === 'group-chat' || character.mode === 'group-challenge'
+  return character.mode === 'group-chat' || character.mode === 'group-challenge' || character.mode === 'multi-free' || character.mode === 'multi-story' || character.mode === 'multi-game'
 }
 
 export function hasUnreadContacts(

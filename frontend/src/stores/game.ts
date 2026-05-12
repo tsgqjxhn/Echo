@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GameState, GameResult, GameSettings, EscapeRoute } from '@/types/game'
+import type { GameState, GameResult, GameSettings, EscapeRoute, GameExportData } from '@/types/game'
 import { getStorageDriver } from '@/services/storage'
 import { GameSettingsService } from '@/services/game-settings'
 import { GameService } from '@/services/game'
@@ -54,12 +54,20 @@ export const useGameStore = defineStore('game', () => {
     return getSettingsService().isGlobalEnabled()
   })
 
-  const difficultyLevel = computed(() => {
-    return getSettingsService().getDifficultyLevel()
+  const globalSoundEnabled = computed(() => {
+    return getSettingsService().isGlobalSoundEnabled()
   })
 
-  const baseSuccessRate = computed(() => {
-    return getSettingsService().getBaseSuccessRate()
+  const globalBgmEnabled = computed(() => {
+    return getSettingsService().isGlobalBgmEnabled()
+  })
+
+  const damageDisplayEnabled = computed(() => {
+    return getSettingsService().isDamageDisplayEnabled()
+  })
+
+  const gameNotificationsEnabled = computed(() => {
+    return getSettingsService().isGameNotificationsEnabled()
   })
 
   // 方法
@@ -74,7 +82,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 检查是否可以触发游戏
-   * @param sessionId 会话 ID
    */
   function canTriggerGameInSession(sessionId: string): boolean {
     return getGameService().canTriggerGame(sessionId)
@@ -82,7 +89,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 检查会话是否启用游戏
-   * @param sessionId 会话 ID
    */
   function isSessionEnabled(sessionId: string): boolean {
     return getSettingsService().isSessionEnabled(sessionId)
@@ -90,27 +96,44 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 设置全局游戏开关
-   * @param enabled 是否启用
    */
   async function setGlobalEnabled(enabled: boolean) {
     await getSettingsService().setGlobalEnabled(enabled)
     gameSettings.value = getSettingsService().getSettings()
   }
 
-  async function setDifficultyLevel(level: 'easy' | 'normal' | 'hard') {
-    await getSettingsService().setDifficultyLevel(level)
+  async function setGlobalSoundEnabled(enabled: boolean) {
+    await getSettingsService().setGlobalSoundEnabled(enabled)
     gameSettings.value = getSettingsService().getSettings()
   }
 
-  async function setBaseSuccessRate(rate: number) {
-    await getSettingsService().setBaseSuccessRate(rate)
+  async function setGlobalBgmEnabled(enabled: boolean) {
+    await getSettingsService().setGlobalBgmEnabled(enabled)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function setDamageDisplayEnabled(enabled: boolean) {
+    await getSettingsService().setDamageDisplayEnabled(enabled)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function setGameNotificationsEnabled(enabled: boolean) {
+    await getSettingsService().setGameNotificationsEnabled(enabled)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function subscribeGameNotification(type: string) {
+    await getSettingsService().subscribeGameNotification(type)
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  async function unsubscribeGameNotification(type: string) {
+    await getSettingsService().unsubscribeGameNotification(type)
     gameSettings.value = getSettingsService().getSettings()
   }
 
   /**
    * 设置会话游戏开关
-   * @param sessionId 会话 ID
-   * @param enabled 是否启用
    */
   async function setSessionEnabled(sessionId: string, enabled: boolean) {
     await getSettingsService().setSessionEnabled(sessionId, enabled)
@@ -119,7 +142,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 切换会话游戏开关
-   * @param sessionId 会话 ID
    */
   async function toggleSessionEnabled(sessionId: string): Promise<boolean> {
     const result = await getSettingsService().toggleSessionEnabled(sessionId)
@@ -128,10 +150,29 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /**
+   * 保存当前设置
+   */
+  async function saveSettings() {
+    await getSettingsService().saveSettings()
+    gameSettings.value = getSettingsService().getSettings()
+  }
+
+  /**
+   * 导出游戏数据
+   */
+  async function exportGameData(gameId: string): Promise<GameExportData> {
+    return getSettingsService().exportGameData(gameId)
+  }
+
+  /**
+   * 导入游戏数据
+   */
+  async function importGameData(gameId: string, data: GameExportData): Promise<void> {
+    return getSettingsService().importGameData(gameId, data)
+  }
+
+  /**
    * 触发小游戏（聊天触发模式）
-   * @param characterId 角色 ID
-   * @param sessionId 会话 ID
-   * @param characterAbility 角色能力值
    */
   async function triggerMiniGame(
     characterId: string,
@@ -160,9 +201,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 处理游戏动作
-   * @param gameId 游戏 ID
-   * @param action 动作类型
-   * @param payload 动作参数
    */
   async function processGameAction(
     gameId: string,
@@ -173,11 +211,9 @@ export const useGameStore = defineStore('game', () => {
     const result = await gameService.processAction(gameId, action, payload)
 
     if (result) {
-      // 更新当前游戏状态
       currentGame.value = await gameService.getGameState(gameId)
       
       if (result.success !== undefined && result.impactOnStory) {
-        // 游戏结束
         isPlaying.value = false
       }
     }
@@ -187,7 +223,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 玩独立游戏（不受开关影响）
-   * @param gameType 游戏类型
    */
   async function playStandaloneGame(gameType: string): Promise<GameResult> {
     const gameService = getGameService()
@@ -196,8 +231,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 将游戏结果发送到聊天
-   * @param sessionId 会话 ID
-   * @param result 游戏结果
    */
   async function sendGameResultToChat(sessionId: string, result: GameResult) {
     const gameService = getGameService()
@@ -206,7 +239,6 @@ export const useGameStore = defineStore('game', () => {
 
   /**
    * 加载会话的游戏列表
-   * @param sessionId 会话 ID
    */
   async function loadSessionGames(sessionId: string) {
     const gameService = getGameService()
@@ -217,23 +249,16 @@ export const useGameStore = defineStore('game', () => {
    * 获取逃跑游戏的可用路线
    */
   function getEscapeRoutes(): EscapeRoute[] {
-    const modifier = {
-      easy: 0.7,
-      normal: 1.0,
-      hard: 1.3
-    }[getSettingsService().getDifficultyLevel()] ?? 1.0
-
     return [
-      { id: 'forest', name: '森林', icon: '🌲', difficulty: Math.round(30 * modifier) },
-      { id: 'mountain', name: '山路', icon: '⛰️', difficulty: Math.round(50 * modifier) },
-      { id: 'river', name: '河流', icon: '🌊', difficulty: Math.round(40 * modifier) },
-      { id: 'road', name: '大路', icon: '🛣️', difficulty: Math.round(20 * modifier) }
+      { id: 'forest', name: '森林', icon: '🌲', difficulty: 30 },
+      { id: 'mountain', name: '山路', icon: '⛰️', difficulty: 50 },
+      { id: 'river', name: '河流', icon: '🌊', difficulty: 40 },
+      { id: 'road', name: '大路', icon: '🛣️', difficulty: 20 }
     ]
   }
 
   /**
    * 获取难度描述
-   * @param difficulty 难度值
    */
   function getDifficultyText(difficulty: number): string {
     if (difficulty < 30) return '简单'
@@ -267,8 +292,10 @@ export const useGameStore = defineStore('game', () => {
     // 计算属性
     canTriggerGame,
     isGlobalEnabled,
-    difficultyLevel,
-    baseSuccessRate,
+    globalSoundEnabled,
+    globalBgmEnabled,
+    damageDisplayEnabled,
+    gameNotificationsEnabled,
     // 方法
     initializeSettings,
     canTriggerGameInSession,
@@ -276,8 +303,15 @@ export const useGameStore = defineStore('game', () => {
     setGlobalEnabled,
     setSessionEnabled,
     toggleSessionEnabled,
-    setDifficultyLevel,
-    setBaseSuccessRate,
+    setGlobalSoundEnabled,
+    setGlobalBgmEnabled,
+    setDamageDisplayEnabled,
+    setGameNotificationsEnabled,
+    subscribeGameNotification,
+    unsubscribeGameNotification,
+    saveSettings,
+    exportGameData,
+    importGameData,
     triggerMiniGame,
     processGameAction,
     playStandaloneGame,

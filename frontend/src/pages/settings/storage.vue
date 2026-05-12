@@ -18,36 +18,69 @@
           </svg>
           <div class="ring-text">
             <span class="ring-value">{{ formatSize(totalUsed) }}</span>
-            <span class="ring-label">已使用</span>
+            <span class="ring-label">当前软件占用总空间</span>
           </div>
         </div>
-        <p class="storage-hint">本地存储估算（基于 localStorage + IndexedDB）</p>
+        <p class="storage-hint">基于浏览器存储估算（localStorage + IndexedDB + Cache Storage）</p>
       </div>
 
       <div class="storage-breakdown">
+        <div class="breakdown-header">存储分类</div>
         <div class="breakdown-item">
-          <span class="breakdown-label">角色数据</span>
+          <div class="breakdown-info">
+            <span class="breakdown-label">角色数据</span>
+            <span class="breakdown-desc">角色卡片、世界书等</span>
+          </div>
           <span class="breakdown-value">{{ formatSize(categorySize.characters) }}</span>
         </div>
         <div class="breakdown-item">
-          <span class="breakdown-label">会话/消息</span>
+          <div class="breakdown-info">
+            <span class="breakdown-label">会话与消息</span>
+            <span class="breakdown-desc">聊天记录</span>
+          </div>
           <span class="breakdown-value">{{ formatSize(categorySize.sessions) }}</span>
         </div>
         <div class="breakdown-item">
-          <span class="breakdown-label">设置/配置</span>
-          <span class="breakdown-value">{{ formatSize(categorySize.settings) }}</span>
-        </div>
-        <div class="breakdown-item">
-          <span class="breakdown-label">系统提示词</span>
+          <div class="breakdown-info">
+            <span class="breakdown-label">系统提示词</span>
+            <span class="breakdown-desc">全局提示、系统预设</span>
+          </div>
           <span class="breakdown-value">{{ formatSize(categorySize.prompts) }}</span>
         </div>
         <div class="breakdown-item">
-          <span class="breakdown-label">游戏数据</span>
+          <div class="breakdown-info">
+            <span class="breakdown-label">游戏数据</span>
+            <span class="breakdown-desc">存档、进度</span>
+          </div>
           <span class="breakdown-value">{{ formatSize(categorySize.games) }}</span>
         </div>
         <div class="breakdown-item">
-          <span class="breakdown-label">其他缓存</span>
+          <div class="breakdown-info">
+            <span class="breakdown-label">设置与配置</span>
+            <span class="breakdown-desc">API配置、用户设置等</span>
+          </div>
+          <span class="breakdown-value">{{ formatSize(categorySize.settings) }}</span>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-info">
+            <span class="breakdown-label">缓存</span>
+            <span class="breakdown-desc">图片、音频等临时文件</span>
+          </div>
+          <span class="breakdown-value">{{ formatSize(categorySize.cache) }}</span>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-info">
+            <span class="breakdown-label">其他</span>
+            <span class="breakdown-desc">未分类数据</span>
+          </div>
           <span class="breakdown-value">{{ formatSize(categorySize.other) }}</span>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-info">
+            <span class="breakdown-label">应用本体</span>
+            <span class="breakdown-desc">应用代码、内置游戏资源、素材文件、语音识别模型等</span>
+          </div>
+          <span class="breakdown-value">{{ appSize > 0 ? formatBytes(appSize) : '无法估算' }}</span>
         </div>
       </div>
 
@@ -73,12 +106,14 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const totalUsed = ref(0)
+const appSize = ref(0)
 const categorySize = reactive({
   characters: 0,
   sessions: 0,
   settings: 0,
   prompts: 0,
   games: 0,
+  cache: 0,
   other: 0,
 })
 
@@ -93,49 +128,182 @@ const ringColor = computed(() => {
   return 'rgba(56, 189, 248, 0.6)'
 })
 
-function measureStorage() {
-  let total = 0
-  let characters = 0
-  let sessions = 0
-  let settings = 0
-  let prompts = 0
-  let games = 0
-  let other = 0
+function classifyLocalStorageKey(key: string): keyof typeof categorySize {
+  if (key.includes('character') || key.includes('Character') || key.includes('worldBook') || key.includes('world_book')) {
+    return 'characters'
+  }
+  if (key.includes('session') || key.includes('chat') || key.includes('message') || key.includes('conversation')) {
+    return 'sessions'
+  }
+  if (key.includes('prompt') || key.includes('system_prompt') || key.includes('global_prompt')) {
+    return 'prompts'
+  }
+  if (key.includes('game') || key.includes('Game') || key.includes('save') || key.includes('progress')) {
+    return 'games'
+  }
+  if (key.includes('setting') || key.includes('config') || key.includes('api') || key.includes('user')) {
+    return 'settings'
+  }
+  if (key.includes('cache') || key.includes('temp') || key.includes('blob') || key.includes('audio') || key.includes('image')) {
+    return 'cache'
+  }
+  return 'other'
+}
 
+async function estimateIndexedDBSize(): Promise<number> {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) {
+    return 0
+  }
+  try {
+    const databases = await (window as any).indexedDB.databases?.() || []
+    let total = 0
+    for (const dbInfo of databases) {
+      const dbName = dbInfo.name
+      if (!dbName) continue
+      const estimate = await new Promise<number>((resolve) => {
+        const request = indexedDB.open(dbName)
+        request.onsuccess = () => {
+          const db = request.result
+          const stores = Array.from(db.objectStoreNames)
+          const promises = stores.map(storeName => {
+            return new Promise<number>((res) => {
+              try {
+                const tx = db.transaction(storeName, 'readonly')
+                const store = tx.objectStore(storeName)
+                const cursorReq = store.openCursor()
+                let storeSize = 0
+                cursorReq.onsuccess = (e) => {
+                  const cursor = (e.target as IDBRequest).result
+                  if (cursor) {
+                    const val = JSON.stringify(cursor.value)
+                    storeSize += (cursor.key?.toString().length || 0) + val.length
+                    cursor.continue()
+                  } else {
+                    res(storeSize)
+                  }
+                }
+                cursorReq.onerror = () => res(0)
+              } catch {
+                res(0)
+              }
+            })
+          })
+          Promise.all(promises).then(sizes => {
+            db.close()
+            resolve(sizes.reduce((a, b) => a + b, 0))
+          }).catch(() => {
+            db.close()
+            resolve(0)
+          })
+        }
+        request.onerror = () => resolve(0)
+      })
+      total += estimate
+    }
+    return total
+  } catch {
+    return 0
+  }
+}
+
+async function estimateCacheStorageSize(): Promise<number> {
+  if (typeof window === 'undefined' || !('caches' in window)) {
+    return 0
+  }
+  try {
+    const cacheNames = await caches.keys()
+    let total = 0
+    for (const name of cacheNames) {
+      const cache = await caches.open(name)
+      const requests = await cache.keys()
+      for (const req of requests) {
+        const response = await cache.match(req)
+        if (response) {
+          const blob = await response.blob()
+          total += blob.size
+        }
+      }
+    }
+    return total
+  } catch {
+    return 0
+  }
+}
+
+async function estimateAppSize(): Promise<number> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+      const estimate = await navigator.storage.estimate()
+      if (estimate.usage) {
+        return Number(estimate.usage)
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to estimate app size:', e)
+  }
+  return 0
+}
+
+async function measureStorage() {
+  let total = 0
+  const sizes = {
+    characters: 0,
+    sessions: 0,
+    settings: 0,
+    prompts: 0,
+    games: 0,
+    cache: 0,
+    other: 0,
+  }
+
+  // localStorage
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     if (!key) continue
     const val = localStorage.getItem(key) || ''
     const size = key.length + val.length
-
-    if (key.includes('character') || key.includes('Character')) {
-      characters += size
-    } else if (key.includes('session') || key.includes('chat') || key.includes('message') || key.includes('conversation')) {
-      sessions += size
-    } else if (key.includes('prompt') || key.includes('system_prompt') || key.includes('global_prompt')) {
-      prompts += size
-    } else if (key.includes('game') || key.includes('Game')) {
-      games += size
-    } else if (key.includes('setting') || key.includes('config') || key.includes('api') || key.includes('user')) {
-      settings += size
-    } else {
-      other += size
-    }
-
+    const category = classifyLocalStorageKey(key)
+    sizes[category] += size
     total += size
   }
 
-  totalUsed.value = total
-  categorySize.characters = characters
-  categorySize.sessions = sessions
-  categorySize.settings = settings
-  categorySize.prompts = prompts
-  categorySize.games = games
-  categorySize.other = other
+  // IndexedDB（估算值归入 cache，因难以精确分类）
+  const idbSize = await estimateIndexedDBSize()
+  if (idbSize > 0) {
+    sizes.cache += idbSize
+    total += idbSize
+  }
+
+  // Cache Storage
+  const cacheSize = await estimateCacheStorageSize()
+  if (cacheSize > 0) {
+    sizes.cache += cacheSize
+    total += cacheSize
+  }
+
+  // 应用本体大小（通过 Storage API 估算）
+  const appSizeEstimate = await estimateAppSize()
+  appSize.value = appSizeEstimate
+
+  totalUsed.value = total + appSizeEstimate
+  categorySize.characters = sizes.characters
+  categorySize.sessions = sizes.sessions
+  categorySize.settings = sizes.settings
+  categorySize.prompts = sizes.prompts
+  categorySize.games = sizes.games
+  categorySize.cache = sizes.cache
+  categorySize.other = sizes.other
 }
 
 function formatSize(chars: number): string {
   const bytes = chars * 2 // UTF-16
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** 格式化字节数（用于 appSize 等直接以字节为单位的值） */
+function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -220,13 +388,29 @@ onMounted(measureStorage)
   border-radius: 12px; overflow: hidden; margin-bottom: 24px;
 }
 
+.breakdown-header {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
 .breakdown-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   &:last-child { border-bottom: none; }
 }
 
+.breakdown-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .breakdown-label { font-size: 14px; color: var(--text-primary); }
+.breakdown-desc { font-size: 12px; color: var(--text-tertiary); }
 .breakdown-value { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
 .storage-actions { display: flex; gap: 12px; }

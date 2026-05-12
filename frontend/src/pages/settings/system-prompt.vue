@@ -176,8 +176,9 @@ const categoryOrder = [
   'multimodal',
   'safety',
   'character-creation',
+  'game',
 ]
-const numeralNames = ['', '一', '二', '三', '四', '五', '六', '七', '八']
+const numeralNames = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九']
 
 // ============ 计算属性 ============
 const groupedPrompts = computed(() => {

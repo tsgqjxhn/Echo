@@ -119,6 +119,11 @@ const ENEMY_SPRITES = {
   mage_e:   { size: 48, walk: 4, cast: 3, death: 4 },
   orc:      { size: 64, walk: 4, attack: 3, death: 4 },
   wolf:     { size: 48, run: 4, bite: 3, death: 4 },
+  shadow_assassin: { size: 48, walk: 1, death: 1 },
+  berserker:       { size: 64, walk: 1, attack: 1, death: 1 },
+  necromancer:     { size: 48, walk: 1, cast: 1, death: 1 },
+  elemental:       { size: 48, walk: 1, shoot: 1, death: 1 },
+  troll:           { size: 80, walk: 1, attack: 1, death: 1 },
 };
 
 const DAMAGE_DIGIT_SPRITES = {

@@ -4,6 +4,7 @@ import type { ChatContext } from '@/types/chat'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 import { notifyApp } from '@/services/notification'
+import { getPromptById } from '@/services/system-prompt'
 import { generateUUID } from '@/utils/uuid'
 
 export type GameGenerationMode = 'create' | 'import'
@@ -72,6 +73,24 @@ function extractTitle(source: string, fallback: string): string {
 
   if (!firstLine) return fallback
   return firstLine.replace(/^#+\s*/, '').slice(0, 28) || fallback
+}
+
+/**
+ * 从「系统提示词管理」中读取游戏生成相关的提示词。
+ * - 优先取用户当前选用的版本（basic / advanced）
+ * - 若用户禁用，仍回退到 basicPrompt，避免无指令地空跑模型
+ */
+function resolveGamePrompt(id: 'game-outline' | 'game-implementation' | 'game-import'): string {
+  const prompt = getPromptById(id)
+  if (!prompt) {
+    console.warn(`[game-generation] 未找到系统提示词 ${id}，将使用空指令`)
+    return ''
+  }
+  if (prompt.enabled) {
+    return prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+  }
+  // 用户禁用：仍取 basicPrompt 兜底，保证模型能正常工作
+  return prompt.basicPrompt
 }
 
 export const useGameGenerationStore = defineStore('game-generation', () => {
@@ -180,12 +199,7 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     upsertTask(task)
 
     const context: ChatContext = {
-      systemPrompt: [
-        '你是资深 H5 游戏制作人和系统策划。',
-        '当前阶段只生成「游戏大纲」，交给玩家确认；不要输出完整代码。',
-        '大纲必须包含：游戏名、题材定位、核心循环、玩家操作、资源/状态、关卡或进程、胜负条件、UI 页面结构、需要玩家确认的关键设定。',
-        '输出要可执行、具体，避免空泛宣传语。',
-      ].join('\n'),
+      systemPrompt: resolveGamePrompt('game-outline'),
       messages: [
         {
           role: 'user',
@@ -209,13 +223,7 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     })
 
     const context: ChatContext = {
-      systemPrompt: [
-        '你是资深 H5 游戏开发工程师。',
-        '请基于玩家确认的大纲生成具体可运行的单文件 H5 游戏。',
-        '必须输出完整 HTML 源码，包含 CSS 和 JavaScript，不能依赖外部网络资源。',
-        '游戏需要有开始、游玩、失败/胜利或结算状态，代码应可直接保存为 index.html 运行。',
-        '如果规则复杂，优先生成可玩的最小完整版本，再在代码注释中标出可扩展点。',
-      ].join('\n'),
+      systemPrompt: resolveGamePrompt('game-implementation'),
       messages: [
         {
           role: 'user',
@@ -226,7 +234,7 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
             '已确认游戏大纲：',
             task.outline,
             '',
-            '请生成完整可运行游戏。',
+            '请基于 Phaser 4 生成完整可运行游戏（单文件 index.html，本地引用 /games/_shared/phaser/phaser.min.js）。',
           ].join('\n'),
         },
       ],
@@ -242,16 +250,11 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     upsertTask(task)
 
     const context: ChatContext = {
-      systemPrompt: [
-        '你是 H5 游戏导入与整合助手。',
-        '玩家提供的是已有游戏文件、文件夹内容或游戏说明，请直接生成具体可运行的游戏，不需要先输出大纲。',
-        '必须输出完整 HTML 源码，包含 CSS 和 JavaScript，不能依赖外部网络资源。',
-        '如果输入是已有 HTML/CSS/JS，请尽量保留玩法并整合为单文件版本；如果输入不完整，请补齐为可玩的最小完整版本。',
-      ].join('\n'),
+      systemPrompt: resolveGamePrompt('game-import'),
       messages: [
         {
           role: 'user',
-          content: `请根据玩家文件直接生成游戏：\n\n${sourceText}`,
+          content: `请根据玩家文件直接生成游戏（优先使用项目内置的 Phaser 4 框架，本地路径 /games/_shared/phaser/phaser.min.js）：\n\n${sourceText}`,
         },
       ],
     }

@@ -1,0 +1,64 @@
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #07140f;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#game-container {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+  display: block;
+  overflow: hidden;
+  background: #07140f;
+}
+
+#game-container canvas {
+  display: block;
+}
+
+#echo-portrait-tip {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  background: #0d0d0d;
+  color: #d4af37;
+  font-size: 16px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+@media screen and (orientation: portrait) {
+  #game-container {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  #echo-portrait-tip {
+    display: flex !important;
+  }
+}
+
+@media screen and (orientation: landscape) {
+  #echo-portrait-tip {
+    display: none !important;
+  }
+}

@@ -48,6 +48,7 @@ def _profile_to_dict(profile: UserProfileRecord | None) -> dict[str, Any] | None
         "name": profile.name,
         "avatar": profile.avatar,
         "globalPrompt": profile.global_prompt,
+        "corePrompt": profile.core_prompt,
     }
 
 
@@ -156,6 +157,9 @@ def build_standard_export(db: Session) -> dict[str, Any]:
     characters = list(db.scalars(select(CharacterRecord)))
     sessions = list(db.scalars(select(SessionRecord)))
     messages = list(db.scalars(select(MessageRecord)))
+    api_configs = list(db.scalars(select(APIConfigRecord)))
+    game_settings = db.get(GameSettingsRecord, 1)
+    game_states = list(db.scalars(select(GameStateRecord)))
     return {
         "version": "1.0",
         "exportedAt": now_ms(),
@@ -164,22 +168,27 @@ def build_standard_export(db: Session) -> dict[str, Any]:
         "characters": [_character_to_dict(item) for item in characters],
         "sessions": [_session_to_dict(item) for item in sessions],
         "messages": build_message_groups(messages),
+        "apiConfigs": [_api_config_to_dict(item, include_key=False) for item in api_configs],
+        "gameSettings": {
+            "globalEnabled": game_settings.global_enabled if game_settings else True,
+            "sessionEnabled": game_settings.session_enabled or {} if game_settings else {},
+            "globalSoundEnabled": getattr(game_settings, "global_sound_enabled", True) if game_settings else True,
+            "globalBgmEnabled": getattr(game_settings, "global_bgm_enabled", True) if game_settings else True,
+            "damageDisplayEnabled": getattr(game_settings, "damage_display_enabled", True) if game_settings else True,
+            "gameNotificationsEnabled": getattr(game_settings, "game_notifications_enabled", True) if game_settings else True,
+            "gameNotifications": getattr(game_settings, "game_notifications", []) if game_settings else [],
+        },
+        "gameStates": [_game_state_to_dict(item) for item in game_states],
     }
 
 
 def build_backup_export(db: Session) -> dict[str, Any]:
     payload = build_standard_export(db)
-    game_settings = db.get(GameSettingsRecord, 1)
     payload.update(
         {
             "version": "1.1",
             "exportType": "backup",
             "apiConfigs": [_api_config_to_dict(item, include_key=True) for item in db.scalars(select(APIConfigRecord))],
-            "gameSettings": {
-                "globalEnabled": game_settings.global_enabled if game_settings else True,
-                "sessionEnabled": game_settings.session_enabled or {} if game_settings else {},
-            },
-            "gameStates": [_game_state_to_dict(item) for item in db.scalars(select(GameStateRecord))],
         }
     )
     return payload
@@ -290,6 +299,7 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
         profile.name = user.get("name")
         profile.avatar = user.get("avatar")
         profile.global_prompt = user.get("globalPrompt")
+        profile.core_prompt = user.get("corePrompt")
         db.add(profile)
 
     for character in data.get("characters", []):
@@ -356,25 +366,34 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
             ))
 
     for config in data.get("apiConfigs", []):
-        if config.get("apiKey"):
-            db.merge(APIConfigRecord(
-                id=config["id"],
-                name=config["name"],
-                provider=config.get("provider", "openai-compatible"),
-                api_key=config["apiKey"],
-                base_url=config.get("baseURL"),
-                model=config.get("model", settings.openai_model),
-                is_default=config.get("isDefault", False),
-                source=config.get("source", "storage"),
-                created_at=now_ms(),
-                updated_at=now_ms(),
-            ))
+        db.merge(APIConfigRecord(
+            id=config["id"],
+            name=config["name"],
+            provider=config.get("provider", "openai-compatible"),
+            api_key=config.get("apiKey", ""),
+            base_url=config.get("baseURL"),
+            model=config.get("model", settings.openai_model),
+            is_default=config.get("isDefault", False),
+            source=config.get("source", "storage"),
+            created_at=now_ms(),
+            updated_at=now_ms(),
+        ))
 
     if data.get("gameSettings") is not None:
         payload = data["gameSettings"]
         game_settings = db.get(GameSettingsRecord, 1) or GameSettingsRecord(id=1)
         game_settings.global_enabled = payload.get("globalEnabled", True)
         game_settings.session_enabled = payload.get("sessionEnabled") or {}
+        if hasattr(game_settings, "global_sound_enabled"):
+            game_settings.global_sound_enabled = payload.get("globalSoundEnabled", True)
+        if hasattr(game_settings, "global_bgm_enabled"):
+            game_settings.global_bgm_enabled = payload.get("globalBgmEnabled", True)
+        if hasattr(game_settings, "damage_display_enabled"):
+            game_settings.damage_display_enabled = payload.get("damageDisplayEnabled", True)
+        if hasattr(game_settings, "game_notifications_enabled"):
+            game_settings.game_notifications_enabled = payload.get("gameNotificationsEnabled", True)
+        if hasattr(game_settings, "game_notifications"):
+            game_settings.game_notifications = payload.get("gameNotifications", [])
         db.add(game_settings)
 
     for state in data.get("gameStates", []):

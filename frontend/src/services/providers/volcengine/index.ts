@@ -22,6 +22,7 @@ export const volcengineCapabilities: ProviderCapabilities = {
   tts: false,
   stt: false,
   imageGeneration: true,
+  imageUnderstanding: true,
   videoGeneration: true,
   modelListing: false,
 }

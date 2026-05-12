@@ -473,9 +473,18 @@ class AudioManager {
   victory()    { if (this.enabled) HeroAudio.playVictory(); }
 }
 
-// Replace the global sfx instance
-if (typeof sfx !== 'undefined') {
-  const oldSfx = sfx;
-  sfx = new AudioManager();
-  sfx.enabled = oldSfx.enabled;
-}
+// Ensure global sfx instance exists
+var oldSfx = (typeof sfx !== 'undefined') ? sfx : null;
+var sfx = new AudioManager();
+if (oldSfx) sfx.enabled = oldSfx.enabled;
+
+// Echo Game Settings Bridge
+window.heroSetSoundEnabled = function(enabled) {
+  if (typeof HeroAudio !== 'undefined') HeroAudio.sfxEnabled = !!enabled;
+};
+window.heroSetBgmEnabled = function(enabled) {
+  if (typeof HeroAudio !== 'undefined') {
+    HeroAudio.bgmEnabled = !!enabled;
+    if (!enabled) HeroAudio.stopBGM();
+  }
+};

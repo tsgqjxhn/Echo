@@ -65,27 +65,7 @@
       >
         <div class="section-head export-head">
           <p class="section-title">标准导出</p>
-          <span class="section-note">含用户资料、角色、会话、消息</span>
-        </div>
-
-        <div class="format-list">
-          <button
-            type="button"
-            class="format-card"
-            :class="{ active: selectedFormat === 'json' }"
-            @click="selectedFormat = 'json'"
-          >
-            <strong>JSON</strong>
-          </button>
-
-          <button
-            type="button"
-            class="format-card"
-            :class="{ active: selectedFormat === 'markdown' }"
-            @click="selectedFormat = 'markdown'"
-          >
-            <strong>Markdown</strong>
-          </button>
+          <span class="section-note">导出除 API 密钥外的所有数据（用户信息、角色、会话记录、游戏进度等）</span>
         </div>
 
         <button type="button" class="primary-btn" :disabled="isBusy" @click="handleStandardExport">
@@ -96,7 +76,7 @@
       <article class="content-card">
         <div class="section-head export-head">
           <p class="section-title">完整备份</p>
-          <span class="section-note">额外含 API 配置、游戏设置、游戏进度</span>
+          <span class="section-note">备份所有数据，包含 API 配置等敏感信息</span>
         </div>
 
         <button type="button" class="primary-btn" :disabled="isBusy" @click="handleBackupExport">
@@ -174,7 +154,6 @@ const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 const gameStore = useGameStore()
 
-const selectedFormat = ref<'json' | 'markdown'>('json')
 const importMode = ref<'merge' | 'replace'>('merge')
 const activeDataView = ref<'export' | 'import'>('export')
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -291,9 +270,7 @@ async function handleStandardExport() {
 
   try {
     await runBusyTask('正在生成导出文件...', async () => {
-      const task = await exportService.exportStandard(
-        selectedFormat.value === 'json' ? 'json' : 'md'
-      )
+      const task = await exportService.exportStandard()
       await exportService.downloadTask(task)
     })
 

@@ -45,6 +45,7 @@ export const openaiCapabilities: ProviderCapabilities = {
   tts: true,
   stt: true,
   imageGeneration: true,
+  imageUnderstanding: true,
   videoGeneration: false,
   modelListing: true,
 }

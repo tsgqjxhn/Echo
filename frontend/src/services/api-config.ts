@@ -8,6 +8,7 @@ import { runtimeRequest } from './runtime-http'
 const STT_PATTERN = /(whisper|transcrib|paraformer|sensevoice|asr|sambert.*(stt|asr)|qwen.*audio.*asr)/i
 const TTS_PATTERN = /(\btts\b|\bspeech\b|cosyvoice|sambert|qwen.*tts|chat.?tts)/i
 const IMAGE_PATTERN = /(dall.?e|imagen|stable.?diffusion|\bsd[-_]|\bsdxl\b|flux|midjourney|seedream|wanx|cogview|kolors)/i
+const VISION_PATTERN = /(vision|gpt-4o|claude-3|gemini|grok|glm-4v|qwen-vl|yi-vl)/i
 const VIDEO_PATTERN = /(sora|veo|kling|cogvideo|seedance|wan2|runway|pika|hailuo|mochi)/i
 const CHAT_EXCLUDE_PATTERN = /(embedding|moderation|reranker|guard)/i
 
@@ -27,8 +28,11 @@ function filterModelsByType(models: string[], configType: APIConfigType): string
       return models.filter(id => TTS_PATTERN.test(id))
     case 'voice':
       return models.filter(id => isVoiceModel(id))
+    case 'image-gen':
     case 'image':
       return models.filter(id => IMAGE_PATTERN.test(id))
+    case 'image-understanding':
+      return models.filter(id => VISION_PATTERN.test(id))
     case 'video':
       return models.filter(id => VIDEO_PATTERN.test(id))
     case 'text':

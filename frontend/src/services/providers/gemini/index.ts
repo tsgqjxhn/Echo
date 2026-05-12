@@ -18,6 +18,7 @@ export const geminiAdapter: ProviderAdapter = {
 
   capabilities: {
     ...openaiCapabilities,
+    imageUnderstanding: true,
     videoGeneration: true,
   },
 

@@ -54,13 +54,35 @@ export interface EscapeActionResult extends GameActionResult {
 }
 
 /**
+ * 游戏消息通知类型
+ */
+export const GameNotificationType = {
+  STAMINA_FULL: 'stamina_full',
+} as const
+
+export type GameNotificationTypeValue = typeof GameNotificationType[keyof typeof GameNotificationType]
+
+/**
  * 游戏设置接口
  */
 export interface GameSettings {
   globalEnabled: boolean;      // 全局开关
   sessionEnabled: Record<string, boolean>;  // 会话开关
-  difficultyLevel: 'easy' | 'normal' | 'hard'; // 难度等级
-  baseSuccessRate: number;     // 基础成功率 (0-100)
+  globalSoundEnabled: boolean; // 全局音效开关
+  globalBgmEnabled: boolean;   // 全局背景音乐开关
+  damageDisplayEnabled: boolean; // 伤害显示开关
+  gameNotificationsEnabled: boolean; // 游戏消息推送开关
+  gameNotifications: string[]; // 已订阅的游戏消息类型列表
+}
+
+/**
+ * 游戏导出数据结构
+ */
+export interface GameExportData {
+  gameId: string;
+  saveData: any;
+  exportedAt: number;
+  version: string;
 }
 
 /**

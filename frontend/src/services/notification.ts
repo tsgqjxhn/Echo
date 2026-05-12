@@ -112,3 +112,27 @@ export async function notifyApp(payload: AppNotificationPayload): Promise<void> 
     notification.close()
   }
 }
+
+/**
+ * 发送游戏通知
+ * 仅在游戏消息推送开启且用户已订阅该类型时触发
+ * 通过直接读取 localStorage 避免循环依赖
+ */
+export function sendGameNotification(type: string, title: string, body: string): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    const raw = localStorage.getItem('xiang_game_settings')
+    if (!raw) return
+    const gameSettings = JSON.parse(raw) as {
+      gameNotificationsEnabled?: boolean
+      gameNotifications?: string[]
+    }
+    if (!gameSettings.gameNotificationsEnabled) return
+    if (!gameSettings.gameNotifications?.includes(type)) return
+  } catch {
+    return
+  }
+
+  notifyApp({ title, body, kind: 'game' })
+}

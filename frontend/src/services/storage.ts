@@ -24,8 +24,11 @@ export type { ThemeType }
 export interface GameSettings {
   globalEnabled: boolean
   sessionEnabled: Record<string, boolean>
-  difficultyLevel: 'easy' | 'normal' | 'hard'
-  baseSuccessRate: number
+  globalSoundEnabled: boolean
+  globalBgmEnabled: boolean
+  damageDisplayEnabled: boolean
+  gameNotificationsEnabled: boolean
+  gameNotifications: string[]
 }
 
 export interface StorageDriver {
@@ -295,8 +298,11 @@ export class LocalStorageDriver implements StorageDriver {
       return {
         globalEnabled: parsed.globalEnabled ?? true,
         sessionEnabled: parsed.sessionEnabled || {},
-        difficultyLevel: parsed.difficultyLevel ?? 'normal',
-        baseSuccessRate: parsed.baseSuccessRate ?? 50,
+        globalSoundEnabled: parsed.globalSoundEnabled ?? true,
+        globalBgmEnabled: parsed.globalBgmEnabled ?? true,
+        damageDisplayEnabled: parsed.damageDisplayEnabled ?? true,
+        gameNotificationsEnabled: parsed.gameNotificationsEnabled ?? true,
+        gameNotifications: parsed.gameNotifications ?? [],
       }
     } catch {
       return null

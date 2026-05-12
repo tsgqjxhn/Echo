@@ -11,6 +11,7 @@ const AudioEngine = {
     try { const C = window.AudioContext || window.webkitAudioContext; if (C) this.ctx = new C(); } catch (e) {}
   },
   _tone(f, d, v) {
+    if (window.__ddSoundEnabled === false) return;
     try { if (!this.ctx) return;
       const o = this.ctx.createOscillator(), g = this.ctx.createGain();
       o.connect(g); g.connect(this.ctx.destination);
@@ -21,6 +22,7 @@ const AudioEngine = {
     } catch(e) {}
   },
   _noise(f, d, v, ft) {
+    if (window.__ddSoundEnabled === false) return;
     try { if (!this.ctx) return;
       const len = this.ctx.sampleRate * d, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
@@ -33,6 +35,7 @@ const AudioEngine = {
     } catch(e) {}
   },
   _sweep(f1, f2, d, v) {
+    if (window.__ddSoundEnabled === false) return;
     try { if (!this.ctx) return;
       const o = this.ctx.createOscillator(), g = this.ctx.createGain();
       o.connect(g); g.connect(this.ctx.destination);
@@ -77,14 +80,20 @@ const BUILDING_DEFS = {
   ice_mage:     { name: '冰冻师',  baseCost: 150, color: '#88CCFF', hp: 70,  dmg: 15,  dmgInc: 5,  range: 3.5, rangeInc: 0.3, interval: 1.2, slow: 0.30 },
   bomber:       { name: '爆破塔',  baseCost: 200, color: '#FF6B35', hp: 70,  dmg: 8,   dmgInc: 3,  range: 2.5, rangeInc: 0.2, interval: 2.0, splash: 0.5, splashRange: 1 },
   sniper:       { name: '狙击塔',  baseCost: 250, color: '#9B59B6', hp: 50,  dmg: 30,  dmgInc: 8,  range: 4.5, rangeInc: 0.3, interval: 3.5, critRate: 0.30, critMult: 2 },
-  altar:        { name: '祭坛',    baseCost: 180, color: '#E74C3C', hp: 100, aspdAura: 0.15, speedAura: 0.10, auraRange: 2.5 }
+  altar:        { name: '祭坛',    baseCost: 180, color: '#E74C3C', hp: 100, aspdAura: 0.15, speedAura: 0.10, auraRange: 2.5 },
+  electric_coil:{ name: '电弧线圈', baseCost: 220, color: '#55C7FF', hp: 65,  dmg: 12,  dmgInc: 4,  range: 3.2, rangeInc: 0.25, interval: 1.4, chainCount: 2, chainDamage: 0.55, chainRange: 1.4 },
+  flame_turret: { name: '火焰喷灯', baseCost: 180, color: '#FF9A3D', hp: 75,  dmg: 6,   dmgInc: 2,  range: 2.2, rangeInc: 0.15, interval: 0.7, burn: 4, burnInc: 1.2, burnDuration: 3 },
+  purifier:     { name: '净化灯',  baseCost: 210, color: '#BFFBFF', hp: 60,  dmg: 18,  dmgInc: 5,  range: 3.8, rangeInc: 0.2, interval: 1.8, pierceReduction: 0.35 }
 };
+
+const ATTACK_BUILDING_TYPES = new Set(['tower', 'ice_mage', 'bomber', 'sniper', 'electric_coil', 'flame_turret', 'purifier']);
 
 const BASE_DOOR_HP = 150;
 const DOOR_UPGRADE_COST_BASE = 80;
 const MAX_LEVEL = 10;
 const PRESTIGE_COST_BASE = 1e6;
 const SAVE_KEY = 'dark_dorm_save_v1';
+const BASE_GOLD_INCOME = 2;
 
 /* ============================================================
    Level Wave Configurations
@@ -95,12 +104,12 @@ const LEVEL_WAVES = [
   [{ monsters: [{ type: 'ghost', count: 3 }] }, { monsters: [{ type: 'ghost', count: 2 }], delay: 8 }],
   [{ monsters: [{ type: 'ghost', count: 4 }] }, { monsters: [{ type: 'ghostfemale', count: 2 }], delay: 10 }],
   [{ monsters: [{ type: 'ghost', count: 3 }] }, { monsters: [{ type: 'zombie', count: 2 }], delay: 12 }],
-  [{ monsters: [{ type: 'ghost', count: 4 }] }, { monsters: [{ type: 'ghostfemale', count: 3 }], delay: 8 }, { monsters: [{ type: 'ghost', count: 3 }], delay: 16 }],
-  [{ monsters: [{ type: 'zombie', count: 3 }] }, { monsters: [{ type: 'ghostfemale', count: 3 }], delay: 10 }],
-  [{ monsters: [{ type: 'shadow', count: 2 }] }, { monsters: [{ type: 'ghost', count: 5 }], delay: 8 }],
-  [{ monsters: [{ type: 'ghostfemale', count: 4 }] }, { monsters: [{ type: 'zombie', count: 3 }], delay: 10 }, { monsters: [{ type: 'shadow', count: 2 }], delay: 18 }],
-  [{ monsters: [{ type: 'zombie', count: 4 }] }, { monsters: [{ type: 'shadow', count: 3 }], delay: 10 }, { monsters: [{ type: 'ghostfemale', count: 4 }], delay: 20 }],
-  [{ monsters: [{ type: 'ghost', count: 5 }] }, { monsters: [{ type: 'zombie', count: 4 }], delay: 8 }, { monsters: [{ type: 'shadow', count: 4 }, { type: 'ghostfemale', count: 3 }], delay: 16 }]
+  [{ monsters: [{ type: 'ghost', count: 4 }] }, { monsters: [{ type: 'ghostfemale', count: 2 }, { type: 'zombie_runner', count: 2 }], delay: 8 }, { monsters: [{ type: 'ghost', count: 3 }], delay: 16 }],
+  [{ monsters: [{ type: 'zombie', count: 2 }, { type: 'zombie_runner', count: 2 }] }, { monsters: [{ type: 'ghostfemale', count: 3 }], delay: 10 }],
+  [{ monsters: [{ type: 'shadow', count: 2 }] }, { monsters: [{ type: 'zombie_toxic', count: 2 }, { type: 'ghost', count: 4 }], delay: 8 }],
+  [{ monsters: [{ type: 'ghostfemale', count: 4 }] }, { monsters: [{ type: 'zombie_brute', count: 1 }, { type: 'zombie', count: 2 }], delay: 10 }, { monsters: [{ type: 'shadow', count: 2 }, { type: 'zombie_toxic', count: 2 }], delay: 18 }],
+  [{ monsters: [{ type: 'zombie_brute', count: 2 }, { type: 'zombie', count: 3 }] }, { monsters: [{ type: 'shadow', count: 3 }, { type: 'zombie_runner', count: 3 }], delay: 10 }, { monsters: [{ type: 'ghostfemale', count: 4 }, { type: 'zombie_toxic', count: 2 }], delay: 20 }],
+  [{ monsters: [{ type: 'ghost', count: 5 }, { type: 'zombie_runner', count: 3 }] }, { monsters: [{ type: 'zombie_brute', count: 2 }, { type: 'zombie', count: 3 }], delay: 8 }, { monsters: [{ type: 'shadow', count: 4 }, { type: 'ghostfemale', count: 3 }, { type: 'zombie_toxic', count: 3 }], delay: 16 }]
 ];
 
 function defaultSave() {
@@ -108,7 +117,7 @@ function defaultSave() {
 }
 
 function loadSave() {
-  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) { const d = JSON.parse(raw); return Object.assign(defaultSave(), d); } } catch (_) {}
+  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) { const d = JSON.parse(raw); const data = Object.assign(defaultSave(), d); data.prestigeUpgrades = { goldMult: 0, doorHp: 0, towerDmg: 0, ...(data.prestigeUpgrades || {}) }; return data; } } catch (_) {}
   return defaultSave();
 }
 
@@ -152,7 +161,7 @@ class Building {
     const def = BUILDING_DEFS[type];
     this.maxHp = def.hp; this.hp = this.maxHp;
     this.totalInvested = def.baseCost;
-    this.fireTimer = 0; this.incomeTimer = 0; this.animTimer = 0; this.upgradeTimer = 0;
+    this.fireTimer = 0; this.incomeTimer = 0; this.animTimer = 0; this.upgradeTimer = 0; this.target = null;
     this.prestigeUpgrades = prestigeUpgrades || { towerDmg: 0 };
   }
   getUpgradeCost() { return Math.floor(BUILDING_DEFS[this.type].baseCost * Math.pow(1.6, this.level - 1)); }
@@ -167,6 +176,12 @@ class Building {
   getSplashRange() { return BUILDING_DEFS[this.type].splashRange || 0; }
   getCritRate() { return BUILDING_DEFS[this.type].critRate || 0; }
   getCritMult() { return BUILDING_DEFS[this.type].critMult || 1; }
+  getChainCount() { return BUILDING_DEFS[this.type].chainCount || 0; }
+  getChainDamage() { return BUILDING_DEFS[this.type].chainDamage || 0; }
+  getChainRange() { return BUILDING_DEFS[this.type].chainRange || 0; }
+  getBurnDamage() { return (BUILDING_DEFS[this.type].burn || 0) + (this.level - 1) * (BUILDING_DEFS[this.type].burnInc || 0); }
+  getBurnDuration() { return BUILDING_DEFS[this.type].burnDuration || 0; }
+  getPierceReduction() { return BUILDING_DEFS[this.type].pierceReduction || 0; }
   getBoostMultiplier() {
     if (this.type !== 'generator') return 0;
     return BUILDING_DEFS.generator.boost + (this.level - 1) * 0.08;
@@ -190,6 +205,7 @@ class Monster {
     this.retreatThreshold = 0.08; this.retreatRegen = 0.04;
     this.damageReduction = 0; this.type = 'ghost';
     this.flashTimer = 0; this.slowTimer = 0; this.slowFactor = 1;
+    this.burnTimer = 0; this.burnDps = 0;
     this.deadTimer = 0; this.animFrame = 0; this.animTimer2 = 0;
     this._initStats();
     this.hp = this.maxHp;
@@ -205,6 +221,16 @@ class Monster {
     if (this.state === MonsterState.DEAD) { this.deadTimer += dt; return; }
     this.flashTimer = Math.max(0, this.flashTimer - dt);
     if (this.slowTimer > 0) { this.slowTimer -= dt; if (this.slowTimer <= 0) this.slowFactor = 1; }
+    if (this.burnTimer > 0) {
+      this.burnTimer -= dt;
+      this.hp -= this.burnDps * dt;
+      this.flashTimer = Math.max(this.flashTimer, 0.05);
+      if (this.hp <= 0) {
+        this.hp = 0; this.state = MonsterState.DEAD; this.deadTimer = 0;
+        game._onMonsterKill(this);
+        return;
+      }
+    }
     // Apply altar slow aura globally via game calculation, handled separately
     if (this.state === MonsterState.MOVING) {
       const s = this.getEffectiveSpeed() * game.getGlobalMonsterSpeedMult();
@@ -240,6 +266,7 @@ class Monster {
     return false;
   }
   applySlow(factor, duration) { if (factor < this.slowFactor) { this.slowFactor = factor; this.slowTimer = duration; } }
+  applyBurn(dps, duration) { if (dps >= this.burnDps || duration > this.burnTimer) { this.burnDps = Math.max(this.burnDps, dps); this.burnTimer = Math.max(this.burnTimer, duration); } }
 }
 
 class Ghost extends Monster {
@@ -261,11 +288,44 @@ class GhostFemale extends Monster {
 }
 
 class ZombieGhost extends Monster {
-  constructor(wave, difficultyMult, level) { super(wave, difficultyMult); this.type = 'zombie'; this.zombieLevel = level || 1; }
+  constructor(wave, difficultyMult, level) { super(wave, difficultyMult); this.type = 'zombie'; this.zombieLevel = level || 1; this.damageReduction = Math.min(0.30 + this.zombieLevel * 0.02, 0.50); }
   _initStats() {
     super._initStats(); this.maxHp *= 2; this.atk *= 0.8; this.speed = 1.4;
-    this.damageReduction = Math.min(0.30 + this.zombieLevel * 0.02, 0.50);
+    const level = this.zombieLevel || 1;
+    this.damageReduction = Math.min(0.30 + level * 0.02, 0.50);
     this.retreatRegen = 0.05 + Math.min((this.wave - 1) * 0.005, 0.15);
+  }
+}
+
+class ZombieRunner extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'zombie_runner'; }
+  _initStats() {
+    super._initStats();
+    this.maxHp *= 0.75; this.atk *= 1.15; this.speed = 2.45;
+    this.damageReduction = 0.10; this.retreatThreshold = 0.12; this.retreatRegen = 0.03;
+  }
+}
+
+class ZombieBrute extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'zombie_brute'; }
+  _initStats() {
+    super._initStats();
+    this.maxHp *= 3.1; this.atk *= 1.45; this.speed = 0.95;
+    this.damageReduction = 0.45; this.attackInterval = 1.15; this.retreatThreshold = 0.05; this.retreatRegen = 0.035;
+  }
+}
+
+class ZombieToxic extends Monster {
+  constructor(wave, difficultyMult) { super(wave, difficultyMult); this.type = 'zombie_toxic'; }
+  _initStats() {
+    super._initStats();
+    this.maxHp *= 1.45; this.atk *= 0.9; this.speed = 1.35;
+    this.damageReduction = 0.22; this.retreatRegen = 0.045;
+  }
+  _attackDoor(game) {
+    super._attackDoor(game);
+    game.damageDoor(Math.max(2, this.atk * 0.25));
+    game.addParticle(this.pos.x * TILE_SIZE + TILE_SIZE / 2, this.pos.y * TILE_SIZE + TILE_SIZE / 2, '#baff3d', 0.8);
   }
 }
 
@@ -298,18 +358,44 @@ class ShadowGhost extends Monster {
    Projectile
    ============================================================ */
 class Projectile {
-  constructor(from, to, damage, type, extra) {
+  constructor(from, to, damage, type, extra, target = null) {
     this.from = { ...from }; this.to = { ...to }; this.damage = damage; this.type = type;
-    this.pos = { ...from }; this.speed = 10; this.dead = false; this.extra = extra || {};
-    const dx = to.x - from.x, dy = to.y - from.y;
+    this.pos = { x: from.x * TILE_SIZE, y: from.y * TILE_SIZE }; this.speed = 20; this.dead = false; this.extra = extra || {};
+    this.target = target;
+    const toCx = to.x + 0.5, toCy = to.y + 0.5;
+    const dx = toCx - from.x, dy = toCy - from.y;
     const d = Math.hypot(dx, dy) || 1;
     this.vel = { x: (dx / d) * this.speed, y: (dy / d) * this.speed };
   }
   update(dt) {
+    const lastPos = { x: this.pos.x, y: this.pos.y };
+    if (this.target && this.target.state !== MonsterState.DEAD) {
+      this.to = { ...this.target.pos };
+      this.from = { x: this.pos.x / TILE_SIZE, y: this.pos.y / TILE_SIZE };
+      const targetCx = this.to.x + 0.5, targetCy = this.to.y + 0.5;
+      const dx = targetCx - this.from.x, dy = targetCy - this.from.y;
+      const d = Math.hypot(dx, dy) || 1;
+      this.vel = { x: (dx / d) * this.speed, y: (dy / d) * this.speed };
+    }
     this.pos.x += this.vel.x * TILE_SIZE * dt; this.pos.y += this.vel.y * TILE_SIZE * dt;
-    const dx = this.to.x * TILE_SIZE + TILE_SIZE / 2 - this.pos.x;
-    const dy = this.to.y * TILE_SIZE + TILE_SIZE / 2 - this.pos.y;
-    if (Math.hypot(dx, dy) < 10) this.dead = true;
+    const targetPxX = (this.to.x + 0.5) * TILE_SIZE;
+    const targetPxY = (this.to.y + 0.5) * TILE_SIZE;
+    const dx = targetPxX - this.pos.x;
+    const dy = targetPxY - this.pos.y;
+    const distNow = Math.hypot(dx, dy);
+    if (distNow < 10) {
+      this.dead = true;
+    } else {
+      const dxLast = targetPxX - lastPos.x;
+      const dyLast = targetPxY - lastPos.y;
+      const distLast = Math.hypot(dxLast, dyLast);
+      const maxMovePerFrame = this.speed * TILE_SIZE * dt;
+      if (distNow > distLast && distLast < maxMovePerFrame * 1.5) {
+        this.dead = true;
+        this.pos.x = targetPxX;
+        this.pos.y = targetPxY;
+      }
+    }
   }
 }
 
@@ -329,8 +415,8 @@ class Particle {
    ============================================================ */
 class WaveManager {
   constructor(game) { this.game = game; this.wave = 0; this.subWaves = []; this.active = false; this.spawnQueue = []; this.spawnTimer = 0; this.countdown = 0; this.totalMonstersThisWave = 0; this.killedThisWave = 0; }
-  startLevelWave(level) { this.wave = 1; this.active = true; this.killedThisWave = 0; this._prepareSubWaves(LEVEL_WAVES[level]); }
-  startEndlessWave(wave) { this.wave = wave; this.active = true; this.killedThisWave = 0; const cfg = this._generateEndless(wave); this._prepareSubWaves(cfg); }
+  startLevelWave(level) { this.wave = level; this.active = true; this.killedThisWave = 0; this.countdown = 30 + (level - 1) * 5; this._prepareSubWaves(LEVEL_WAVES[level]); }
+  startEndlessWave(wave) { this.wave = wave; this.active = true; this.killedThisWave = 0; this.countdown = 30 + (wave - 1) * 5; const cfg = this._generateEndless(wave); this._prepareSubWaves(cfg); }
   _prepareSubWaves(cfg) { this.subWaves = []; this.spawnQueue = []; this.totalMonstersThisWave = 0;
     let baseDelay = 0;
     for (const sw of cfg) {
@@ -344,11 +430,11 @@ class WaveManager {
     const diff = window.__difficultyMonsterMult || 1;
     let monsters = [];
     if (wave <= 3) { monsters = [{ type: 'ghost', count: 2 + wave }]; }
-    else if (wave <= 6) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }]; }
-    else if (wave <= 9) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }, { type: 'shadow', count: Math.floor(wave / 3) }]; }
+    else if (wave <= 6) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }, { type: 'zombie_runner', count: Math.max(1, wave - 4) }]; }
+    else if (wave <= 9) { monsters = [{ type: 'ghost', count: 3 + wave }, { type: 'zombie', count: 1 + Math.floor(wave / 2) }, { type: 'zombie_runner', count: Math.floor(wave / 2) }, { type: 'zombie_toxic', count: Math.floor(wave / 3) }, { type: 'shadow', count: Math.floor(wave / 3) }]; }
     else {
       const density = Math.min(3 + Math.floor((wave - 10) / 2), 8);
-      monsters = [{ type: 'ghost', count: density + 2 }, { type: 'zombie', count: density }, { type: 'shadow', count: Math.floor(density / 2) }, { type: 'ghostfemale', count: Math.floor(density / 2) }];
+      monsters = [{ type: 'ghost', count: density + 2 }, { type: 'zombie', count: density }, { type: 'zombie_runner', count: density }, { type: 'zombie_toxic', count: Math.floor(density * 0.75) }, { type: 'zombie_brute', count: Math.max(1, Math.floor(density / 3)) }, { type: 'shadow', count: Math.floor(density / 2) }, { type: 'ghostfemale', count: Math.floor(density / 2) }];
     }
     // Split into up to 3 sub-waves
     const result = [];
@@ -361,8 +447,20 @@ class WaveManager {
   }
   update(dt) {
     if (!this.active) return;
-    // Countdown before first spawn
-    if (this.countdown > 0) { this.countdown -= dt; this.game.ui.setWaveInfoText('下一波 ' + Math.ceil(this.countdown) + 's'); return; }
+    // Countdown before first spawn (DAY preparation)
+    if (this.countdown > 0) {
+      this.countdown -= dt;
+      const remaining = Math.max(0, Math.ceil(this.countdown));
+      this.game.ui.setWaveInfoText('白天准备中 ' + remaining + 's');
+      this.game.ui.setCountdown(remaining + 's');
+      if (this.countdown <= 0) {
+        this.game.phase = Phase.NIGHT;
+        const label = this.game.mode === GameMode.LEVELS ? ('第 ' + this.game.currentLevel + ' 关开始') : ('第 ' + this.wave + ' 夜');
+        this.game.ui.showWaveBanner(label);
+        AudioEngine.playWaveStart();
+      }
+      return;
+    }
     // Spawn logic
     for (const sw of this.subWaves) {
       if (sw.spawned) continue;
@@ -392,6 +490,9 @@ class WaveManager {
     switch (type) {
       case 'ghostfemale': m = new GhostFemale(this.wave, diff); break;
       case 'zombie': m = new ZombieGhost(this.wave, diff, this.game.currentLevel || 1); break;
+      case 'zombie_runner': m = new ZombieRunner(this.wave, diff); break;
+      case 'zombie_brute': m = new ZombieBrute(this.wave, diff); break;
+      case 'zombie_toxic': m = new ZombieToxic(this.wave, diff); break;
       case 'shadow': m = new ShadowGhost(this.wave, diff); break;
       default: m = new Ghost(this.wave, diff);
     }
@@ -407,12 +508,45 @@ class WaveManager {
    Renderer
    ============================================================ */
 class Renderer {
-  constructor(canvas) { this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.nightAlpha = 0; }
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.nightAlpha = 0;
+    this.monsterImgs = {};
+    this.buildingImgs = {};
+    this.wallPattern = null;
+    const monsterImgMap = { ghost: './assets/sprites/ghost_portrait.webp', ghostfemale: './assets/sprites/ghostfemale_portrait.webp', zombie: './assets/sprites/zombie_portrait.webp', zombie_runner: './assets/sprites/ghost_variant_zombie_runner.webp', zombie_brute: './assets/sprites/ghost_variant_zombie_brute.webp', zombie_toxic: './assets/sprites/ghost_variant_zombie_toxic.webp', shadow: './assets/sprites/shadow_portrait.webp' };
+    for (const type in monsterImgMap) { const img = new Image(); img.onerror = () => { console.warn('Failed to load monster sprite:', type, monsterImgMap[type]); }; img.src = monsterImgMap[type]; this.monsterImgs[type] = img; }
+    const buildingImgMap = { bed: './assets/buildings/building_bed.webp', tower: './assets/buildings/building_tower.webp', generator: './assets/buildings/building_generator.webp', repairman: './assets/buildings/building_repairman.webp', ice_mage: './assets/buildings/building_ice_mage.webp', bomber: './assets/buildings/building_bomber.webp', sniper: './assets/buildings/building_sniper.webp', altar: './assets/buildings/building_altar.webp', electric_coil: './assets/buildings/building_electric_coil.webp', flame_turret: './assets/buildings/building_flame_turret.webp', purifier: './assets/buildings/building_purifier.webp' };
+    for (const type in buildingImgMap) { const img = new Image(); img.onerror = () => { console.warn('Failed to load building sprite:', type, buildingImgMap[type]); }; img.src = buildingImgMap[type]; this.buildingImgs[type] = img; }
+    this._createWallPattern();
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+  }
+  _createWallPattern() {
+    const size = 48;
+    const off = document.createElement('canvas');
+    off.width = size; off.height = size;
+    const octx = off.getContext('2d');
+    // base grey
+    octx.fillStyle = '#808080';
+    octx.fillRect(0, 0, size, size);
+    // random gravel dots and rects
+    const shades = ['#666666', '#999999', '#555555', '#aaaaaa', '#777777'];
+    for (let i = 0; i < 28; i++) {
+      octx.fillStyle = shades[Math.floor(Math.random() * shades.length)];
+      const w = 1 + Math.random() * 3;
+      const h = 1 + Math.random() * 3;
+      const x = Math.random() * (size - w);
+      const y = Math.random() * (size - h);
+      if (Math.random() < 0.5) { octx.fillRect(x, y, w, h); }
+      else { octx.beginPath(); octx.arc(x, y, Math.max(1, w / 2), 0, Math.PI * 2); octx.fill(); }
+    }
+    this.wallPattern = this.ctx.createPattern(off, 'repeat');
+  }
   resize() {
-    const wrap = document.getElementById('canvas-wrap');
-    const w = Math.min(wrap.clientWidth, MAP_COLS * TILE_SIZE);
-    const h = Math.min(wrap.clientHeight, MAP_ROWS * TILE_SIZE);
-    this.canvas.width = w; this.canvas.height = h;
+    this.canvas.width = MAP_COLS * TILE_SIZE;
+    this.canvas.height = MAP_ROWS * TILE_SIZE;
   }
   clear() { this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); }
   drawMap(game) {
@@ -421,10 +555,15 @@ class Renderer {
       for (let c = 0; c < MAP_COLS; c++) {
         const t = game.map.getTile(c, r);
         const x = c * TILE_SIZE, y = r * TILE_SIZE;
-        if (t === Tile.WALL) { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#2a2a4a'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
-        else if (t === Tile.FLOOR) { ctx.fillStyle = '#252540'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#333355'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
-        else if (t === Tile.DOOR) { ctx.fillStyle = '#5a3a1a'; ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); ctx.fillStyle = '#8b6914'; ctx.fillRect(x + 8, y + 10, TILE_SIZE - 16, TILE_SIZE - 20); ctx.strokeStyle = '#aa8844'; ctx.strokeRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); }
-        else if (t === Tile.CORRIDOR) { ctx.fillStyle = '#1e1e30'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#2a2a45'; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
+        if (t === Tile.WALL) {
+          if (this.wallPattern) { ctx.fillStyle = this.wallPattern; } else { ctx.fillStyle = '#808080'; }
+          ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+          ctx.strokeStyle = '#555555'; ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        }
+        else if (t === Tile.FLOOR) { ctx.fillStyle = '#C4956A'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#a87b56'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
+        else if (t === Tile.DOOR) { ctx.fillStyle = '#6b5b4f'; ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); ctx.fillStyle = '#8b7355'; ctx.fillRect(x + 8, y + 10, TILE_SIZE - 16, TILE_SIZE - 20); ctx.strokeStyle = '#a09080'; ctx.lineWidth = 1; ctx.strokeRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4); }
+        else if (t === Tile.CORRIDOR) { ctx.fillStyle = '#0d1b3e'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.strokeStyle = '#1a2a55'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, TILE_SIZE - 1, TILE_SIZE - 1); }
       }
     }
   }
@@ -433,8 +572,13 @@ class Renderer {
     for (const b of game.buildings) {
       const x = b.pos.x * TILE_SIZE, y = b.pos.y * TILE_SIZE;
       const def = BUILDING_DEFS[b.type];
-      ctx.fillStyle = def.color; ctx.fillRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
-      ctx.strokeStyle = '#fff8'; ctx.strokeRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+      const img = this.buildingImgs[b.type];
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, x + 5, y + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+      } else {
+        ctx.fillStyle = def.color; ctx.fillRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+        ctx.strokeStyle = '#fff8'; ctx.strokeRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+      }
       // Level badge
       ctx.fillStyle = '#000a'; ctx.fillRect(x + 6, y + 6, 14, 14);
       ctx.fillStyle = '#fff'; ctx.font = '10px sans-serif'; ctx.fillText(String(b.level), x + 9, y + 17);
@@ -447,27 +591,50 @@ class Renderer {
   }
   drawMonsters(game) {
     const ctx = this.ctx;
+    const monsterSizes = { ghost: 36, ghostfemale: 36, zombie: 38, zombie_runner: 36, zombie_brute: 48, zombie_toxic: 38, shadow: 36 };
     for (const m of game.monsters) {
       if (m.state === MonsterState.DEAD) continue;
       const cx = m.pos.x * TILE_SIZE + TILE_SIZE / 2;
       const cy = m.pos.y * TILE_SIZE + TILE_SIZE / 2;
-      const color = m.type === 'ghost' ? '#ccf' : m.type === 'ghostfemale' ? '#f8c' : m.type === 'zombie' ? '#8f8' : '#a6f';
-      if (m.flashTimer > 0) ctx.fillStyle = '#fff';
-      else ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-      // Eyes
-      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx - 3, cy - 2, 2, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 3, cy - 2, 2, 0, Math.PI * 2); ctx.fill();
-      // HP bar
+      const img = this.monsterImgs[m.type];
+      const size = monsterSizes[m.type] || 36;
+      let drawn = false;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+        drawn = true;
+      }
+      if (!drawn) {
+        // Fallback: procedural drawing
+        const colors = { ghost: '#ccf', ghostfemale: '#f8c', zombie: '#8f8', zombie_runner: '#b6ff86', zombie_brute: '#d0ff9c', zombie_toxic: '#c7ff4a', shadow: '#a6f' };
+        const color = colors[m.type] || '#ccf';
+        const radius = size / 3;
+        // Body
+        ctx.fillStyle = m.flashTimer > 0 ? '#fff' : color;
+        ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+        // Glow effect
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(cx, cy, radius + 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        // Eyes
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(cx - radius * 0.3, cy - radius * 0.15, radius * 0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + radius * 0.3, cy - radius * 0.15, radius * 0.15, 0, Math.PI * 2); ctx.fill();
+      }
+      // HP bar (positioned relative to monster size)
       const hpPct = m.hp / m.maxHp;
-      ctx.fillStyle = '#333'; ctx.fillRect(cx - 12, cy - 18, 24, 4);
+      const barW = size * 0.7;
+      const barY = cy - size / 2 - 6;
+      ctx.fillStyle = '#333'; ctx.fillRect(cx - barW / 2, barY, barW, 4);
       ctx.fillStyle = hpPct > 0.5 ? '#4a4' : hpPct > 0.25 ? '#cc4' : '#c44';
-      ctx.fillRect(cx - 12, cy - 18, 24 * hpPct, 4);
+      ctx.fillRect(cx - barW / 2, barY, barW * hpPct, 4);
     }
   }
   drawProjectiles(game) {
     const ctx = this.ctx;
     for (const p of game.projectiles) {
-      ctx.fillStyle = p.type === 'ice' ? '#8cf' : p.type === 'sniper' ? '#a6f' : p.type === 'bomber' ? '#f84' : '#ff4';
+      ctx.fillStyle = p.type === 'ice' ? '#8cf' : p.type === 'sniper' ? '#a6f' : p.type === 'bomber' ? '#f84' : p.type === 'electric' ? '#74e8ff' : p.type === 'flame' ? '#ffb13d' : p.type === 'purifier' ? '#dfffff' : '#ff4';
       ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, 4, 0, Math.PI * 2); ctx.fill();
     }
   }
@@ -526,6 +693,7 @@ class UIController {
     this.waveInfo = document.getElementById('wave-info');
     this.waveInfoText = document.getElementById('wave-info-text');
     this.buildMenu = document.getElementById('build-menu');
+    this.buildMenuToggle = document.getElementById('build-menu-toggle');
     this.infoPanel = document.getElementById('info-panel');
     this.infoName = document.getElementById('info-name');
     this.infoStats = document.getElementById('info-stats');
@@ -571,6 +739,11 @@ class UIController {
     this.monsterHudList = document.getElementById('monster-hud-list');
     this.codexScreen = document.getElementById('codex-screen');
     this.tutorialOverlay = document.getElementById('tutorial-overlay');
+    this.settingsScreen = document.getElementById('settings-screen');
+    this.settingsBgm = document.getElementById('settings-bgm');
+    this.settingsDifficulty = document.getElementById('settings-difficulty');
+    this.settingsClose = document.getElementById('settings-close');
+    this.settingsBtn = document.getElementById('settings-btn');
   }
   _bindEvents() {
     this.startLevelsBtn && this.startLevelsBtn.addEventListener('click', () => this.showLevelSelect());
@@ -586,6 +759,7 @@ class UIController {
     this.upgradeBtn && this.upgradeBtn.addEventListener('click', () => this.game.upgradeSelected());
     this.sellBtn && this.sellBtn.addEventListener('click', () => this.game.sellSelected());
     document.getElementById('upgrade-door-btn') && document.getElementById('upgrade-door-btn').addEventListener('click', () => this.game.upgradeDoor());
+    if (this.buildMenuToggle) this.buildMenuToggle.addEventListener('click', () => this.toggleBuildMenuExpanded());
     document.querySelectorAll('.build-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => { this.setBuildType(btn.dataset.type); });
     });
@@ -598,6 +772,10 @@ class UIController {
     if (codexClose) codexClose.addEventListener('click', () => this.hideCodex());
     const tutorialClose = document.getElementById('tutorial-close');
     if (tutorialClose) tutorialClose.addEventListener('click', () => this.hideTutorial());
+    if (this.settingsBtn) this.settingsBtn.addEventListener('click', () => this.openSettings());
+    if (this.settingsClose) this.settingsClose.addEventListener('click', () => this.closeSettings());
+    if (this.settingsBgm) this.settingsBgm.addEventListener('change', () => this._applySettings());
+    if (this.settingsDifficulty) this.settingsDifficulty.addEventListener('change', () => this._applySettings());
   }
   setGold(v) { if (this.goldDisplay) this.goldDisplay.textContent = String(Math.floor(v)); if (this.infoBarGold) this.infoBarGold.textContent = String(Math.floor(v)); }
   setDoorHp(cur, max) {
@@ -609,6 +787,15 @@ class UIController {
   setCountdown(t) { if (this.infoBarCountdown) this.infoBarCountdown.textContent = t; }
   showBuildMenu() { this.buildMenu && this.buildMenu.classList.remove('hidden'); }
   hideBuildMenu() { this.buildMenu && this.buildMenu.classList.add('hidden'); }
+  toggleBuildMenuExpanded() {
+    if (!this.buildMenu) return;
+    const expanded = this.buildMenu.classList.toggle('expanded');
+    if (this.buildMenuToggle) {
+      this.buildMenuToggle.textContent = expanded ? '收起' : '展开';
+      this.buildMenuToggle.title = expanded ? '收起建筑栏' : '展开建筑栏';
+      this.buildMenuToggle.setAttribute('aria-label', expanded ? '收起建筑栏' : '展开建筑栏');
+    }
+  }
   showPlayerInfo() { this.playerInfo && this.playerInfo.classList.remove('hidden'); this.waveInfo && this.waveInfo.classList.remove('hidden'); this.infoBar && this.infoBar.classList.remove('hidden'); }
   hidePlayerInfo() { this.playerInfo && this.playerInfo.classList.add('hidden'); this.waveInfo && this.waveInfo.classList.add('hidden'); this.infoBar && this.infoBar.classList.add('hidden'); }
   showMenu() { this.menuScreen && this.menuScreen.classList.remove('hidden'); this.hideBuildMenu(); this.hidePlayerInfo(); this.hideInfoPanel(); this._refreshResumeBtn(); }
@@ -626,7 +813,7 @@ class UIController {
     setTimeout(() => this.waveBanner.classList.add('hidden'), 2000);
   }
   showWaveComplete(wave, bonus, doorHp, doorMax, gold) {
-    this.wcTitle && (this.wcTitle.textContent = '第 ' + wave + ' 夜完成!');
+    this.wcTitle && (this.wcTitle.textContent = typeof wave === 'string' ? wave : '第 ' + wave + ' 夜完成!');
     this.wcBonus && (this.wcBonus.textContent = String(bonus));
     this.wcDoorHp && (this.wcDoorHp.textContent = Math.ceil(doorHp) + '/' + Math.ceil(doorMax));
     this.wcGold && (this.wcGold.textContent = String(Math.floor(gold)));
@@ -645,6 +832,9 @@ class UIController {
     else if (building.type === 'bomber') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n溅射: ' + (building.getSplash() * 100).toFixed(0) + '%\n';
     else if (building.type === 'sniper') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n暴击: ' + (building.getCritRate() * 100).toFixed(0) + '%\n';
     else if (building.type === 'altar') stats += '攻速 aura: +' + (building.getAuraASPD() * 100).toFixed(0) + '%\n减速 aura: -' + (building.getAuraSpeed() * 100).toFixed(0) + '%\n';
+    else if (building.type === 'electric_coil') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n连锁: ' + building.getChainCount() + ' 个\n';
+    else if (building.type === 'flame_turret') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n燃烧: ' + building.getBurnDamage().toFixed(1) + '/s\n';
+    else if (building.type === 'purifier') stats += '伤害: ' + building.getDamage() + '\n射程: ' + building.getRange().toFixed(1) + '\n穿透减伤: ' + (building.getPierceReduction() * 100).toFixed(0) + '%\n';
     this.infoName && (this.infoName.textContent = def.name + ' Lv.' + building.level);
     this.infoStats && (this.infoStats.textContent = stats.trim());
     const cost = building.getUpgradeCost();
@@ -667,10 +857,13 @@ class UIController {
   closePrestigeShop() { this.prestigeShop && this.prestigeShop.classList.add('hidden'); }
   _refreshShopItems() {
     const ups = this.game.saveData.prestigeUpgrades;
+    const gainMap = { goldMult: 10, doorHp: 20, towerDmg: 15 };
     this.shopItems && this.shopItems.forEach(item => {
       const key = item.dataset.upgrade;
       const level = ups[key] || 0;
-      item.querySelector('.shop-level').textContent = '(' + level + ')';
+      const gain = (gainMap[key] || 0) * (level + 1);
+      const totalGain = (gainMap[key] || 0) * level;
+      item.querySelector('.shop-level').textContent = '当前增益: +' + totalGain + '%';
       const costs = { goldMult: 5, doorHp: 3, towerDmg: 4 };
       const cost = costs[key];
       const btn = item.querySelector('.buy-btn');
@@ -697,6 +890,16 @@ class UIController {
       this.levelGrid.appendChild(btn);
     }
     this.menuContent.classList.add('hidden'); this.levelSelectScreen.classList.remove('hidden');
+    // Ensure settings button exists in level select
+    if (!document.getElementById('level-select-settings-btn')) {
+      const settingsBtn = document.createElement('button');
+      settingsBtn.id = 'level-select-settings-btn';
+      settingsBtn.className = 'menu-btn secondary';
+      settingsBtn.textContent = '设置';
+      settingsBtn.style.marginTop = '8px';
+      settingsBtn.addEventListener('click', () => this.openSettings());
+      this.levelSelectScreen.appendChild(settingsBtn);
+    }
   }
   hideLevelSelect() { this.levelSelectScreen.classList.add('hidden'); this.menuContent.classList.remove('hidden'); }
   onSelectLevel(level) { this.game.startLevel(level); }
@@ -711,6 +914,28 @@ class UIController {
   hideCodex() { if (this.codexScreen) this.codexScreen.classList.add('hidden'); }
   showTutorial() { if (this.tutorialOverlay) this.tutorialOverlay.classList.remove('hidden'); }
   hideTutorial() { if (this.tutorialOverlay) this.tutorialOverlay.classList.add('hidden'); }
+  openSettings() {
+    if (!this.settingsScreen) return;
+    try {
+      const raw = localStorage.getItem('xiang_game_settings');
+      const s = raw ? JSON.parse(raw) : {};
+      if (this.settingsBgm) this.settingsBgm.checked = s.bgm !== false;
+      if (this.settingsDifficulty) this.settingsDifficulty.value = s.difficultyLevel || 'normal';
+    } catch (_) {}
+    this.settingsScreen.classList.remove('hidden');
+  }
+  closeSettings() { if (this.settingsScreen) this.settingsScreen.classList.add('hidden'); }
+  _applySettings() {
+    try {
+      const s = {
+        bgm: this.settingsBgm ? this.settingsBgm.checked : true,
+        difficultyLevel: this.settingsDifficulty ? this.settingsDifficulty.value : 'normal'
+      };
+      localStorage.setItem('xiang_game_settings', JSON.stringify(s));
+      window.__difficultyMonsterMult = s.difficultyLevel === 'easy' ? 0.5 : s.difficultyLevel === 'hard' ? 2 : 1;
+      window.__difficultyRewardMult = s.difficultyLevel === 'easy' ? 0.5 : s.difficultyLevel === 'hard' ? 2 : 1;
+    } catch (_) {}
+  }
   updateMonsterPreview() {
     if (!this.monsterPreview) return;
     // Show upcoming monster types in current/next wave
@@ -735,7 +960,7 @@ class UIController {
     }
   }
   _monsterName(type) {
-    const map = { ghost: '幽灵', ghostfemale: '女鬼', zombie: '丧尸', shadow: '暗影' };
+    const map = { ghost: '幽灵', ghostfemale: '女鬼', zombie: '丧尸', zombie_runner: '奔袭丧尸', zombie_brute: '巨臂丧尸', zombie_toxic: '腐毒丧尸', shadow: '暗影' };
     return map[type] || type;
   }
 }
@@ -793,7 +1018,7 @@ class DarkDormGame {
   _addBuilding(type, c, r) {
     const b = new Building(type, { x: c, y: r }, this.saveData.prestigeUpgrades);
     // Apply door HP prestige
-    if (type === 'bed' || type === 'tower' || type === 'repairman' || type === 'ice_mage' || type === 'bomber' || type === 'sniper' || type === 'altar') {
+    if (type === 'bed' || type === 'tower' || type === 'repairman' || type === 'ice_mage' || type === 'bomber' || type === 'sniper' || type === 'altar' || type === 'electric_coil' || type === 'flame_turret' || type === 'purifier') {
       b.maxHp = Math.floor(b.maxHp * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20));
       b.hp = b.maxHp;
     }
@@ -832,8 +1057,8 @@ class DarkDormGame {
     this.maxGold = this.gold; this.doorHp = BASE_DOOR_HP * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20); this.doorMaxHp = this.doorHp; this.doorLevel = 1;
     this.buildings = []; this.monsters = []; this.projectiles = []; this.particles = [];
     this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
-    this.ui.showWaveBanner('第 ' + level + ' 关 - 准备就绪');
-    this._startWave(level);
+    this.ui.showWaveBanner('第 ' + level + ' 关 - 白天准备');
+    this.waveManager.startLevelWave(level);
     if (!this.running) this.startLoop();
     if (this._firstRun) { this._firstRun = false; this.ui.showTutorial(); }
   }
@@ -843,8 +1068,8 @@ class DarkDormGame {
     this.maxGold = this.gold; this.doorHp = BASE_DOOR_HP * (1 + this.saveData.prestigeUpgrades.doorHp * 0.20); this.doorMaxHp = this.doorHp; this.doorLevel = 1;
     this.buildings = []; this.monsters = []; this.projectiles = []; this.particles = [];
     this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
-    this.ui.showWaveBanner('无尽模式 - 第 1 夜');
-    this.waveManager.startEndlessWave(1); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+    this.ui.showWaveBanner('无尽模式 - 白天准备');
+    this.waveManager.startEndlessWave(1);
     if (!this.running) this.startLoop();
   }
   resumeEndless() {
@@ -855,27 +1080,21 @@ class DarkDormGame {
       this.buildings = (er.buildings || []).map(bd => { const b = new Building(bd.type, { x: bd.x, y: bd.y }, this.saveData.prestigeUpgrades); b.level = bd.level || 1; b.hp = bd.hp || b.maxHp; b.totalInvested = bd.totalInvested || BUILDING_DEFS[bd.type].baseCost; return b; });
       this.monsters = []; this.projectiles = []; this.particles = [];
       this.ui.hideMenu(); this.ui.showPlayerInfo(); this.ui.showBuildMenu(); this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
-      this.ui.showWaveBanner('无尽模式 - 第 ' + this.wave + ' 夜');
-      this.waveManager.startEndlessWave(this.wave); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+      this.ui.showWaveBanner('无尽模式 - 白天准备');
+      this.waveManager.startEndlessWave(this.wave);
       if (!this.running) this.startLoop();
     } catch (_) {}
   }
-  _startWave(level) { this.waveManager.startLevelWave(level); this.phase = Phase.NIGHT; AudioEngine.playWaveStart(); }
   onWaveComplete(wave) {
     this.phase = Phase.WAVE_COMPLETE;
-    const bonus = Math.floor((50 + wave * 10) * this.rewardMult);
+    const rewardWave = this.mode === GameMode.LEVELS ? this.currentLevel : wave;
+    const bonus = Math.floor((50 + rewardWave * 10) * this.rewardMult);
     this.gold += bonus; this.maxGold = Math.max(this.maxGold, this.gold);
     if (this.mode === GameMode.LEVELS) {
-      const sw = LEVEL_WAVES[this.currentLevel];
-      const isLastWave = wave >= sw.length;
-      if (isLastWave) {
-        this.ui.showWaveComplete(wave, bonus, this.doorHp, this.doorMaxHp, this.gold);
-        if (!this.saveData.completedLevels.includes(this.currentLevel)) this.saveData.completedLevels.push(this.currentLevel);
-        if (this.currentLevel >= this.saveData.unlockedLevel) this.saveData.unlockedLevel = Math.min(MAX_LEVEL, this.currentLevel + 1);
-        saveSave(this.saveData);
-      } else {
-        this.wave++; this.ui.showWaveBanner('第 ' + this.wave + ' 夜'); this.waveManager.startLevelWave(this.currentLevel); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
-      }
+      this.ui.showWaveComplete('第 ' + this.currentLevel + ' 关完成!', bonus, this.doorHp, this.doorMaxHp, this.gold);
+      if (!this.saveData.completedLevels.includes(this.currentLevel)) this.saveData.completedLevels.push(this.currentLevel);
+      if (this.currentLevel >= this.saveData.unlockedLevel) this.saveData.unlockedLevel = Math.min(MAX_LEVEL, this.currentLevel + 1);
+      saveSave(this.saveData);
     } else {
       this.ui.showWaveComplete(wave, bonus, this.doorHp, this.doorMaxHp, this.gold);
     }
@@ -883,7 +1102,7 @@ class DarkDormGame {
   onContinueNextWave() {
     this.ui.hideWaveComplete();
     if (this.mode === GameMode.ENDLESS) {
-      this.wave++; this.ui.showWaveBanner('第 ' + this.wave + ' 夜'); this.waveManager.startEndlessWave(this.wave); this.phase = Phase.NIGHT; AudioEngine.playWaveStart();
+      this.wave++; this.phase = Phase.DAY; this.ui.showWaveBanner('第 ' + this.wave + ' 夜 - 白天准备'); this.waveManager.startEndlessWave(this.wave);
       this._saveEndlessSnapshot();
     } else {
       // Next level or back to menu for level mode after final wave
@@ -923,6 +1142,7 @@ class DarkDormGame {
     if (typeof points === 'number' && Number.isFinite(points)) {
       this.saveData.prestigePoints = points;
     }
+    this.ui.hideGameOver();
     this.ui.showMenu();
     this.ui.setGold(0); this.ui.setDoorHp(1, 1);
     if (this.ui.menuPrestigeVal) this.ui.menuPrestigeVal.textContent = String(this.saveData.prestigePoints);
@@ -960,12 +1180,46 @@ class DarkDormGame {
   stopLoop() { this.running = false; }
   _loop(t) { if (!this.running) return; const dt = Math.min((t - this.lastTime) / 1000, 0.1); this.lastTime = t; this.update(dt); this.render(); requestAnimationFrame(t2 => this._loop(t2)); }
   update(dt) {
+    if (this.phase === Phase.DAY) {
+      this.waveManager.update(dt);
+      // Day income: once per second
+      if (this.waveManager.countdown > 0) {
+        this.dayIncomeTimer = (this.dayIncomeTimer || 0) + dt;
+        const goldMult = 1 + (this.saveData.prestigeUpgrades.goldMult || 0) * 0.10;
+        while (this.dayIncomeTimer >= 1) {
+          this.dayIncomeTimer -= 1;
+          let income = BASE_GOLD_INCOME * goldMult;
+          for (const b of this.buildings) {
+            if (b.type === 'bed') income += b.getIncomeRate() * goldMult;
+          }
+          const levelExtra = (this.mode === GameMode.LEVELS ? this.currentLevel : this.waveManager.wave) * 2;
+          income += levelExtra;
+          this.gold += income;
+          this.maxGold = Math.max(this.maxGold, this.gold);
+        }
+      }
+      this.ui.setGold(this.gold); this.ui.setDoorHp(this.doorHp, this.doorMaxHp);
+      this.ui.updateMonsterPreview(); this.ui.updateMonsterHud();
+      return;
+    }
     if (this.phase === Phase.NIGHT) {
       this.waveManager.update(dt);
-      // Income
+      // Base + bed income: once per second
+      this.nightIncomeTimer = (this.nightIncomeTimer || 0) + dt;
+      const goldMult = 1 + (this.saveData.prestigeUpgrades.goldMult || 0) * 0.10;
+      while (this.nightIncomeTimer >= 1) {
+        this.nightIncomeTimer -= 1;
+        let income = BASE_GOLD_INCOME * goldMult;
+        for (const b of this.buildings) {
+          if (b.type === 'bed') income += b.getIncomeRate() * goldMult;
+        }
+        this.gold += income;
+        this.maxGold = Math.max(this.maxGold, this.gold);
+      }
       for (const b of this.buildings) {
-        if (b.type === 'bed') { b.incomeTimer += dt; const rate = b.getIncomeRate(); while (b.incomeTimer >= 1) { b.incomeTimer -= 1; const amt = rate * (1 + this.saveData.prestigeUpgrades.goldMult * 0.10); this.gold += amt; this.maxGold = Math.max(this.maxGold, this.gold); } }
-        else if (b.type === 'repairman') { b.fireTimer += dt; const r = b.getRepairRate(); while (b.fireTimer >= 1) { b.fireTimer -= 1; for (const o of this.buildings) { if (o !== b && o.hp < o.maxHp) { o.hp = Math.min(o.maxHp, o.hp + r); } } } }
+        if (b.type === 'repairman') {
+          b.fireTimer += dt; const r = b.getRepairRate(); while (b.fireTimer >= 1) { b.fireTimer -= 1; for (const o of this.buildings) { if (o !== b && o.hp < o.maxHp) { o.hp = Math.min(o.maxHp, o.hp + r); } } }
+        }
       }
       // Generator boost calculation is dynamic during attacks
       // Monsters
@@ -974,16 +1228,28 @@ class DarkDormGame {
       // Buildings attack
       for (const b of this.buildings) {
         if (b.hp <= 0) continue;
-        if (b.type === 'tower' || b.type === 'ice_mage' || b.type === 'bomber' || b.type === 'sniper') {
+        if (ATTACK_BUILDING_TYPES.has(b.type)) {
           const iv = b.getInterval() / this.getAttackSpeedMult(b);
           b.fireTimer += dt;
           if (b.fireTimer >= iv) {
             b.fireTimer -= iv;
-            const target = this._findTarget(b);
+            let target = b.target;
+            if (!target || target.state === MonsterState.DEAD || Math.hypot(target.pos.x - (b.pos.x + 0.5), target.pos.y - (b.pos.y + 0.5)) > b.getRange()) {
+              target = this._findTarget(b);
+              b.target = target;
+            }
             if (target) {
               b.fireTimer = 0;
+              // Muzzle flash
+              const mx = b.pos.x * TILE_SIZE + TILE_SIZE / 2;
+              const my = b.pos.y * TILE_SIZE + TILE_SIZE / 2;
+              const flash = new Particle(mx, my, '#fff', 0.25);
+              flash.size = 8; this.particles.push(flash);
+              const flash2 = new Particle(mx, my, '#ffd740', 0.2);
+              flash2.size = 6; this.particles.push(flash2);
               const dmg = b.type === 'sniper' && Math.random() < b.getCritRate() ? Math.floor(b.getDamage() * b.getCritMult()) : b.getDamage();
-              this.projectiles.push(new Projectile({ x: b.pos.x + 0.5, y: b.pos.y + 0.5 }, { x: target.pos.x, y: target.pos.y }, dmg, b.type === 'ice_mage' ? 'ice' : b.type === 'sniper' ? 'sniper' : b.type === 'bomber' ? 'bomber' : 'normal'));
+              const projectileType = b.type === 'ice_mage' ? 'ice' : b.type === 'sniper' ? 'sniper' : b.type === 'bomber' ? 'bomber' : b.type === 'electric_coil' ? 'electric' : b.type === 'flame_turret' ? 'flame' : b.type === 'purifier' ? 'purifier' : 'normal';
+              this.projectiles.push(new Projectile({ x: b.pos.x + 0.5, y: b.pos.y + 0.5 }, { x: target.pos.x, y: target.pos.y }, dmg, projectileType, { chainCount: b.getChainCount(), chainDamage: b.getChainDamage(), chainRange: b.getChainRange(), burnDps: b.getBurnDamage(), burnDuration: b.getBurnDuration(), pierceReduction: b.getPierceReduction() }, target));
               AudioEngine.playTowerFire();
             }
           }
@@ -997,6 +1263,36 @@ class DarkDormGame {
           if (p.type === 'bomber') {
             for (const m of targets) { const d = Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y); if (d <= 1) { const killed = m.takeDamage(p.damage * (d < 0.5 ? 1 : 0.5)); if (killed) this._onMonsterKill(m); } }
             this.addParticle(p.to.x * TILE_SIZE + TILE_SIZE / 2, p.to.y * TILE_SIZE + TILE_SIZE / 2, '#f84', 0.5);
+          } else if (p.type === 'electric') {
+            const primary = targets.find(m => Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y) < 0.6);
+            if (primary) {
+              if (primary.takeDamage(p.damage)) this._onMonsterKill(primary);
+              const chained = targets
+                .filter(m => m !== primary && m.state !== MonsterState.DEAD && Math.hypot(m.pos.x - primary.pos.x, m.pos.y - primary.pos.y) <= (p.extra.chainRange || 1.4))
+                .sort((a, b) => Math.hypot(a.pos.x - primary.pos.x, a.pos.y - primary.pos.y) - Math.hypot(b.pos.x - primary.pos.x, b.pos.y - primary.pos.y))
+                .slice(0, p.extra.chainCount || 0);
+              for (const m of chained) { if (m.takeDamage(p.damage * (p.extra.chainDamage || 0.5))) this._onMonsterKill(m); }
+              this.addParticle(primary.pos.x * TILE_SIZE + TILE_SIZE / 2, primary.pos.y * TILE_SIZE + TILE_SIZE / 2, '#74e8ff', 0.45);
+            }
+          } else if (p.type === 'flame') {
+            for (const m of targets) {
+              if (Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y) < 0.85) {
+                if (m.takeDamage(p.damage)) this._onMonsterKill(m);
+                if (m.state !== MonsterState.DEAD) m.applyBurn(p.extra.burnDps || 0, p.extra.burnDuration || 0);
+              }
+            }
+            this.addParticle(p.to.x * TILE_SIZE + TILE_SIZE / 2, p.to.y * TILE_SIZE + TILE_SIZE / 2, '#ff9a3d', 0.35);
+          } else if (p.type === 'purifier') {
+            for (const m of targets) {
+              if (Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y) < 0.6) {
+                const originalReduction = m.damageReduction;
+                m.damageReduction = Math.max(0, originalReduction - (p.extra.pierceReduction || 0));
+                const killed = m.takeDamage(p.damage);
+                m.damageReduction = originalReduction;
+                if (killed) this._onMonsterKill(m);
+                break;
+              }
+            }
           } else {
             for (const m of targets) { if (Math.hypot(m.pos.x - p.to.x, m.pos.y - p.to.y) < 0.6) { const killed = m.takeDamage(p.damage); if (killed) this._onMonsterKill(m); if (p.type === 'ice') m.applySlow(1 - 0.30, 2); break; } }
           }
@@ -1024,6 +1320,7 @@ class DarkDormGame {
     return best;
   }
   _onMonsterKill(m) {
+    for (const b of this.buildings) { if (b.target === m) b.target = null; }
     const reward = Math.floor((5 + this.wave) * this.rewardMult);
     this.gold += reward; this.maxGold = Math.max(this.maxGold, this.gold);
     this.addParticle(m.pos.x * TILE_SIZE + TILE_SIZE / 2, m.pos.y * TILE_SIZE + TILE_SIZE / 2, '#ffd740', 0.6);
@@ -1034,8 +1331,41 @@ class DarkDormGame {
 /* ============================================================
    Initialize
    ============================================================ */
+window.__ddSoundEnabled = true;
+window.__ddBgmEnabled = true;
+
 const game = new DarkDormGame();
 window.darkDormGame = game;
 AudioEngine.init();
+
+// Echo Game Settings Bridge
+window.addEventListener('message', function(e) {
+  if (!e.data) return;
+  if (e.data.type === 'game-settings-changed') {
+    var p = e.data.payload || {};
+    if (typeof p.globalSoundEnabled === 'boolean') window.__ddSoundEnabled = p.globalSoundEnabled;
+    if (typeof p.globalBgmEnabled === 'boolean') window.__ddBgmEnabled = p.globalBgmEnabled;
+  }
+  if (e.data.type === 'game-export-request') {
+    var saveData = null;
+    try { saveData = localStorage.getItem('dark_dorm_save_v1'); } catch (_) {}
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'game-export-data', requestId: e.data.requestId, data: { saveData: saveData } }, '*');
+    }
+  }
+  if (e.data.type === 'game-import-request') {
+    var success = false;
+    try {
+      if (e.data.saveData) {
+        localStorage.setItem('dark_dorm_save_v1', e.data.saveData);
+        success = true;
+        setTimeout(function() { location.reload(); }, 100);
+      }
+    } catch (_) {}
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'game-import-result', requestId: e.data.requestId, success: success }, '*');
+    }
+  }
+});
 
 })();

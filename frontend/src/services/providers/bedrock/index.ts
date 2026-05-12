@@ -25,6 +25,7 @@ export const bedrockCapabilities: ProviderCapabilities = {
   tts: true,
   stt: true,
   imageGeneration: true,
+  imageUnderstanding: true,
   videoGeneration: true,
   modelListing: false,
 }

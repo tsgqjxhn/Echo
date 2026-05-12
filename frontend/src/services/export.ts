@@ -6,7 +6,6 @@ import {
   buildCharacterSnapshot,
   buildSessionSnapshot,
   buildStandardSnapshot,
-  renderMarkdownSnapshot,
   type BackupSnapshot,
   type StandardSnapshot,
 } from './local-snapshot'
@@ -52,17 +51,9 @@ function stringifySnapshot(snapshot: StandardSnapshot | BackupSnapshot): Blob {
 }
 
 class ExportService {
-  async exportStandard(format: 'json' | 'md' = 'json'): Promise<ExportTask> {
+  async exportStandard(_format?: 'json' | 'md'): Promise<ExportTask> {
     try {
       const snapshot = await buildStandardSnapshot()
-      if (format === 'md') {
-        return createTask(
-          'standard',
-          `xiang-export-${Date.now()}.md`,
-          new Blob([renderMarkdownSnapshot(snapshot)], { type: 'text/markdown' })
-        )
-      }
-
       return createTask('standard', `xiang-export-${Date.now()}.json`, stringifySnapshot(snapshot))
     } catch (error) {
       console.error('[ExportService] standard export failed:', error)

@@ -13,6 +13,7 @@ export const ollamaCapabilities = {
   tts: false,
   stt: false,
   imageGeneration: false,
+  imageUnderstanding: true,
   videoGeneration: false,
 }
 

@@ -1,0 +1,77 @@
+{
+  "menuInfo": {
+    "title": "问道长生",
+    "canvasCount": 1,
+    "canvas": {
+      "w": 1280,
+      "h": 720,
+      "cw": 1280,
+      "ch": 720
+    }
+  },
+  "mapInfo": {
+    "canvasCount": 1,
+    "canvas": {
+      "w": 1280,
+      "h": 720,
+      "cw": 1280,
+      "ch": 720
+    }
+  },
+  "shots": {
+    "menuShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-menu-redesign.png",
+    "mapShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-map-redesign.png",
+    "locationShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-location-panel.png",
+    "codexShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-codex-panel.png",
+    "peopleShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-people-panel.png"
+  },
+  "events": [
+    {
+      "method": "Runtime.consoleAPICalled",
+      "type": "log",
+      "args": "%cPhaser v4.1.0 (WebGL | Web Audio)%c https://phaser.io/v401 color: #ffffff; background-image: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAOCAYAAAAmL5yKAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAARBJREFUeNpi/P//P0OHsPB/BiCoePuWkYFEwALSXJElzMBgLwE2CNkQxgWr/yMr/p8QimlBu5DQ//+8vBBco/ofzAe6imH+qv/53/6jYJAYSA4ZoxoANYTPKhiuCQZwGcJU+e4dqpMmvsDq14krV2MPAxDha2CMKvoXoiE/PBQUDgQD8j82UFae9B9bOIC8B9UD9gIjjIMN7Ns6lWHn4XMoYu62RgxO3tkMjIyMII2MYAOAtmFVhA+ADHf2ycGMRhANjUq8YO+WKWCvgAORIV8CkpDCrzIwsLIymC1qAtuAD4Bsh3sBmqAY3qcGwL2AC4DCpKtzHlgzOLWihwEuzTCN0GhDJHeYC4gByBphACDAAH2dDIxdjr+VAAAAAElFTkSuQmCC\"), linear-gradient(to bottom, #000814, #001d3d, #003566); background-repeat: no-repeat; background-position: 4px center, 0 0; padding: 2px 6px 2px 24px; background: transparent"
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "javascript",
+          "level": "warning",
+          "text": "Failed to execute 'requestFullscreen' on 'Element': API can only be initiated by a user gesture.",
+          "timestamp": 1778231301615.668,
+          "url": "http://localhost:5173/games/xiuxian-v2/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "javascript",
+          "level": "warning",
+          "text": "Failed to execute 'requestFullscreen' on 'Element': API can only be initiated by a user gesture.",
+          "timestamp": 1778231302235.721,
+          "url": "http://localhost:5173/games/xiuxian-v2/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Runtime.consoleAPICalled",
+      "type": "log",
+      "args": "[BootScene] 新游戏状态已初始化"
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "network",
+          "level": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+          "timestamp": 1778231302614.413,
+          "url": "http://localhost:5173/favicon.ico",
+          "networkRequestId": "1572.53"
+        }
+      }
+    }
+  ]
+}

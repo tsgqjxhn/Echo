@@ -36,6 +36,28 @@
       </button>
     </header>
 
+    <!-- 群聊/多人顶部成员头像栏 -->
+    <div v-if="isMultiplayerChat && groupMembers.length > 0" class="member-avatar-bar">
+      <div class="member-avatar-list">
+        <div
+          v-for="member in groupMembers"
+          :key="member.id"
+          class="member-avatar-item"
+          :class="{ narrator: member.isNarrator }"
+          @click="showMemberDetail(member)"
+        >
+          <img
+            v-if="member.avatar"
+            :src="member.avatar"
+            :alt="member.name"
+            class="member-avatar-img"
+          />
+          <div v-else class="member-avatar-fallback">{{ member.name?.charAt(0) || '?' }}</div>
+          <span class="member-avatar-name">{{ member.name }}</span>
+        </div>
+      </div>
+    </div>
+
     <main class="message-list">
       <section v-if="showQuickPrompts" class="hero-card">
         <p class="hero-eyebrow">开始对话</p>
@@ -71,8 +93,10 @@
           :message="message"
           :is-user="message.role === 'user'"
           :is-last-message="isLastAssistantMessage(index)"
-          :assistant-avatar="characterAvatar"
+          :assistant-avatar="getMessageAvatar(message)"
           :user-avatar="playerAvatar"
+          :sender-name="getMessageSenderName(message)"
+          :message-type="getMessageType(message)"
           @retry="retryGeneration(message.id)"
           @avatar-click="openCharacterSheet"
           @image-click="onImageClick"
@@ -366,8 +390,9 @@ import { useRoute, useRouter } from 'vue-router'
 import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import { useChatStore } from '@/stores/chat'
 import { useCharacterStore } from '@/stores/character'
-import type { ICharacter } from '@/types/character'
+import type { ICharacter, GroupMember } from '@/types/character'
 import { useUserStore } from '@/stores/user'
+import { isMultiplayerCategory } from '@/data/taxonomy'
 import { uni } from '@/utils/uni-polyfill'
 import MessageBubble from '@/components/MessageBubble/index.vue'
 import { TTSService } from '@/services/tts'
@@ -379,6 +404,7 @@ import { switchToRandomLocalCharacter } from '@/services/random-character-switch
 import { getStorageDriver } from '@/services/storage'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
 import StoryGallery from '@/components/StoryGallery/index.vue'
+import type { IMessage } from '@/types/chat'
 import ImageViewer from '@/components/ImageViewer/index.vue'
 import ChatSettingsSheet from '@/components/ChatSettingsSheet/index.vue'
 import {
@@ -498,12 +524,15 @@ const holdToTalkLabel = computed(() =>
 )
 
 
+const isMultiplayerChat = computed(() => isMultiplayerCategory(character.value?.category))
+const groupMembers = computed<GroupMember[]>(() => character.value?.structuredMembers || [])
+
 const groupCharacters = computed(() =>
-  characterStore.characters.filter(c => c.mode === 'group-chat' || c.mode === 'group-challenge')
+  characterStore.characters.filter(c => c.mode === 'group-chat' || c.mode === 'group-challenge' || c.mode === 'multi-free' || c.mode === 'multi-story' || c.mode === 'multi-game')
 )
 
 const isGroupCharacter = computed(() =>
-  character.value?.mode === 'group-chat' || character.value?.mode === 'group-challenge'
+  character.value?.mode === 'group-chat' || character.value?.mode === 'group-challenge' || character.value?.mode === 'multi-free' || character.value?.mode === 'multi-story' || character.value?.mode === 'multi-game'
 )
 
 const charPopoverPlacement = computed<'top' | 'bottom'>(() => {
@@ -1113,6 +1142,55 @@ function setAffinity(charId: string, val: number) {
   localStorage.setItem('echo_affinity', JSON.stringify(map))
 }
 
+function getMessageAvatar(message: IMessage): string {
+  if (message.role === 'user') return playerAvatar.value
+  if (!isMultiplayerChat.value) return characterAvatar.value
+  // Try to extract sender name from message content for multiplayer
+  const match = message.content.match(/^(.+?)[:：]/)
+  if (match) {
+    const senderName = match[1].trim()
+    const member = groupMembers.value.find(m => m.name === senderName)
+    if (member?.avatar) return member.avatar
+    if (member?.isNarrator) return ''
+  }
+  return characterAvatar.value
+}
+
+function getMessageSenderName(message: IMessage): string {
+  if (message.role === 'user') return ''
+  if (!isMultiplayerChat.value) return ''
+  const match = message.content.match(/^(.+?)[:：]/)
+  if (match) {
+    const senderName = match[1].trim()
+    const member = groupMembers.value.find(m => m.name === senderName)
+    if (member) return member.name
+  }
+  return ''
+}
+
+function getMessageType(message: IMessage): 'normal' | 'narrator' | 'action' {
+  if (message.role === 'user') return 'normal'
+  if (!isMultiplayerChat.value) return 'normal'
+  const match = message.content.match(/^(.+?)[:：]/)
+  if (match) {
+    const senderName = match[1].trim()
+    const member = groupMembers.value.find(m => m.name === senderName)
+    if (member?.isNarrator) return 'narrator'
+  }
+  // Check if content is primarily in parentheses (action/emotion)
+  const content = message.content.replace(/^(.+?)[:：]/, '').trim()
+  if (content.startsWith('（') && content.endsWith('）')) return 'action'
+  return 'normal'
+}
+
+function showMemberDetail(member: GroupMember) {
+  if (member.isNarrator) {
+    uni.showToast({ title: `${member.name}：${member.description || '负责场景描写和剧情推进'}`, icon: 'none' })
+  } else {
+    uni.showToast({ title: `${member.name}：${member.description || member.personality || '群成员'}`, icon: 'none' })
+  }
+}
+
 function openCharacterSheet(rect: DOMRect) {
   showChatMore.value = false
   showTools.value = false
@@ -1405,6 +1483,86 @@ onUnmounted(() => {
 
 .message-row {
   display: block;
+}
+
+/* 群聊/多人顶部成员头像栏 */
+.member-avatar-bar {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  padding: 8px 12px;
+  background: rgba(5, 13, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.member-avatar-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 2px;
+}
+
+.member-avatar-list::-webkit-scrollbar {
+  display: none;
+}
+
+.member-avatar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  &.narrator {
+    .member-avatar-img,
+    .member-avatar-fallback {
+      border-color: rgba(52, 211, 153, 0.4);
+      background: rgba(52, 211, 153, 0.1);
+    }
+  }
+}
+
+.member-avatar-img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.member-avatar-fallback {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.member-avatar-name {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  max-width: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .composer-shell {

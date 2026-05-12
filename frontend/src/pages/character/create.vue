@@ -112,7 +112,7 @@
             <input v-model="templateData.description" type="text" class="field-input" placeholder="一句话描述" />
           </div>
         </div>
-        <textarea v-model="templateData.greeting" class="field-textarea" rows="2" placeholder="开场白（角色第一次打招呼的内容）" />
+        <textarea v-model="templateData.greeting" class="field-textarea auto-textarea" rows="2" placeholder="开场白（角色第一次打招呼的内容）" @input="onTextareaInput" />
       </section>
       <!-- 配置卡片网格 -->
       <section class="config-grid">
@@ -191,6 +191,27 @@
             <button type="button" class="collapse-btn" @click.stop="toggleCard('settings')">收起</button>
           </div>
         </div>
+        <!-- 群成员配置 -->
+        <div v-if="isMultiplayer" class="config-card" :class="{ filled: structuredMembers.length > 0 }" @click="toggleCard('members')">
+          <div class="card-header">
+            <span class="card-emoji">👥</span>
+            <div class="card-meta">
+              <span class="card-title">群成员配置</span>
+              <span class="card-status">{{ structuredMembers.length }} 位成员</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.members" class="card-body" @click.stop>
+            <GroupMemberSection
+              :meta-fields="activeTemplate.basicFields.filter(f => f.key === 'groupName' || f.key === 'groupBackground')"
+              :advanced-fields="activeTemplate.advancedFields.filter(f => f.key === 'memberNetwork' || f.key === 'postingFrequency')"
+              :model-value="templateData"
+              :initial-members="structuredMembers"
+              @update:model-value="templateData = { ...templateData, ...$event }"
+              @update:members="structuredMembers = $event"
+            />
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('members')">收起</button>
+          </div>
+        </div>
         <!-- 结构化人设 -->
         <div class="config-card" :class="{ filled: hasPersona }" @click="toggleCard('persona')">
           <div class="card-header">
@@ -203,29 +224,32 @@
           <div v-if="expandedCards.persona" class="card-body" @click.stop>
             <div class="field-item">
               <label class="field-label">身份锁（锚点）</label>
-              <textarea v-model="personaData.anchor" class="field-textarea" rows="2" placeholder="角色的核心身份锚点，用于锁定角色本质" />
+              <textarea v-model="personaData.anchor" class="field-textarea auto-textarea" rows="2" placeholder="角色的核心身份锚点，用于锁定角色本质" @input="onTextareaInput" />
             </div>
             <div class="field-item">
               <label class="field-label">性格特质</label>
-              <textarea v-model="personaData.traits" class="field-textarea" rows="2" placeholder="用逗号分隔的性格特征列表" />
+              <textarea v-model="personaData.traits" class="field-textarea auto-textarea" rows="2" placeholder="用逗号分隔的性格特征列表" @input="onTextareaInput" />
             </div>
             <div class="field-item">
               <label class="field-label">交流风格</label>
-              <textarea v-model="personaData.voice" class="field-textarea" rows="2" placeholder="说话方式、语气、口头禅等" />
+              <textarea v-model="personaData.voice" class="field-textarea auto-textarea" rows="2" placeholder="说话方式、语气、口头禅等" @input="onTextareaInput" />
             </div>
             <button type="button" class="collapse-btn" @click.stop="toggleCard('persona')">收起</button>
           </div>
         </div>
-        <!-- Lorebook -->
+        <!-- 世界书 (Lorebook) -->
         <div class="config-card" :class="{ filled: lorebookData.entries.length > 0 }" @click="toggleCard('lorebook')">
           <div class="card-header">
             <span class="card-emoji">📚</span>
             <div class="card-meta">
-              <span class="card-title">Lorebook</span>
+              <span class="card-title">世界书 (Lorebook)</span>
               <span class="card-status">{{ lorebookData.entries.length }} 个词条</span>
             </div>
           </div>
           <div v-if="expandedCards.lorebook" class="card-body" @click.stop>
+            <p class="card-desc">
+              世界书用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
+            </p>
             <div class="field-item inline-field">
               <label class="field-label">扫描消息数</label>
               <input v-model.number="lorebookData.scanRange" type="number" class="field-input number-input" min="1" max="9999" />
@@ -256,15 +280,20 @@
               </div>
               <div class="field-item">
                 <label class="field-label">内容</label>
-                <textarea v-model="entry.content" class="field-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" />
+                <textarea v-model="entry.content" class="field-textarea auto-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" @input="onTextareaInput" />
               </div>
               <div class="lore-grid">
                 <div class="field-item">
                   <label class="field-label">插入位置</label>
                   <select v-model.number="entry.position" class="field-select">
-                    <option :value="0">对话前</option><option :value="1">对话后</option><option :value="2">EM 顶部</option>
-                    <option :value="3">EM 底部</option><option :value="4">AN 顶部</option><option :value="5">AN 底部</option>
-                    <option :value="6">深度位置</option><option :value="7">出口</option>
+                    <option :value="0">对话前</option>
+                    <option :value="1">对话后</option>
+                    <option :value="2">主提示词顶部</option>
+                    <option :value="3">主提示词底部</option>
+                    <option :value="4">作者注释顶部</option>
+                    <option :value="5">作者注释底部</option>
+                    <option :value="6">深度位置</option>
+                    <option :value="7">出口</option>
                   </select>
                 </div>
                 <div class="field-item">
@@ -299,6 +328,9 @@
             </div>
           </div>
           <div v-if="expandedCards.worldBooks" class="card-body" @click.stop>
+            <p class="card-desc">
+              世界书用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
+            </p>
             <div v-if="worldBooksData.length === 0" class="empty-hint">暂无世界书，点击添加</div>
             <div v-for="(wb, wIdx) in worldBooksData" :key="wb.id" class="world-book-card">
               <div class="world-book-header" @click="wb._expanded = !wb._expanded">
@@ -350,15 +382,20 @@
                   </div>
                   <div class="field-item">
                     <label class="field-label">内容</label>
-                    <textarea v-model="entry.content" class="field-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" />
+                    <textarea v-model="entry.content" class="field-textarea auto-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" @input="onTextareaInput" />
                   </div>
                   <div class="lore-grid">
                     <div class="field-item">
                       <label class="field-label">插入位置</label>
                       <select v-model.number="entry.position" class="field-select">
-                        <option :value="0">对话前</option><option :value="1">对话后</option><option :value="2">EM 顶部</option>
-                        <option :value="3">EM 底部</option><option :value="4">AN 顶部</option><option :value="5">AN 底部</option>
-                        <option :value="6">深度位置</option><option :value="7">出口</option>
+                        <option :value="0">对话前</option>
+                        <option :value="1">对话后</option>
+                        <option :value="2">主提示词顶部</option>
+                        <option :value="3">主提示词底部</option>
+                        <option :value="4">作者注释顶部</option>
+                        <option :value="5">作者注释底部</option>
+                        <option :value="6">深度位置</option>
+                        <option :value="7">出口</option>
                       </select>
                     </div>
                     <div class="field-item">
@@ -480,13 +517,13 @@
           <div v-if="expandedCards.greetings" class="card-body" @click.stop>
             <div class="field-item">
               <label class="field-label">主开场白</label>
-              <textarea v-model="templateData.greeting" class="field-textarea" rows="2" placeholder="角色第一次打招呼的内容" />
+              <textarea v-model="templateData.greeting" class="field-textarea auto-textarea" rows="2" placeholder="角色第一次打招呼的内容" @input="onTextareaInput" />
             </div>
             <div class="field-item">
               <label class="field-label">备选开场白</label>
               <div v-if="altGreetings.length === 0" class="empty-hint">点击添加备选开场白</div>
               <div v-for="(_, idx) in altGreetings" :key="idx" class="alt-greeting-row">
-                <textarea v-model="altGreetings[idx]" class="field-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" />
+                <textarea v-model="altGreetings[idx]" class="field-textarea auto-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" @input="onTextareaInput" />
                 <button type="button" class="icon-btn danger" @click="removeAltGreeting(idx)">
                   <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
@@ -524,7 +561,7 @@
             </div>
             <div class="field-item">
               <label class="field-label">深度提示内容</label>
-              <textarea v-model="depthPromptData.prompt" class="field-textarea" rows="4" placeholder="输入深度提示内容，将被注入到指定深度的对话上下文中" />
+              <textarea v-model="depthPromptData.prompt" class="field-textarea auto-textarea" rows="4" placeholder="输入深度提示内容，将被注入到指定深度的对话上下文中" @input="onTextareaInput" />
             </div>
             <button type="button" class="collapse-btn" @click.stop="toggleCard('depthPrompt')">收起</button>
           </div>
@@ -550,13 +587,14 @@ import { useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { uni } from '@/utils/uni-polyfill'
-import type { ICharacter, EmotionAnimation, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt } from '@/types/character'
+import type { ICharacter, EmotionAnimation, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, GroupMember } from '@/types/character'
 import type { WorldBook, WorldBookEntry } from '@/types/world-book'
 import { generateUUID } from '@/utils/uuid'
 import { importCharacterFromFile } from '@/services/character-import'
 import { generateCharacterByAI, generateCharacterAvatar } from '@/services/character-ai-generate'
-import { DEFAULT_CATEGORY, getCategoryGroups, getFirstSubCategory, getThemeGroups, inferCharacterMode } from '@/data/taxonomy'
+import { DEFAULT_CATEGORY, getCategoryGroups, getFirstSubCategory, getThemeGroups, inferCharacterMode, isMultiplayerCategory } from '@/data/taxonomy'
 import { getTemplateForCategory, buildSettingsFromTemplate } from '@/data/character-templates'
+import GroupMemberSection from '@/components/CharacterForm/GroupMemberSection.vue'
 import { characterPresets } from '@/data/character-presets'
 import type { CharacterPreset } from '@/data/character-presets'
 import TemplateFieldRenderer from '@/components/CharacterForm/TemplateFieldRenderer.vue'
@@ -585,7 +623,7 @@ const previewSourceLabel = ref('')
 const showRegenerate = ref(false)
 
 const styleTagOptions = ['日常', '冒险', '恋爱', '恐怖', '搞笑', '神秘', '治愈', '悬疑']
-const interactionTypeOptions = ['自由对话', '剧情推进', '互动游戏', '群聊派对']
+const interactionTypeOptions = ['自由对话', '剧情推进', '互动游戏', '多人']
 
 function toggleStyleTag(tag: string) {
   const idx = aiStyleTags.value.indexOf(tag)
@@ -635,6 +673,7 @@ const altGreetings = ref<string[]>([])
 const depthPromptData = reactive<DepthPrompt>({ depth: 4, prompt: '', role: 'system' })
 const customTags = ref<string[]>([])
 const tagInput = ref('')
+const structuredMembers = ref<GroupMember[]>([])
 
 /* ── 头像 ActionSheet ── */
 function showAvatarSheet() {
@@ -732,7 +771,8 @@ const activeTemplate = computed(() => getTemplateForCategory(form.value.category
 const resolvedMode = computed(() => inferCharacterMode({ category: form.value.category, subCategory: form.value.subCategory }))
 
 const avatarPreview = computed(() => form.value.avatar || (form.value.name ? createSilverAvatarDataUrl(form.value.name) : ''))
-const isGroupOrComprehensive = computed(() => form.value.category === '群聊派对' || form.value.category === '综合')
+const isGroupOrComprehensive = computed(() => isMultiplayerCategory(form.value.category) || form.value.category === '综合')
+const isMultiplayer = computed(() => isMultiplayerCategory(form.value.category))
 
 const hasTemplateFields = computed(() => {
   const allKeys = [...activeTemplate.value.basicFields, ...activeTemplate.value.advancedFields, ...activeTemplate.value.specialFields].map(f => f.key)
@@ -785,7 +825,7 @@ function applyPresetData(preset: CharacterPreset) {
   form.value.themeGroup = preset.themeGroup
   form.value.themeType = preset.themeType
   if (preset.defaultData.name) {
-    if (preset.category === '群聊派对' || preset.category === '综合') {
+    if (preset.category === '多人' || preset.category === '综合') {
       form.value.name = ''
       if (preset.defaultData.groupName) templateData.value.groupName = String(preset.defaultData.groupName)
       else if (preset.defaultData.worldName) templateData.value.worldName = String(preset.defaultData.worldName)
@@ -921,9 +961,16 @@ function fillFormFromImported(character: ICharacter) {
 /* ── 卡片展开控制 ── */
 const expandedCards = reactive<Record<string, boolean>>({
   settings: false, persona: false, lorebook: false, worldBooks: false,
-  media: false, greetings: false, depthPrompt: false, tags: false,
+  media: false, greetings: false, depthPrompt: false, tags: false, members: false,
 })
 function toggleCard(key: string) { expandedCards[key] = !expandedCards[key] }
+
+/* ── textarea 自动高度 ── */
+function onTextareaInput(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
 
 /* ── 媒体操作 ── */
 async function blobUrlToBase64(blobUrl: string): Promise<string> {
@@ -1129,9 +1176,12 @@ async function submit() {
       alternateGreetings: altGreetings.value.filter(g => g.trim()).length ? altGreetings.value.filter(g => g.trim()) : undefined,
       depthPrompt: buildDepthPrompt(),
     }
-    if (resolvedMode.value === 'group-chat' || resolvedMode.value === 'group-challenge') {
+    if (resolvedMode.value === 'group-chat' || resolvedMode.value === 'group-challenge' || resolvedMode.value === 'multi-free' || resolvedMode.value === 'multi-story' || resolvedMode.value === 'multi-game') {
       character.groupAnnouncement = String(templateData.value.groupRules ?? templateData.value.groupBackground ?? '').trim()
       character.groupChatMode = 'queue'
+      if (structuredMembers.value.length > 0) {
+        character.structuredMembers = structuredMembers.value
+      }
     }
     const extraBlocks: string[] = []
     if (userParts.length > 0 || userData.avatar) {
@@ -1171,6 +1221,7 @@ function resetForm() {
   altGreetings.value = []
   ttsVoice.value = ''; ttsWeight.value = 100
   customTags.value = []; tagInput.value = ''
+  structuredMembers.value = []
   for (const key of Object.keys(expandedCards)) expandedCards[key] = false
   clearDraft()
 }
@@ -1213,6 +1264,7 @@ function getDraftSnapshot(): unknown {
     altGreetings: [...altGreetings.value],
     ttsVoice: ttsVoice.value, ttsWeight: ttsWeight.value,
     customTags: [...customTags.value],
+    structuredMembers: [...structuredMembers.value],
     aiDescription: aiDescription.value, aiStyleTags: [...aiStyleTags.value],
     aiInteractionType: aiInteractionType.value, aiCreativity: aiCreativity.value, aiDetailLevel: aiDetailLevel.value,
   }
@@ -1242,6 +1294,7 @@ function restoreDraft(data: any) {
   if (data.ttsVoice !== undefined) ttsVoice.value = data.ttsVoice
   if (data.ttsWeight !== undefined) ttsWeight.value = data.ttsWeight
   if (data.customTags) customTags.value = data.customTags
+  if (data.structuredMembers) structuredMembers.value = data.structuredMembers
   if (data.aiDescription !== undefined) aiDescription.value = data.aiDescription
   if (data.aiStyleTags) aiStyleTags.value = data.aiStyleTags
   if (data.aiInteractionType !== undefined) aiInteractionType.value = data.aiInteractionType
@@ -1265,7 +1318,7 @@ function handleDraftRestore() {
 }
 function hasDraftContentInDraft(draft: any): boolean { return !!(draft?.form?.name?.trim() || draft?.templateData?.description?.trim()) }
 
-watch(() => JSON.stringify({ f: form.value, t: templateData.value, m: mediaData, e: emotionAnimations, u: userData, p: personaData, l: lorebookData, w: worldBooksData, d: depthPromptData, a: altGreetings.value, tags: customTags.value }),
+watch(() => JSON.stringify({ f: form.value, t: templateData.value, m: mediaData, e: emotionAnimations, u: userData, p: personaData, l: lorebookData, w: worldBooksData, d: depthPromptData, a: altGreetings.value, tags: customTags.value, sm: structuredMembers.value }),
   () => { if (draftTimer) clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft(), SAVE_DEBOUNCE) },
   { deep: true }
 )
@@ -1370,7 +1423,7 @@ $mint: #34d399;
 
 .base-info-section { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px; }
 .base-row { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
-.avatar-upload { position: relative; width: 72px; height: 72px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0; cursor: pointer;
+.avatar-upload { position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0; cursor: pointer;
   .avatar-img { width: 100%; height: 100%; object-fit: cover; }
   .avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2)); color: var(--text-tertiary); font-size: 24px; font-weight: 600; }
   .avatar-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 11px; opacity: 0; transition: opacity 0.2s; }

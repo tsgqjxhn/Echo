@@ -75,8 +75,21 @@
 
         <div class="card-body">
           <div class="card-avatar-row">
-            <img v-if="character.avatar" :src="character.avatar" :alt="character.name" class="card-avatar" />
-            <div v-else class="card-avatar-placeholder">{{ character.name?.charAt(0) || '?' }}</div>
+            <div class="card-avatar-col">
+              <img v-if="character.avatar" :src="character.avatar" :alt="character.name" class="card-avatar" />
+              <div v-else class="card-avatar-placeholder">{{ character.name?.charAt(0) || '?' }}</div>
+              <button
+                type="button"
+                class="card-edit-btn"
+                title="编辑"
+                @click.stop="goToEdit(character.id)"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
             <div class="card-copy">
               <h2>{{ character.name }}</h2>
               <p>{{ character.description }}</p>
@@ -88,18 +101,6 @@
             <span v-if="character.switchAnimation" class="card-media-dot" title="切换动图">🎬</span>
             <span v-if="character.emotionAnimations && character.emotionAnimations.length" class="card-media-dot" title="情感动图">😊</span>
           </div>
-          <span class="card-date">{{ formatDate(character.createdAt) }}</span>
-        </div>
-
-        <div class="card-actions">
-          <button type="button" class="card-action-btn" @click.stop="goToEdit(character.id)">
-            <svg viewBox="0 0 24 24" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            编辑
-          </button>
-          <button type="button" class="card-action-btn clone" @click.stop="cloneCharacter(character)">
-            <svg viewBox="0 0 24 24" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            复制
-          </button>
         </div>
       </article>
     </section>
@@ -115,7 +116,7 @@
       ref="importFileInput"
       class="hidden-input"
       type="file"
-      accept=".png,.json"
+      accept=".png,.json,.txt,.md"
       @change="onImportFileChange"
     />
     <input
@@ -139,6 +140,7 @@ import searchIcon from '@/static/images/search-action.svg'
 import { useCharacterStore } from '@/stores/character'
 import { importCharacterFromFile } from '@/services/character-import'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
+import { exportService } from '@/services/export'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
 import { ensureStoryCharacter, loadStoryLibrary } from '@/services/story-conversations'
@@ -220,13 +222,6 @@ function getModeLabel(mode?: ICharacter['mode']): string {
 }
 
 
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('zh-CN', {
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
 function goToDetail(id: string) {
   router.push(`/character/detail/${id}`)
 }
@@ -293,14 +288,25 @@ function onCardContextMenu(character: ICharacter, _event: MouseEvent) {
 function showCardActionSheet(character: ICharacter) {
   uni.showActionSheet({
     title: `「${character.name}」`,
-    itemList: ['复制', '编辑', '删除'],
+    itemList: ['编辑', '克隆', '删除', '导出'],
     itemColor: '#38bdf8',
     success: (res: { tapIndex: number }) => {
-      if (res.tapIndex === 0) cloneCharacter(character)
-      else if (res.tapIndex === 1) goToEdit(character.id)
+      if (res.tapIndex === 0) goToEdit(character.id)
+      else if (res.tapIndex === 1) cloneCharacter(character)
       else if (res.tapIndex === 2) confirmDelete(character)
+      else if (res.tapIndex === 3) exportCharacter(character)
     },
   })
+}
+
+async function exportCharacter(character: ICharacter) {
+  try {
+    const task = await exportService.exportCharacter(character.id)
+    await exportService.downloadTask(task)
+    uni.showToast({ title: '导出成功', icon: 'success' })
+  } catch {
+    uni.showToast({ title: '导出失败', icon: 'none' })
+  }
 }
 
 function confirmDelete(character: ICharacter) {
@@ -325,8 +331,8 @@ function confirmDelete(character: ICharacter) {
 function openImportSheet() {
   uni.showActionSheet({
     itemList: [
-      '导入文件（支持 .png / .json 角色卡，单文件 ≤ 20MB）',
-      '导入文件夹（仅读取 .json，建议文件夹 ≤ 500MB）',
+      '导入文件（支持 .png / .json / .txt / .md，单文件 ≤ 20MB）',
+      '导入文件夹（仅读取 .json / .txt / .md，建议文件夹 ≤ 500MB）',
     ],
     itemColor: '#38bdf8',
     success: (res: { tapIndex: number }) => {
@@ -377,15 +383,18 @@ async function onImportFolderChange(event: Event) {
     return
   }
 
-  const jsonFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.json'))
-  if (jsonFiles.length === 0) {
-    uni.showToast({ title: '未找到 JSON 文件', icon: 'none' })
+  const textFiles = Array.from(files).filter(f => {
+    const lower = f.name.toLowerCase()
+    return lower.endsWith('.json') || lower.endsWith('.txt') || lower.endsWith('.md')
+  })
+  if (textFiles.length === 0) {
+    uni.showToast({ title: '未找到可导入的文本文件', icon: 'none' })
     input.value = ''
     return
   }
   let successCount = 0
   let failCount = 0
-  for (const file of jsonFiles) {
+  for (const file of textFiles) {
     try {
       await handleImportFile(file, false)
       successCount++
@@ -733,10 +742,6 @@ $cyan: #67e8f9;
     border-color: rgba(255, 255, 255, 0.98);
     box-shadow: none;
   }
-
-  &:hover .card-actions {
-    opacity: 1;
-  }
 }
 
 .character-card:nth-child(odd):not(:last-child) {
@@ -772,19 +777,28 @@ $cyan: #67e8f9;
   gap: 10px;
 }
 
+.card-avatar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .card-avatar {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
   flex-shrink: 0;
 }
 
 .card-avatar-placeholder {
   width: 48px;
   height: 48px;
-  border-radius: 12px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -793,6 +807,33 @@ $cyan: #67e8f9;
   font-size: 18px;
   font-weight: 600;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.card-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(56, 189, 248, 0.08);
+    color: var(--text-secondary);
+  }
+
+  svg {
+    display: block;
+  }
 }
 
 .card-copy {
@@ -833,53 +874,6 @@ $cyan: #67e8f9;
   opacity: 0.85;
 }
 
-.card-date {
-  color: var(--text-tertiary);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-
-.card-actions {
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.card-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid rgba(56, 189, 248, 0.12);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-tertiary);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    border-color: rgba(56, 189, 248, 0.3);
-    color: var(--text-secondary);
-    background: rgba(56, 189, 248, 0.06);
-  }
-
-  &.clone:hover {
-    border-color: rgba(52, 211, 153, 0.3);
-    background: rgba(52, 211, 153, 0.06);
-    color: #6ee7b7;
-  }
-}
-
-@media (max-width: 640px) {
-  .card-actions {
-    opacity: 1;
-  }
-}
 
 .meta-chip {
   padding: 4px 8px;

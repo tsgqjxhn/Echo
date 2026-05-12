@@ -333,10 +333,10 @@ const playCategoryOptions: PlayCategoryOption[] = [
 
 const gameCatalog: GameCatalogItem[] = [
   {
-    id: 'xiuxian',
+    id: 'xiuxian-v2',
     name: '问道长生',
     description: '修仙放置游戏，修炼功法、探索洞府、炼丹炼器，踏上长生之路。',
-    route: '/game/play/xiuxian',
+    route: '/game/play/xiuxian-v2',
     icon: '道',
     iconSrc: xiuxianGameAvatar,
     iconKind: 'text',

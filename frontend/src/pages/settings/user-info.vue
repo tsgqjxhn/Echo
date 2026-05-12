@@ -16,7 +16,7 @@
 
       <div class="page-header-main">
         <p class="eyebrow">编辑资料</p>
-        <h1>更新你的头像和昵称</h1>
+        <h1>更新你的头像、昵称与提示词</h1>
       </div>
     </header>
 
@@ -44,6 +44,26 @@
         />
       </label>
 
+      <label class="field">
+        <span>全局提示词</span>
+        <textarea
+          v-model="formData.globalPrompt"
+          maxlength="3000"
+          rows="6"
+          placeholder="请输入全局提示词（影响所有对话）"
+        />
+      </label>
+
+      <label class="field">
+        <span>软件底层规范提示词</span>
+        <textarea
+          v-model="formData.corePrompt"
+          maxlength="3000"
+          rows="6"
+          placeholder="请输入软件底层规范提示词"
+        />
+      </label>
+
       <button type="button" class="primary-btn" :disabled="saving" @click="saveUserInfo">
         {{ saving ? '保存中...' : '保存资料' }}
       </button>
@@ -63,7 +83,9 @@ const userStore = useUserStore()
 
 const formData = ref({
   name: '',
-  avatar: ''
+  avatar: '',
+  globalPrompt: '',
+  corePrompt: ''
 })
 
 const saving = ref(false)
@@ -83,6 +105,8 @@ onMounted(async () => {
   await userStore.loadUserInfo()
   formData.value.name = userStore.userInfo?.name || ''
   formData.value.avatar = userStore.userInfo?.avatar || ''
+  formData.value.globalPrompt = userStore.userInfo?.globalPrompt || ''
+  formData.value.corePrompt = userStore.userInfo?.corePrompt || ''
 })
 
 function handleAvatarError() {
@@ -131,7 +155,9 @@ async function saveUserInfo() {
 
     await userStore.updateUserInfo({
       name: formData.value.name.trim(),
-      avatar
+      avatar,
+      globalPrompt: formData.value.globalPrompt.trim(),
+      corePrompt: formData.value.corePrompt.trim()
     })
 
     uni.showToast({ title: '资料已保存', icon: 'success' })
@@ -323,14 +349,25 @@ async function saveUserInfo() {
   color: var(--text-secondary);
 }
 
-.field input {
-  height: 48px;
+.field input,
+.field textarea {
   padding: 0 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;
+}
+
+.field input {
+  height: 48px;
+}
+
+.field textarea {
+  min-height: 140px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.7;
 }
 
 .primary-btn {

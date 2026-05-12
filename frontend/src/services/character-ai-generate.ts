@@ -85,7 +85,7 @@ function buildSystemPrompt(opts: AIGenerateOptions): string {
   "exampleDialogue": "示例对话（可选）",
   "alternateGreetings": ["备选开场白1", "备选开场白2"],
   "tags": ["标签1", "标签2"],
-  "category": "分类（自由对话/剧情/剧情&游戏/群聊派对/工具）",
+  "category": "分类（自由对话/剧情/剧情&游戏/多人/工具）",
   "subCategory": "子分类",
   "depthPrompt": {
     "depth": 4,
@@ -109,7 +109,7 @@ function normalizeCategory(cat: string): { category: string; subCategory: string
     return { category: found.label, subCategory: found.items[0] || getFirstSubCategory(found.label) }
   }
   // 模糊匹配
-  if (cat.includes('群聊')) return { category: '群聊派对', subCategory: '普通群聊' }
+  if (cat.includes('群聊')) return { category: '多人', subCategory: '普通群聊' }
   if (cat.includes('游戏')) return { category: '剧情&游戏', subCategory: '互动游戏' }
   if (cat.includes('剧情')) return { category: '剧情', subCategory: '单线剧情' }
   if (cat.includes('工具')) return { category: '工具', subCategory: '问答' }

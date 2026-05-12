@@ -526,3 +526,17 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-dark); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ===== Override phaser-host scroll restrictions for empire ===== */
+/* 覆盖 phaser-host 的滚动限制，允许 empire 游戏内容垂直滚动 */
+.echo-phaser-legacy-layer {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 确保 html/body 在垂直方向允许溢出，使滚动链正常 */
+html.echo-phaser-host-html,
+body.echo-phaser-host-body {
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+}

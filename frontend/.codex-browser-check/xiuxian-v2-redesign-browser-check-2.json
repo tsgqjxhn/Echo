@@ -1,0 +1,37 @@
+{
+  "state": {
+    "canvasCount": 1,
+    "title": "问道长生"
+  },
+  "shots": {
+    "mapShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-map-redesign-2.png",
+    "locationShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-location-panel-2.png",
+    "peopleShot": "C:\\Users\\EricWeston\\Desktop\\Echo\\frontend\\.codex-browser-check\\xiuxian-v2-people-panel-2.png"
+  },
+  "events": [
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "javascript",
+          "level": "warning",
+          "text": "Failed to execute 'requestFullscreen' on 'Element': API can only be initiated by a user gesture.",
+          "timestamp": 1778231561045.286,
+          "url": "http://localhost:5173/games/xiuxian-v2/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "javascript",
+          "level": "warning",
+          "text": "Failed to execute 'requestFullscreen' on 'Element': API can only be initiated by a user gesture.",
+          "timestamp": 1778231561837.164,
+          "url": "http://localhost:5173/games/xiuxian-v2/dist/index.html"
+        }
+      }
+    }
+  ]
+}

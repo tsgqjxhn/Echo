@@ -10,7 +10,7 @@ export interface ImageGenOptions {
 
 export class ImageGenService {
   async generate(prompt: string, options?: ImageGenOptions): Promise<string[]> {
-    const config = await apiConfigService.getDefaultConfig('image')
+    const config = await apiConfigService.getDefaultConfig('image-gen')
     if (!config) throw new Error('请先在设置中配置图片生成模型')
 
     const adapter = getAdapterOrDefault(config.provider)

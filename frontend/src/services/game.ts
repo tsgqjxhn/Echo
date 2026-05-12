@@ -74,7 +74,7 @@ export class GameService {
     }
 
     // 获取游戏处理器
-    const handler = getGameHandler(gameState.gameType, this.settingsService.getSettings());
+    const handler = getGameHandler(gameState.gameType);
     
     // 处理动作
     const result = await handler.processAction(gameState.stateData, action, payload);
@@ -97,7 +97,7 @@ export class GameService {
    * @param gameType 游戏类型
    */
   async playStandaloneGame(gameType: string): Promise<GameResult> {
-    const handler = getGameHandler(gameType, this.settingsService.getSettings());
+    const handler = getGameHandler(gameType);
     return handler.playStandalone();
   }
 

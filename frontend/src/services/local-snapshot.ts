@@ -13,13 +13,13 @@ export interface StandardSnapshot {
   characters: ICharacter[]
   sessions: IChatSession[]
   messages: Record<string, IMessage[]>
+  apiConfigs: APIConfig[]
+  gameSettings: GameSettings
+  gameStates: GameState[]
 }
 
 export interface BackupSnapshot extends StandardSnapshot {
   exportType: 'backup'
-  apiConfigs: APIConfig[]
-  gameSettings: GameSettings
-  gameStates: GameState[]
 }
 
 export interface SnapshotOverview {
@@ -47,8 +47,11 @@ function defaultGameSettings(settings?: GameSettings | null): GameSettings {
   return {
     globalEnabled: settings?.globalEnabled ?? true,
     sessionEnabled: settings?.sessionEnabled || {},
-    difficultyLevel: settings?.difficultyLevel ?? 'normal',
-    baseSuccessRate: settings?.baseSuccessRate ?? 50,
+    globalSoundEnabled: settings?.globalSoundEnabled ?? true,
+    globalBgmEnabled: settings?.globalBgmEnabled ?? true,
+    damageDisplayEnabled: settings?.damageDisplayEnabled ?? true,
+    gameNotificationsEnabled: settings?.gameNotificationsEnabled ?? true,
+    gameNotifications: settings?.gameNotifications ?? [],
   }
 }
 
@@ -89,10 +92,13 @@ export async function getSnapshotOverview(): Promise<SnapshotOverview> {
 
 export async function buildStandardSnapshot(): Promise<StandardSnapshot> {
   const storage = getStorageDriver()
-  const [user, characters, sessions] = await Promise.all([
+  const [user, characters, sessions, apiConfigs, gameSettings, gameStates] = await Promise.all([
     storage.getUserInfo(),
     storage.getAllCharacters(),
     storage.getAllSessions(),
+    storage.getAllAPIConfigs(),
+    storage.getGameSettings(),
+    storage.getAllGameStates(),
   ])
 
   return {
@@ -103,25 +109,25 @@ export async function buildStandardSnapshot(): Promise<StandardSnapshot> {
     characters: characters.map(character => ({ ...character })),
     sessions: sessions.map(session => ({ ...session })),
     messages: await buildMessageGroups(sessions),
+    apiConfigs: apiConfigs.map(config => {
+      const { apiKey: _apiKey, ...rest } = config
+      return rest as APIConfig
+    }),
+    gameSettings: defaultGameSettings(gameSettings),
+    gameStates: gameStates.map(state => ({ ...state })),
   }
 }
 
 export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   const storage = getStorageDriver()
-  const [standard, apiConfigs, gameSettings, gameStates] = await Promise.all([
-    buildStandardSnapshot(),
-    storage.getAllAPIConfigs(),
-    storage.getGameSettings(),
-    storage.getAllGameStates(),
-  ])
+  const standard = await buildStandardSnapshot()
+  const apiConfigs = await storage.getAllAPIConfigs()
 
   return {
     ...standard,
     version: '1.1',
     exportType: 'backup',
     apiConfigs: apiConfigs.map(config => ({ ...config })),
-    gameSettings: defaultGameSettings(gameSettings),
-    gameStates: gameStates.map(state => ({ ...state })),
   }
 }
 

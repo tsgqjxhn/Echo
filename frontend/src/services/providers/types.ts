@@ -7,6 +7,7 @@ export interface ProviderCapabilities {
   tts: boolean
   stt: boolean
   imageGeneration: boolean
+  imageUnderstanding: boolean
   videoGeneration: boolean
   modelListing: boolean
 }

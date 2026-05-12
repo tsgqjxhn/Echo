@@ -3,20 +3,14 @@
  * 包含各种小游戏的处理器实现
  */
 
-import type { GameHandler, GameActionResult, GameResult, EscapeGameState, EscapeActionResult, GameSettings } from '@/types/game';
+import type { GameHandler, GameActionResult, GameResult, EscapeGameState, EscapeActionResult } from '@/types/game';
 
 /**
  * 逃跑游戏处理器
  * 处理逃跑游戏的逻辑和动作
  */
 export class EscapeGameHandler implements GameHandler {
-  private settings: Partial<GameSettings> = {};
-
-  constructor(settings?: Partial<GameSettings>) {
-    if (settings) {
-      this.settings = settings;
-    }
-  }
+  constructor() {}
 
   // 路线难度配置
   private readonly routeDifficulties: Record<string, number> = {
@@ -142,16 +136,10 @@ export class EscapeGameHandler implements GameHandler {
   ): boolean {
     const difficulty = this.getRouteDifficulty(route);
     const characterAbility = state.characterAbility || 50;
-    const baseSuccessRate = this.settings.baseSuccessRate ?? 50;
+    const baseSuccessRate = 50;
 
-    const modifier = {
-      easy: 0.7,
-      normal: 1.0,
-      hard: 1.3
-    }[this.settings.difficultyLevel ?? 'normal'] ?? 1.0;
-
-    // 计算成功率 = 基础成功率 + 能力值 - 难度 * 难度系数
-    const successRate = baseSuccessRate + characterAbility - difficulty * modifier;
+    // 计算成功率 = 基础成功率 + 能力值 - 难度
+    const successRate = baseSuccessRate + characterAbility - difficulty;
     
     // 生成随机数判断是否成功
     const random = Math.random() * 100;
@@ -251,10 +239,10 @@ export class EscapeGameHandler implements GameHandler {
  * 获取游戏处理器工厂方法
  * @param gameType 游戏类型
  */
-export function getGameHandler(gameType: string, settings?: Partial<GameSettings>): GameHandler {
+export function getGameHandler(gameType: string): GameHandler {
   switch (gameType) {
     case 'escape':
-      return new EscapeGameHandler(settings);
+      return new EscapeGameHandler();
     default:
       throw new Error(`未知游戏类型：${gameType}`);
   }

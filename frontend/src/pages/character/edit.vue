@@ -11,502 +11,573 @@
     </header>
 
     <main class="form-body">
-      <!-- 区域A：基础信息 -->
-      <section class="section-block">
-        <h3 class="section-title">基础信息</h3>
-
-        <div class="avatar-row">
-          <div class="avatar-wrapper" @click="showAvatarSheet">
-            <img v-if="form.avatar" :src="form.avatar" alt="头像" class="avatar-img" />
-            <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
-          </div>
-          <div class="avatar-actions">
-            <button type="button" class="avatar-btn" @click="showAvatarSheet">更换头像</button>
-          </div>
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">角色名称 <span class="required">*</span></label>
-          <input
-            v-model="form.name"
-            type="text"
-            class="field-input"
-            :class="{ invalid: validation.name && touched.name }"
-            maxlength="50"
-            placeholder="请输入角色名称"
-            @blur="touched.name = true"
-          />
-          <span class="char-count" :class="{ error: validation.name }">{{ form.name.length }}/50</span>
-          <span v-if="validation.name && touched.name" class="error-text">{{ validation.name }}</span>
-        </div>
-
-        <div class="field-block">
-          <span class="field-label">分类</span>
-          <select v-model="form.category" class="category-select">
-            <option v-for="group in categoryGroups" :key="group.label" :value="group.label">{{ group.label }}</option>
-          </select>
-          <p class="field-hint">系统会自动匹配为 {{ resolvedModeLabel }} 模式。</p>
-        </div>
-
-        <div v-if="subCategories.length" class="field-block">
-          <span class="field-label">子分类</span>
-          <div class="chip-row">
-            <button
-              v-for="item in subCategories"
-              :key="item"
-              type="button"
-              class="category-chip"
-              :class="{ active: form.subCategory === item }"
-              @click="form.subCategory = item"
-            >{{ item }}</button>
-          </div>
-        </div>
-
-        <div class="field-block">
-          <span class="field-label">主题大类</span>
-          <select v-model="form.themeGroup" class="category-select">
-            <option value="">选择主题大类</option>
-            <option v-for="tg in themeGroups" :key="tg.label" :value="tg.label">{{ tg.label }}</option>
-          </select>
-        </div>
-
-        <div v-if="currentThemeLeaves.length" class="field-block">
-          <span class="field-label">主题细类</span>
-          <div class="chip-row">
-            <button
-              v-for="leaf in currentThemeLeaves"
-              :key="leaf"
-              type="button"
-              class="category-chip theme-chip"
-              :class="{ active: form.themeType === leaf }"
-              @click="form.themeType = leaf"
-            >{{ leaf }}</button>
-          </div>
-        </div>
-
-        <!-- 自定义标签 -->
-        <div class="field-block">
-          <span class="field-label">自定义标签</span>
-          <div class="custom-tags-row">
-            <div class="tag-chip" v-for="(tag, idx) in form.customTags" :key="tag + idx">
-              <span>{{ tag }}</span>
-              <button type="button" class="tag-remove" @click="removeCustomTag(idx)">
-                <svg viewBox="0 0 24 24" width="10" height="10"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-              </button>
+      <div class="config-grid">
+        <!-- 基础信息 -->
+        <div class="config-card" :class="{ filled: hasBaseInfo }" @click="toggleCard('base')">
+          <div class="card-header">
+            <span class="card-emoji">🏷️</span>
+            <div class="card-meta">
+              <span class="card-title">基础信息</span>
+              <span class="card-status">{{ baseInfoStatus }}</span>
             </div>
-            <input
-              v-if="form.customTags.length < 10"
-              v-model="tagInput"
-              type="text"
-              class="tag-input"
-              placeholder="输入标签，回车添加"
-              maxlength="20"
-              @keydown.enter.prevent="addCustomTag"
-              @keydown.comma.prevent="addCustomTag"
-            />
           </div>
-          <p class="field-hint">{{ form.customTags.length }}/10 个标签，每个最多20字符</p>
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">背景</label>
-          <textarea v-model="form.background" class="user-textarea" rows="3" maxlength="500" placeholder="角色背景故事，可选" />
-          <span class="field-hint">{{ form.background.length }}/500</span>
-        </div>
-      </section>
-
-      <!-- 区域B：提示词核心 -->
-      <section class="section-block">
-        <h3 class="section-title">提示词核心</h3>
-
-        <div class="field-item">
-          <label class="field-label">描述 <span class="required">*</span></label>
-          <textarea
-            v-model="form.description"
-            class="user-textarea"
-            :class="{ invalid: validation.description && touched.description }"
-            rows="4"
-            maxlength="1000"
-            placeholder="角色描述，必填"
-            @blur="touched.description = true"
-          />
-          <span class="char-count" :class="{ error: validation.description }">{{ form.description.length }}/1000</span>
-          <span v-if="validation.description && touched.description" class="error-text">{{ validation.description }}</span>
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">开场白</label>
-          <textarea v-model="form.greeting" class="user-textarea" rows="3" maxlength="500" placeholder="首次对话时展示的开场白，可选" />
-          <span class="field-hint">{{ form.greeting.length }}/500</span>
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">整体设定（主提示词） <span class="required">*</span></label>
-          <textarea
-            v-model="form.settings"
-            class="user-textarea settings-input"
-            :class="{ invalid: validation.settings && touched.settings }"
-            rows="8"
-            maxlength="4000"
-            placeholder="角色的整体设定、性格、行为方式、说话风格等核心提示词，必填"
-            @blur="touched.settings = true"
-          />
-          <span class="char-count" :class="{ error: validation.settings }">{{ form.settings.length }}/4000</span>
-          <span v-if="validation.settings && touched.settings" class="error-text">{{ validation.settings }}</span>
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">场景时间</label>
-          <input v-model="form.sceneTime" type="text" class="field-input" maxlength="30" placeholder="例如：深夜十一点、黄昏时分" />
-        </div>
-
-        <div class="field-item">
-          <label class="field-label">场景设定</label>
-          <textarea v-model="form.scenario" class="user-textarea" rows="3" maxlength="500" placeholder="对话发生的时间、地点、背景等场景设定" />
-        </div>
-      </section>
-
-      <!-- 区域C：结构化人设 -->
-      <section class="section-block compact">
-        <AdvancedToggle v-model="showPersona" label-off="展开结构化人设" label-on="收起结构化人设" />
-        <div v-if="showPersona" class="section-body">
-          <div class="field-item">
-            <label class="field-label">身份锁（锚点）</label>
-            <textarea v-model="form.persona.anchor" class="user-textarea" rows="2" placeholder="角色的核心身份锚点，用于锁定角色本质" />
-          </div>
-          <div class="field-item">
-            <label class="field-label">性格特质</label>
-            <textarea v-model="form.persona.traits" class="user-textarea" rows="2" placeholder="角色的性格特征列表，用逗号分隔" />
-          </div>
-          <div class="field-item">
-            <label class="field-label">交流风格</label>
-            <textarea v-model="form.persona.voice" class="user-textarea" rows="2" placeholder="角色的说话方式、语气、口头禅等" />
-          </div>
-        </div>
-      </section>
-
-      <!-- 区域D：Lorebook 知识库 -->
-      <section class="section-block compact">
-        <AdvancedToggle v-model="showLorebook" label-off="展开 Lorebook 知识库" label-on="收起 Lorebook 知识库" />
-        <div v-if="showLorebook" class="section-body">
-          <div class="field-item inline-field">
-            <label class="field-label">扫描消息数</label>
-            <input v-model.number="form.lorebook.scanRange" type="number" class="field-input number-input" min="1" max="9999" />
-          </div>
-
-          <div v-if="form.lorebook.entries.length === 0" class="empty-hint">点击添加词条</div>
-
-          <div v-for="(entry, idx) in form.lorebook.entries" :key="entry.id" class="lore-entry-card">
-            <div class="lore-entry-header">
-              <span class="lore-entry-index">词条 {{ idx + 1 }}</span>
-              <div class="lore-entry-actions">
-                <button type="button" class="icon-btn" :disabled="idx === 0" @click="moveLoreEntry(idx, -1)">
-                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <button type="button" class="icon-btn" :disabled="idx === form.lorebook.entries.length - 1" @click="moveLoreEntry(idx, 1)">
-                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <label class="lore-toggle">
-                  <input v-model="entry.enabled" type="checkbox" />
-                  <span class="lore-toggle-slider" />
-                </label>
-                <button type="button" class="icon-btn danger" @click="removeLoreEntry(idx)">
-                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
+          <div v-if="expandedCards.base" class="card-body" @click.stop>
+            <div class="avatar-row">
+              <div class="avatar-wrapper" @click="showAvatarSheet">
+                <img v-if="form.avatar" :src="form.avatar" alt="头像" class="avatar-img" />
+                <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
+              </div>
+              <div class="avatar-actions">
+                <button type="button" class="avatar-btn" @click="showAvatarSheet">更换头像</button>
               </div>
             </div>
 
             <div class="field-item">
-              <label class="field-label">关键词（逗号分隔）</label>
-              <input v-model="entry.keywordInput" type="text" class="field-input" placeholder="例如：魔法, 法术, 咒语" @change="syncLoreKeywords(entry)" />
+              <label class="field-label">角色名称 <span class="required">*</span></label>
+              <input
+                v-model="form.name"
+                type="text"
+                class="field-input"
+                :class="{ invalid: validation.name && touched.name }"
+                maxlength="50"
+                placeholder="请输入角色名称"
+                @blur="touched.name = true"
+              />
+              <span class="char-count" :class="{ error: validation.name }">{{ form.name.length }}/50</span>
+              <span v-if="validation.name && touched.name" class="error-text">{{ validation.name }}</span>
             </div>
 
-            <div class="field-item">
-              <label class="field-label">内容</label>
-              <textarea v-model="entry.content" class="user-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" />
+            <div class="field-block">
+              <span class="field-label">分类</span>
+              <select v-model="form.category" class="category-select">
+                <option v-for="group in categoryGroups" :key="group.label" :value="group.label">{{ group.label }}</option>
+              </select>
+              <p class="field-hint">系统会自动匹配为 {{ resolvedModeLabel }} 模式。</p>
             </div>
 
-            <div class="lore-grid">
-              <div class="field-item">
-                <label class="field-label">插入位置</label>
-                <select v-model.number="entry.position" class="field-select">
-                  <option :value="0">对话前</option>
-                  <option :value="1">对话后</option>
-                  <option :value="2">EM 顶部</option>
-                  <option :value="3">EM 底部</option>
-                  <option :value="4">AN 顶部</option>
-                  <option :value="5">AN 底部</option>
-                  <option :value="6">深度位置</option>
-                  <option :value="7">出口</option>
-                </select>
-              </div>
-              <div class="field-item">
-                <label class="field-label">深度</label>
-                <input v-model.number="entry.depth" type="number" class="field-input" :disabled="entry.position !== 6" min="0" max="99" />
-              </div>
-              <div class="field-item">
-                <label class="field-label">角色</label>
-                <select v-model.number="entry.role" class="field-select">
-                  <option :value="0">system</option>
-                  <option :value="1">user</option>
-                  <option :value="2">assistant</option>
-                </select>
-              </div>
-              <div class="field-item">
-                <label class="field-label">优先级</label>
-                <input v-model.number="entry.order" type="number" class="field-input" min="0" max="999" />
-              </div>
-            </div>
-          </div>
-
-          <button type="button" class="avatar-btn add-entry-btn" @click="addLoreEntry">
-            <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-            添加词条
-          </button>
-        </div>
-      </section>
-
-      <!-- 区域E：世界书 -->
-      <section class="section-block compact">
-        <AdvancedToggle
-          v-model="showWorldBooks"
-          :label-off="`展开世界书 ${form.worldBooks.length ? '(' + form.worldBooks.length + ')' : ''}`"
-          label-on="收起世界书"
-        />
-        <div v-if="showWorldBooks" class="section-body">
-          <div class="world-book-actions-row" style="margin-bottom: 8px;">
-            <button type="button" class="avatar-btn add-entry-btn" @click="addWorldBook">
-              <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-              添加世界书
-            </button>
-            <button type="button" class="avatar-btn add-entry-btn" @click="triggerImportWorldBook">
-              <svg viewBox="0 0 24 24" width="12" height="12"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> 从文件导入
-            </button>
-          </div>
-          <input ref="worldBookFileInput" type="file" class="hidden-file-input" accept=".json" @change="onWorldBookFileSelected" />
-          <div v-if="form.worldBooks.length === 0" class="empty-hint">
-            暂无世界书，点击添加
-          </div>
-
-          <div v-for="(wb, wIdx) in form.worldBooks" :key="wb.id" class="world-book-card">
-            <div class="world-book-header" @click="wb._expanded = !wb._expanded">
-              <div class="world-book-title-row">
-                <span class="world-book-name">{{ wb.name || '未命名世界书' }}</span>
-                <span class="world-book-meta">{{ wb.entries.length }} 词条</span>
-              </div>
-              <div class="world-book-actions">
-                <svg class="expand-icon" :class="{ expanded: wb._expanded }" viewBox="0 0 24 24" width="14" height="14">
-                  <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <button type="button" class="icon-btn danger" @click.stop="removeWorldBook(wIdx)">
-                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
+            <div v-if="subCategories.length" class="field-block">
+              <span class="field-label">子分类</span>
+              <div class="chip-row">
+                <button
+                  v-for="item in subCategories"
+                  :key="item"
+                  type="button"
+                  class="category-chip"
+                  :class="{ active: form.subCategory === item }"
+                  @click="form.subCategory = item"
+                >{{ item }}</button>
               </div>
             </div>
 
-            <div v-if="wb._expanded" class="world-book-body">
-              <div class="field-item">
-                <label class="field-label">世界书名称</label>
-                <input v-model="wb.name" type="text" class="field-input" placeholder="例如：东方修仙世界观" />
-              </div>
-              <div class="field-item inline-field">
-                <label class="field-label">扫描消息数</label>
-                <input v-model.number="wb.scanRange" type="number" class="field-input number-input" min="1" max="9999" />
-              </div>
-
-              <div v-if="wb.entries.length === 0" class="empty-hint">
-                点击添加词条
-              </div>
-
-              <div v-for="(entry, eIdx) in wb.entries" :key="entry.id" class="lore-entry-card">
-                <div class="lore-entry-header">
-                  <span class="lore-entry-index">词条 {{ eIdx + 1 }}</span>
-                  <div class="lore-entry-actions">
-                    <button type="button" class="icon-btn" :disabled="eIdx === 0" @click="moveWorldBookEntry(wb, eIdx, -1)">
-                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <button type="button" class="icon-btn" :disabled="eIdx === wb.entries.length - 1" @click="moveWorldBookEntry(wb, eIdx, 1)">
-                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                    <label class="lore-toggle">
-                      <input v-model="entry.enabled" type="checkbox" />
-                      <span class="lore-toggle-slider" />
-                    </label>
-                    <button type="button" class="icon-btn danger" @click="removeWorldBookEntry(wb, eIdx)">
-                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="field-item">
-                  <label class="field-label">关键词（逗号分隔）</label>
-                  <input v-model="entry.keywordInput" type="text" class="field-input" placeholder="例如：魔法, 法术, 咒语" @change="syncWorldBookKeywords(entry)" />
-                </div>
-
-                <div class="field-item">
-                  <label class="field-label">内容</label>
-                  <textarea v-model="entry.content" class="user-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" />
-                </div>
-
-                <div class="lore-grid">
-                  <div class="field-item">
-                    <label class="field-label">插入位置</label>
-                    <select v-model.number="entry.position" class="field-select">
-                      <option :value="0">对话前</option>
-                      <option :value="1">对话后</option>
-                      <option :value="2">EM 顶部</option>
-                      <option :value="3">EM 底部</option>
-                      <option :value="4">AN 顶部</option>
-                      <option :value="5">AN 底部</option>
-                      <option :value="6">深度位置</option>
-                      <option :value="7">出口</option>
-                    </select>
-                  </div>
-                  <div class="field-item">
-                    <label class="field-label">深度</label>
-                    <input v-model.number="entry.depth" type="number" class="field-input" :disabled="entry.position !== 6" min="0" max="99" />
-                  </div>
-                  <div class="field-item">
-                    <label class="field-label">角色</label>
-                    <select v-model.number="entry.role" class="field-select">
-                      <option :value="0">system</option>
-                      <option :value="1">user</option>
-                      <option :value="2">assistant</option>
-                    </select>
-                  </div>
-                  <div class="field-item">
-                    <label class="field-label">优先级</label>
-                    <input v-model.number="entry.order" type="number" class="field-input" min="0" max="999" />
-                  </div>
-                </div>
-
-                <div class="lore-grid two-col">
-                  <div class="field-item">
-                    <label class="field-label">触发概率（%）</label>
-                    <input v-model.number="entry.probability" type="number" class="field-input" min="0" max="100" />
-                  </div>
-                  <div class="field-item">
-                    <label class="field-label">注释</label>
-                    <input v-model="entry.comment" type="text" class="field-input" placeholder="可选" />
-                  </div>
-                </div>
-              </div>
-
-              <button type="button" class="avatar-btn add-entry-btn" @click="addWorldBookEntry(wb)">
-                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-                添加词条
-              </button>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 区域F：深度提示 -->
-      <section class="section-block compact">
-        <AdvancedToggle v-model="showDepthPrompt" label-off="展开深度提示" label-on="收起深度提示" />
-        <div v-if="showDepthPrompt" class="section-body">
-          <div class="lore-grid two-col">
-            <div class="field-item inline-field">
-              <label class="field-label">深度层级</label>
-              <input v-model.number="form.depthPrompt.depth" type="number" class="field-input" min="0" max="99" />
-            </div>
-            <div class="field-item">
-              <label class="field-label">角色定位</label>
-              <select v-model="form.depthPrompt.role" class="field-select">
-                <option value="system">system</option>
-                <option value="user">user</option>
-                <option value="assistant">assistant</option>
+            <div class="field-block">
+              <span class="field-label">主题大类</span>
+              <select v-model="form.themeGroup" class="category-select">
+                <option value="">选择主题大类</option>
+                <option v-for="tg in themeGroups" :key="tg.label" :value="tg.label">{{ tg.label }}</option>
               </select>
             </div>
-          </div>
-          <div class="field-item">
-            <label class="field-label">深度提示内容</label>
-            <textarea v-model="form.depthPrompt.prompt" class="user-textarea" rows="4" placeholder="输入深度提示内容，将被注入到指定深度的对话上下文中" />
+
+            <div v-if="currentThemeLeaves.length" class="field-block">
+              <span class="field-label">主题细类</span>
+              <div class="chip-row">
+                <button
+                  v-for="leaf in currentThemeLeaves"
+                  :key="leaf"
+                  type="button"
+                  class="category-chip theme-chip"
+                  :class="{ active: form.themeType === leaf }"
+                  @click="form.themeType = leaf"
+                >{{ leaf }}</button>
+              </div>
+            </div>
+
+            <!-- 自定义标签 -->
+            <div class="field-block">
+              <span class="field-label">自定义标签</span>
+              <div class="custom-tags-row">
+                <div class="tag-chip" v-for="(tag, idx) in form.customTags" :key="tag + idx">
+                  <span>{{ tag }}</span>
+                  <button type="button" class="tag-remove" @click="removeCustomTag(idx)">
+                    <svg viewBox="0 0 24 24" width="10" height="10"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
+                <input
+                  v-if="form.customTags.length < 10"
+                  v-model="tagInput"
+                  type="text"
+                  class="tag-input"
+                  placeholder="输入标签，回车添加"
+                  maxlength="20"
+                  @keydown.enter.prevent="addCustomTag"
+                  @keydown.comma.prevent="addCustomTag"
+                />
+              </div>
+              <p class="field-hint">{{ form.customTags.length }}/10 个标签，每个最多20字符</p>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">背景</label>
+              <textarea v-model="form.background" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="角色背景故事，可选" @input="onTextareaInput" />
+              <span class="field-hint">{{ form.background.length }}/500</span>
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('base')">收起</button>
           </div>
         </div>
-      </section>
 
-      <!-- 区域F：备选开场白 -->
-      <section class="section-block compact">
-        <AdvancedToggle v-model="showAltGreetings" label-off="展开备选开场白" label-on="收起备选开场白" />
-        <div v-if="showAltGreetings" class="section-body">
-          <div v-if="form.alternateGreetings.length === 0" class="empty-hint">点击添加开场白</div>
-          <div v-for="(_, idx) in form.alternateGreetings" :key="idx" class="alt-greeting-row">
-            <textarea v-model="form.alternateGreetings[idx]" class="user-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" />
-            <button type="button" class="icon-btn danger" @click="removeAltGreeting(idx)">
-              <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
+        <!-- 提示词核心 -->
+        <div class="config-card" :class="{ filled: hasPromptCore }" @click="toggleCard('prompt')">
+          <div class="card-header">
+            <span class="card-emoji">📝</span>
+            <div class="card-meta">
+              <span class="card-title">提示词核心</span>
+              <span class="card-status">{{ promptCoreStatus }}</span>
+            </div>
           </div>
-          <button v-if="form.alternateGreetings.length < 10" type="button" class="avatar-btn add-entry-btn" @click="addAltGreeting">
-            <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-            添加开场白
-          </button>
+          <div v-if="expandedCards.prompt" class="card-body" @click.stop>
+            <div class="field-item">
+              <label class="field-label">描述 <span class="required">*</span></label>
+              <textarea
+                v-model="form.description"
+                class="field-textarea auto-textarea"
+                :class="{ invalid: validation.description && touched.description }"
+                rows="4"
+                maxlength="1000"
+                placeholder="角色描述，必填"
+                @blur="touched.description = true"
+                @input="onTextareaInput"
+              />
+              <span class="char-count" :class="{ error: validation.description }">{{ form.description.length }}/1000</span>
+              <span v-if="validation.description && touched.description" class="error-text">{{ validation.description }}</span>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">开场白</label>
+              <textarea v-model="form.greeting" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="首次对话时展示的开场白，可选" @input="onTextareaInput" />
+              <span class="field-hint">{{ form.greeting.length }}/500</span>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">整体设定（主提示词） <span class="required">*</span></label>
+              <textarea
+                v-model="form.settings"
+                class="field-textarea auto-textarea settings-input"
+                :class="{ invalid: validation.settings && touched.settings }"
+                rows="8"
+                maxlength="4000"
+                placeholder="角色的整体设定、性格、行为方式、说话风格等核心提示词，必填"
+                @blur="touched.settings = true"
+                @input="onTextareaInput"
+              />
+              <span class="char-count" :class="{ error: validation.settings }">{{ form.settings.length }}/4000</span>
+              <span v-if="validation.settings && touched.settings" class="error-text">{{ validation.settings }}</span>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">场景时间</label>
+              <input v-model="form.sceneTime" type="text" class="field-input" maxlength="30" placeholder="例如：深夜十一点、黄昏时分" />
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">场景设定</label>
+              <textarea v-model="form.scenario" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="对话发生的时间、地点、背景等场景设定" @input="onTextareaInput" />
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('prompt')">收起</button>
+          </div>
         </div>
-      </section>
 
-      <!-- 区域G：媒体设定 -->
-      <section class="section-block compact">
-        <AdvancedToggle v-model="showMedia" label-off="展开媒体设定" label-on="收起媒体设定" />
-        <div v-if="showMedia" class="section-body">
-          <div class="field-item">
-            <label class="field-label">角色聊天背景</label>
-            <div class="media-upload-row">
-              <button type="button" class="avatar-btn" @click="uploadMedia('chatBackground')">上传图片</button>
-              <button v-if="form.media.chatBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.chatBackground = ''">移除</button>
+        <!-- 结构化人设 -->
+        <div class="config-card" :class="{ filled: hasPersona }" @click="toggleCard('persona')">
+          <div class="card-header">
+            <span class="card-emoji">🎭</span>
+            <div class="card-meta">
+              <span class="card-title">结构化人设</span>
+              <span class="card-status">{{ personaStatus }}</span>
             </div>
-            <div v-if="form.media.chatBackground" class="media-preview"><img :src="form.media.chatBackground" alt="聊天背景" /></div>
           </div>
-
-          <div class="field-item">
-            <label class="field-label">整体聊天背景</label>
-            <div class="media-upload-row">
-              <button type="button" class="avatar-btn" @click="uploadMedia('globalBackground')">上传图片</button>
-              <button v-if="form.media.globalBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.globalBackground = ''">移除</button>
+          <div v-if="expandedCards.persona" class="card-body" @click.stop>
+            <div class="field-item">
+              <label class="field-label">身份锁（锚点）</label>
+              <textarea v-model="form.persona.anchor" class="field-textarea auto-textarea" rows="2" placeholder="角色的核心身份锚点，用于锁定角色本质" @input="onTextareaInput" />
             </div>
-            <div v-if="form.media.globalBackground" class="media-preview"><img :src="form.media.globalBackground" alt="整体背景" /></div>
-          </div>
-
-          <div class="field-item">
-            <label class="field-label">角色切换动图</label>
-            <div class="media-upload-row">
-              <button type="button" class="avatar-btn" @click="uploadMedia('switchAnimation')">上传动图</button>
-              <button v-if="form.media.switchAnimation" type="button" class="avatar-btn remove-media-btn" @click="form.media.switchAnimation = ''">移除</button>
+            <div class="field-item">
+              <label class="field-label">性格特质</label>
+              <textarea v-model="form.persona.traits" class="field-textarea auto-textarea" rows="2" placeholder="角色的性格特征列表，用逗号分隔" @input="onTextareaInput" />
             </div>
-            <div v-if="form.media.switchAnimation" class="media-preview"><img :src="form.media.switchAnimation" alt="切换动图" /></div>
+            <div class="field-item">
+              <label class="field-label">交流风格</label>
+              <textarea v-model="form.persona.voice" class="field-textarea auto-textarea" rows="2" placeholder="角色的说话方式、语气、口头禅等" @input="onTextareaInput" />
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('persona')">收起</button>
           </div>
+        </div>
 
-          <div class="field-item">
-            <label class="field-label">角色情感表达动图</label>
-            <button type="button" class="avatar-btn emotion-add-btn" @click="addEmotion">
+        <!-- 世界书 (Lorebook) -->
+        <div class="config-card" :class="{ filled: form.lorebook.entries.length > 0 }" @click="toggleCard('lorebook')">
+          <div class="card-header">
+            <span class="card-emoji">📚</span>
+            <div class="card-meta">
+              <span class="card-title">世界书 (Lorebook)</span>
+              <span class="card-status">{{ form.lorebook.entries.length }} 个词条</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.lorebook" class="card-body" @click.stop>
+            <p class="card-desc">
+              世界书用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
+            </p>
+            <div class="field-item inline-field">
+              <label class="field-label">扫描消息数</label>
+              <input v-model.number="form.lorebook.scanRange" type="number" class="field-input number-input" min="1" max="9999" />
+            </div>
+
+            <div v-if="form.lorebook.entries.length === 0" class="empty-hint">点击添加词条</div>
+
+            <div v-for="(entry, idx) in form.lorebook.entries" :key="entry.id" class="lore-entry-card">
+              <div class="lore-entry-header">
+                <span class="lore-entry-index">词条 {{ idx + 1 }}</span>
+                <div class="lore-entry-actions">
+                  <button type="button" class="icon-btn" :disabled="idx === 0" @click="moveLoreEntry(idx, -1)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button type="button" class="icon-btn" :disabled="idx === form.lorebook.entries.length - 1" @click="moveLoreEntry(idx, 1)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <label class="lore-toggle">
+                    <input v-model="entry.enabled" type="checkbox" />
+                    <span class="lore-toggle-slider" />
+                  </label>
+                  <button type="button" class="icon-btn danger" @click="removeLoreEntry(idx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="field-item">
+                <label class="field-label">关键词（逗号分隔）</label>
+                <input v-model="entry.keywordInput" type="text" class="field-input" placeholder="例如：魔法, 法术, 咒语" @change="syncLoreKeywords(entry)" />
+              </div>
+
+              <div class="field-item">
+                <label class="field-label">内容</label>
+                <textarea v-model="entry.content" class="field-textarea auto-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" @input="onTextareaInput" />
+              </div>
+
+              <div class="lore-grid">
+                <div class="field-item">
+                  <label class="field-label">插入位置</label>
+                  <select v-model.number="entry.position" class="field-select">
+                    <option :value="0">对话前</option>
+                    <option :value="1">对话后</option>
+                    <option :value="2">主提示词顶部</option>
+                    <option :value="3">主提示词底部</option>
+                    <option :value="4">作者注释顶部</option>
+                    <option :value="5">作者注释底部</option>
+                    <option :value="6">深度位置</option>
+                    <option :value="7">出口</option>
+                  </select>
+                </div>
+                <div class="field-item">
+                  <label class="field-label">深度</label>
+                  <input v-model.number="entry.depth" type="number" class="field-input" :disabled="entry.position !== 6" min="0" max="99" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">角色</label>
+                  <select v-model.number="entry.role" class="field-select">
+                    <option :value="0">system</option>
+                    <option :value="1">user</option>
+                    <option :value="2">assistant</option>
+                  </select>
+                </div>
+                <div class="field-item">
+                  <label class="field-label">优先级</label>
+                  <input v-model.number="entry.order" type="number" class="field-input" min="0" max="999" />
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="avatar-btn add-entry-btn" @click="addLoreEntry">
               <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-              添加情感
+              添加词条
             </button>
-            <div v-for="(ea, idx) in form.media.emotionAnimations" :key="idx" class="emotion-row">
-              <input v-model="ea.emotion" type="text" class="field-input emotion-input" placeholder="请输入触发该动图的情感状态" />
-              <div class="emotion-actions">
-                <button type="button" class="avatar-btn" @click="uploadEmotionAnimation(idx)">上传动图</button>
-                <button v-if="ea.animationUrl" type="button" class="avatar-btn remove-media-btn" @click="ea.animationUrl = ''">移除</button>
-                <button type="button" class="avatar-btn remove-media-btn" @click="removeEmotion(idx)">
-                  <svg viewBox="0 0 24 24" width="12" height="12"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('lorebook')">收起</button>
+          </div>
+        </div>
+
+        <!-- 世界书 -->
+        <div class="config-card" :class="{ filled: form.worldBooks.length > 0 }" @click="toggleCard('worldBooks')">
+          <div class="card-header">
+            <span class="card-emoji">🌍</span>
+            <div class="card-meta">
+              <span class="card-title">世界书</span>
+              <span class="card-status">{{ form.worldBooks.length }} 本书</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.worldBooks" class="card-body" @click.stop>
+            <p class="card-desc">
+              世界书用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
+            </p>
+            <div class="world-book-actions-row" style="margin-bottom: 8px;">
+              <button type="button" class="avatar-btn add-entry-btn" @click="addWorldBook">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加世界书
+              </button>
+              <button type="button" class="avatar-btn add-entry-btn" @click="triggerImportWorldBook">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> 从文件导入
+              </button>
+            </div>
+            <input ref="worldBookFileInput" type="file" class="hidden-file-input" accept=".json" @change="onWorldBookFileSelected" />
+            <div v-if="form.worldBooks.length === 0" class="empty-hint">
+              暂无世界书，点击添加
+            </div>
+
+            <div v-for="(wb, wIdx) in form.worldBooks" :key="wb.id" class="world-book-card">
+              <div class="world-book-header" @click="wb._expanded = !wb._expanded">
+                <div class="world-book-title-row">
+                  <span class="world-book-name">{{ wb.name || '未命名世界书' }}</span>
+                  <span class="world-book-meta">{{ wb.entries.length }} 词条</span>
+                </div>
+                <div class="world-book-actions">
+                  <svg class="expand-icon" :class="{ expanded: wb._expanded }" viewBox="0 0 24 24" width="14" height="14">
+                    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <button type="button" class="icon-btn danger" @click.stop="removeWorldBook(wIdx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="wb._expanded" class="world-book-body">
+                <div class="field-item">
+                  <label class="field-label">世界书名称</label>
+                  <input v-model="wb.name" type="text" class="field-input" placeholder="例如：东方修仙世界观" />
+                </div>
+                <div class="field-item inline-field">
+                  <label class="field-label">扫描消息数</label>
+                  <input v-model.number="wb.scanRange" type="number" class="field-input number-input" min="1" max="9999" />
+                </div>
+
+                <div v-if="wb.entries.length === 0" class="empty-hint">
+                  点击添加词条
+                </div>
+
+                <div v-for="(entry, eIdx) in wb.entries" :key="entry.id" class="lore-entry-card">
+                  <div class="lore-entry-header">
+                    <span class="lore-entry-index">词条 {{ eIdx + 1 }}</span>
+                    <div class="lore-entry-actions">
+                      <button type="button" class="icon-btn" :disabled="eIdx === 0" @click="moveWorldBookEntry(wb, eIdx, -1)">
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 15l-6-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                      <button type="button" class="icon-btn" :disabled="eIdx === wb.entries.length - 1" @click="moveWorldBookEntry(wb, eIdx, 1)">
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                      <label class="lore-toggle">
+                        <input v-model="entry.enabled" type="checkbox" />
+                        <span class="lore-toggle-slider" />
+                      </label>
+                      <button type="button" class="icon-btn danger" @click="removeWorldBookEntry(wb, eIdx)">
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="field-item">
+                    <label class="field-label">关键词（逗号分隔）</label>
+                    <input v-model="entry.keywordInput" type="text" class="field-input" placeholder="例如：魔法, 法术, 咒语" @change="syncWorldBookKeywords(entry)" />
+                  </div>
+
+                  <div class="field-item">
+                    <label class="field-label">内容</label>
+                    <textarea v-model="entry.content" class="field-textarea auto-textarea" rows="3" placeholder="词条内容，匹配关键词时注入到对话中" @input="onTextareaInput" />
+                  </div>
+
+                  <div class="lore-grid">
+                    <div class="field-item">
+                      <label class="field-label">插入位置</label>
+                      <select v-model.number="entry.position" class="field-select">
+                        <option :value="0">对话前</option>
+                        <option :value="1">对话后</option>
+                        <option :value="2">主提示词顶部</option>
+                        <option :value="3">主提示词底部</option>
+                        <option :value="4">作者注释顶部</option>
+                        <option :value="5">作者注释底部</option>
+                        <option :value="6">深度位置</option>
+                        <option :value="7">出口</option>
+                      </select>
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">深度</label>
+                      <input v-model.number="entry.depth" type="number" class="field-input" :disabled="entry.position !== 6" min="0" max="99" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">角色</label>
+                      <select v-model.number="entry.role" class="field-select">
+                        <option :value="0">system</option>
+                        <option :value="1">user</option>
+                        <option :value="2">assistant</option>
+                      </select>
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">优先级</label>
+                      <input v-model.number="entry.order" type="number" class="field-input" min="0" max="999" />
+                    </div>
+                  </div>
+
+                  <div class="lore-grid two-col">
+                    <div class="field-item">
+                      <label class="field-label">触发概率（%）</label>
+                      <input v-model.number="entry.probability" type="number" class="field-input" min="0" max="100" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">注释</label>
+                      <input v-model="entry.comment" type="text" class="field-input" placeholder="可选" />
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" class="avatar-btn add-entry-btn" @click="addWorldBookEntry(wb)">
+                  <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                  添加词条
                 </button>
               </div>
-              <div v-if="ea.animationUrl" class="media-preview small"><img :src="ea.animationUrl" alt="情感动图" /></div>
+            </div>
+
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('worldBooks')">收起</button>
+          </div>
+        </div>
+
+        <!-- 深度提示 -->
+        <div class="config-card" :class="{ filled: !!form.depthPrompt.prompt }" @click="toggleCard('depthPrompt')">
+          <div class="card-header">
+            <span class="card-emoji">⚡</span>
+            <div class="card-meta">
+              <span class="card-title">深度提示</span>
+              <span class="card-status">{{ depthPromptStatus }}</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- 区域H：游戏数据 -->
-      <section v-if="form.gameData" class="section-block compact">
-        <AdvancedToggle v-model="showGameData" label-off="展开游戏数据" label-on="收起游戏数据" />
-        <div v-if="showGameData" class="section-body">
-          <div class="field-item">
-            <label class="field-label">游戏数据（只读预览）</label>
-            <pre class="game-preview">{{ form.gameData.slice(0, 800) }}{{ form.gameData.length > 800 ? '…' : '' }}</pre>
+          <div v-if="expandedCards.depthPrompt" class="card-body" @click.stop>
+            <div class="lore-grid two-col">
+              <div class="field-item inline-field">
+                <label class="field-label">深度层级</label>
+                <input v-model.number="form.depthPrompt.depth" type="number" class="field-input" min="0" max="99" />
+              </div>
+              <div class="field-item">
+                <label class="field-label">角色定位</label>
+                <select v-model="form.depthPrompt.role" class="field-select">
+                  <option value="system">system</option>
+                  <option value="user">user</option>
+                  <option value="assistant">assistant</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-item">
+              <label class="field-label">深度提示内容</label>
+              <textarea v-model="form.depthPrompt.prompt" class="field-textarea auto-textarea" rows="4" placeholder="输入深度提示内容，将被注入到指定深度的对话上下文中" @input="onTextareaInput" />
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('depthPrompt')">收起</button>
           </div>
         </div>
-      </section>
+
+        <!-- 备选开场白 -->
+        <div class="config-card" :class="{ filled: form.alternateGreetings.length > 0 }" @click="toggleCard('altGreetings')">
+          <div class="card-header">
+            <span class="card-emoji">💬</span>
+            <div class="card-meta">
+              <span class="card-title">备选开场白</span>
+              <span class="card-status">{{ form.alternateGreetings.length }} 条</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.altGreetings" class="card-body" @click.stop>
+            <div v-if="form.alternateGreetings.length === 0" class="empty-hint">点击添加开场白</div>
+            <div v-for="(_, idx) in form.alternateGreetings" :key="idx" class="alt-greeting-row">
+              <textarea v-model="form.alternateGreetings[idx]" class="field-textarea auto-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" @input="onTextareaInput" />
+              <button type="button" class="icon-btn danger" @click="removeAltGreeting(idx)">
+                <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <button v-if="form.alternateGreetings.length < 10" type="button" class="avatar-btn add-entry-btn" @click="addAltGreeting">
+              <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+              添加开场白
+            </button>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('altGreetings')">收起</button>
+          </div>
+        </div>
+
+        <!-- 媒体设定 -->
+        <div class="config-card" :class="{ filled: hasMedia }" @click="toggleCard('media')">
+          <div class="card-header">
+            <span class="card-emoji">🖼️</span>
+            <div class="card-meta">
+              <span class="card-title">媒体设定</span>
+              <span class="card-status">{{ mediaStatus }}</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.media" class="card-body" @click.stop>
+            <div class="field-item">
+              <label class="field-label">角色聊天背景</label>
+              <div class="media-upload-row">
+                <button type="button" class="avatar-btn" @click="uploadMedia('chatBackground')">上传图片</button>
+                <button v-if="form.media.chatBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.chatBackground = ''">移除</button>
+              </div>
+              <div v-if="form.media.chatBackground" class="media-preview"><img :src="form.media.chatBackground" alt="聊天背景" /></div>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">整体聊天背景</label>
+              <div class="media-upload-row">
+                <button type="button" class="avatar-btn" @click="uploadMedia('globalBackground')">上传图片</button>
+                <button v-if="form.media.globalBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.globalBackground = ''">移除</button>
+              </div>
+              <div v-if="form.media.globalBackground" class="media-preview"><img :src="form.media.globalBackground" alt="整体背景" /></div>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">角色切换动图</label>
+              <div class="media-upload-row">
+                <button type="button" class="avatar-btn" @click="uploadMedia('switchAnimation')">上传动图</button>
+                <button v-if="form.media.switchAnimation" type="button" class="avatar-btn remove-media-btn" @click="form.media.switchAnimation = ''">移除</button>
+              </div>
+              <div v-if="form.media.switchAnimation" class="media-preview"><img :src="form.media.switchAnimation" alt="切换动图" /></div>
+            </div>
+
+            <div class="field-item">
+              <label class="field-label">角色情感表达动图</label>
+              <button type="button" class="avatar-btn emotion-add-btn" @click="addEmotion">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加情感
+              </button>
+              <div v-for="(ea, idx) in form.media.emotionAnimations" :key="idx" class="emotion-row">
+                <input v-model="ea.emotion" type="text" class="field-input emotion-input" placeholder="请输入触发该动图的情感状态" />
+                <div class="emotion-actions">
+                  <button type="button" class="avatar-btn" @click="uploadEmotionAnimation(idx)">上传动图</button>
+                  <button v-if="ea.animationUrl" type="button" class="avatar-btn remove-media-btn" @click="ea.animationUrl = ''">移除</button>
+                  <button type="button" class="avatar-btn remove-media-btn" @click="removeEmotion(idx)">
+                    <svg viewBox="0 0 24 24" width="12" height="12"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                  </button>
+                </div>
+                <div v-if="ea.animationUrl" class="media-preview small"><img :src="ea.animationUrl" alt="情感动图" /></div>
+              </div>
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('media')">收起</button>
+          </div>
+        </div>
+
+        <!-- 游戏数据 -->
+        <div v-if="form.gameData" class="config-card" :class="{ filled: !!form.gameData }" @click="toggleCard('gameData')">
+          <div class="card-header">
+            <span class="card-emoji">🎮</span>
+            <div class="card-meta">
+              <span class="card-title">游戏数据</span>
+              <span class="card-status">已设置</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.gameData" class="card-body" @click.stop>
+            <div class="field-item">
+              <label class="field-label">游戏数据（只读预览）</label>
+              <pre class="game-preview">{{ form.gameData.slice(0, 800) }}{{ form.gameData.length > 800 ? '…' : '' }}</pre>
+            </div>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('gameData')">收起</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <div class="submit-bar">
@@ -523,14 +594,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
 import { generateUUID } from '@/utils/uuid'
 import type { ICharacter, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, EmotionAnimation } from '@/types/character'
 import type { WorldBook, WorldBookEntry } from '@/types/world-book'
-import AdvancedToggle from '@/components/CharacterForm/AdvancedToggle.vue'
 import {
   getCategoryGroups,
   getThemeGroups,
@@ -581,14 +651,18 @@ const characterStore = useCharacterStore()
 const originalCharacter = ref<ICharacter | null>(null)
 const saving = ref(false)
 
-// 折叠面板状态
-const showPersona = ref(false)
-const showLorebook = ref(false)
-const showWorldBooks = ref(false)
-const showDepthPrompt = ref(false)
-const showAltGreetings = ref(false)
-const showMedia = ref(false)
-const showGameData = ref(false)
+// 卡片展开状态
+const expandedCards = reactive<Record<string, boolean>>({
+  base: true,
+  prompt: true,
+  persona: false,
+  lorebook: false,
+  worldBooks: false,
+  depthPrompt: false,
+  altGreetings: false,
+  media: false,
+  gameData: false,
+})
 
 const categoryGroups = getCategoryGroups()
 const themeGroups = getThemeGroups()
@@ -667,6 +741,39 @@ const resolvedModeLabel = computed(() => {
 const canSubmit = computed(() =>
   Boolean(form.name.trim() && form.description.trim() && form.settings.trim())
 )
+
+/* ── 卡片状态计算 ── */
+const hasBaseInfo = computed(() =>
+  !!(form.name.trim() || form.avatar || form.background.trim() || form.category || form.customTags.length)
+)
+
+const baseInfoStatus = computed(() => {
+  if (form.name.trim()) return '已填写'
+  return '未填写'
+})
+
+const hasPromptCore = computed(() =>
+  !!(form.description.trim() || form.greeting.trim() || form.settings.trim() || form.sceneTime.trim() || form.scenario.trim())
+)
+
+const promptCoreStatus = computed(() => {
+  if (form.description.trim() && form.settings.trim()) return '已填写'
+  return '未填写'
+})
+
+const hasPersona = computed(() =>
+  !!(form.persona.anchor.trim() || form.persona.traits.trim() || form.persona.voice.trim())
+)
+
+const personaStatus = computed(() => hasPersona.value ? '已填写' : '未填写')
+
+const depthPromptStatus = computed(() => form.depthPrompt.prompt.trim() ? '已设置' : '未设置')
+
+const hasMedia = computed(() =>
+  !!(form.media.chatBackground || form.media.globalBackground || form.media.switchAnimation || form.media.emotionAnimations.length)
+)
+
+const mediaStatus = computed(() => hasMedia.value ? '已设置' : '未设置')
 
 /* ── 表单校验 ── */
 const touched = reactive({
@@ -801,7 +908,6 @@ async function loadCharacter(id: string) {
     scanRange: wb.scanRange || 100,
     _expanded: false,
   }))
-  showWorldBooks.value = !!(c.worldBooks?.length)
   form.depthPrompt.depth = c.depthPrompt?.depth ?? 4
   form.depthPrompt.prompt = c.depthPrompt?.prompt || ''
   form.depthPrompt.role = c.depthPrompt?.role || 'system'
@@ -818,6 +924,44 @@ async function loadCharacter(id: string) {
   // 从 tags 中区分自定义标签与系统标签
   const systemTags = new Set([form.category, form.subCategory, form.themeType].filter(Boolean))
   form.customTags = c.tags?.filter(t => !systemTags.has(t)) || []
+
+  // 根据内容自动展开已有数据的卡片
+  expandedCards.persona = !!(c.persona?.anchor || c.persona?.traits?.length || c.persona?.voice)
+  expandedCards.lorebook = !!(c.lorebook?.entries?.length)
+  expandedCards.worldBooks = !!(c.worldBooks?.length)
+  expandedCards.depthPrompt = !!(c.depthPrompt?.prompt)
+  expandedCards.altGreetings = !!(c.alternateGreetings?.length)
+  expandedCards.media = !!(c.chatBackground || c.globalBackground || c.switchAnimation || c.emotionAnimations?.length)
+  expandedCards.gameData = !!(c.gameData)
+
+  // 自动调整已展开卡片中文本框高度
+  await nextTick()
+  resizeAllTextareas()
+}
+
+/* ── 卡片展开控制 ── */
+async function toggleCard(key: string) {
+  expandedCards[key] = !expandedCards[key]
+  if (expandedCards[key]) {
+    await nextTick()
+    resizeAllTextareas()
+  }
+}
+
+/* ── textarea 自动高度 ── */
+function onTextareaInput(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
+function resizeAllTextareas() {
+  const tas = document.querySelectorAll('.auto-textarea')
+  tas.forEach((el) => {
+    const ta = el as HTMLTextAreaElement
+    ta.style.height = 'auto'
+    ta.style.height = ta.scrollHeight + 'px'
+  })
 }
 
 function goBack() {
@@ -1303,6 +1447,97 @@ $mint: #34d399;
   margin: 16px auto 0;
 }
 
+/* ── config-card 网格 ── */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.config-card {
+  border-radius: 16px;
+  padding: 16px;
+  min-height: 100px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &.filled {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), var(--card-bg));
+  }
+}
+
+.card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-emoji {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-status {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-body {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: default;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.collapse-btn {
+  align-self: flex-end;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    color: var(--text-secondary);
+  }
+}
+
+/* ── 表单字段 ── */
 .field-block { margin-bottom: 18px; }
 
 .field-label {
@@ -1366,24 +1601,6 @@ $mint: #34d399;
       box-shadow: 0 4px 14px rgba(56, 189, 248, 0.30);
     }
   }
-}
-
-.section-block {
-  margin-top: 0;
-  padding: 4px 0;
-  border-top: none;
-}
-
-.section-block + .section-block {
-  margin-top: 0;
-}
-
-.section-title {
-  margin: 0 0 12px;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
 }
 
 .avatar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
@@ -1460,33 +1677,32 @@ $mint: #34d399;
   align-items: center;
 }
 
-.user-textarea {
+/* ── textarea 自动高度 ── */
+.field-textarea {
   width: 100%;
-  padding: 7px 0;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 0;
-  background: transparent;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.5;
   box-sizing: border-box;
   outline: none;
   resize: none;
-  transition: border-color 0.2s;
 
   &::placeholder {
     color: rgba(255, 255, 255, 0.18);
   }
 
   &:focus {
-    border-bottom-color: rgba(56, 189, 248, 0.4);
+    border-color: rgba(56, 189, 248, 0.35);
   }
 }
 
 .settings-input {
-  min-height: 160px;
+  min-height: 120px;
 }
 
 .field-item { display: flex; flex-direction: column; gap: 0; }
@@ -1532,11 +1748,6 @@ $mint: #34d399;
   transition: border-color 0.2s;
   &:focus { border-bottom-color: rgba(56, 189, 248, 0.4); }
   option { background: #0a1e2c; color: var(--text-primary); }
-}
-
-.section-body {
-  display: flex; flex-direction: column; gap: 12px;
-  padding-top: 4px;
 }
 
 .empty-hint {
@@ -1907,8 +2118,8 @@ $mint: #34d399;
   border-bottom-color: rgba(248, 113, 113, 0.5) !important;
 }
 
-.user-textarea.invalid {
-  border-bottom-color: rgba(248, 113, 113, 0.5) !important;
+.field-textarea.invalid {
+  border-color: rgba(248, 113, 113, 0.5) !important;
 }
 
 .primary-btn.full {

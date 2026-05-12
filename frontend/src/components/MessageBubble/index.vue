@@ -1,20 +1,27 @@
 <template>
-  <article class="message-bubble" :class="{ user: isUser }">
+  <article class="message-bubble" :class="{ user: isUser, narrator: messageType === 'narrator', action: messageType === 'action' }">
     <img
+      v-if="!isUser && messageType !== 'narrator'"
       :src="avatarUrl"
-      :alt="isUser ? 'User' : 'Assistant'"
+      :alt="senderName || 'Assistant'"
       class="avatar"
       :class="{ 'avatar--clickable': !isUser }"
       @click.stop="handleAvatarClick"
     />
+    <div v-else-if="!isUser && messageType === 'narrator'" class="avatar-placeholder"></div>
 
     <div class="bubble-main">
+      <div v-if="senderName && !isUser && messageType !== 'narrator'" class="sender-name">
+        {{ senderName }}
+      </div>
       <div
         class="bubble-card"
         :class="{
           'is-text': isTextMessage,
           'is-image': isImageMessage,
           'is-audio': isAudioMessage,
+          'is-narrator': messageType === 'narrator',
+          'is-action': messageType === 'action',
         }"
         @pointerdown="onPointerDown"
         @pointerup="onPointerUp"
@@ -105,6 +112,8 @@ const props = defineProps<{
   isLastMessage?: boolean
   userAvatar?: string
   assistantAvatar?: string
+  senderName?: string
+  messageType?: 'normal' | 'narrator' | 'action'
 }>()
 
 const emit = defineEmits<{
@@ -137,9 +146,9 @@ const avatarUrl = computed(() =>
 
 function escapeHTML(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
 }
 
 const renderedContent = computed(() => {
@@ -148,7 +157,14 @@ const renderedContent = computed(() => {
     return ''
   }
 
-  const normalized = raw.replace(/\*([^*\n]+)\*/g, '（$1）')
+  // For multiplayer, strip the "Name: " prefix if present
+  let processed = raw
+  if (!props.isUser && props.messageType !== 'narrator' && props.senderName) {
+    const prefix = new RegExp(`^${props.senderName}[:：]\\s*`)
+    processed = raw.replace(prefix, '')
+  }
+
+  const normalized = processed.replace(/\*([^*\n]+)\*/g, '（$1）')
   const compacted = normalized
     .replace(/\s*\n+\s*(（)/g, '$1')
     .replace(/(）)\s*\n+\s*/g, '$1')
@@ -322,6 +338,41 @@ onUnmounted(() => {
   &.user {
     flex-direction: row-reverse;
   }
+
+  &.narrator {
+    justify-content: center;
+    padding: 4px 0;
+
+    .bubble-main {
+      align-items: center;
+      max-width: 100%;
+    }
+
+    .bubble-card {
+      background: transparent;
+      border: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .text-content {
+      color: #8f9ca8;
+      font-style: italic;
+      text-align: center;
+      padding: 4px 12px;
+    }
+  }
+
+  &.action {
+    .bubble-card {
+      background: rgba(120, 113, 108, 0.12);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .text-content {
+      color: #a8b4c0;
+    }
+  }
 }
 
 .avatar {
@@ -339,16 +390,28 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+.avatar-placeholder {
+  width: 36px;
+  flex-shrink: 0;
+}
+
 .bubble-main {
   max-width: min(680px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
+  gap: 3px;
 }
 
 .message-bubble.user .bubble-main {
   align-items: flex-end;
+}
+
+.sender-name {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 0 4px;
+  margin-bottom: 1px;
 }
 
 .bubble-card {
@@ -363,6 +426,17 @@ onUnmounted(() => {
 .message-bubble.user .bubble-card {
   border-color: rgba(255, 255, 255, 0.07);
   background: rgba(8, 14, 22, 0.76);
+}
+
+.bubble-card.is-narrator {
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+}
+
+.bubble-card.is-action {
+  background: rgba(120, 113, 108, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .text-content {
@@ -416,6 +490,10 @@ onUnmounted(() => {
 
 .message-bubble.user :deep(.action-text) {
   color: #8b97a3;
+}
+
+.message-bubble.narrator :deep(.action-text) {
+  color: #6b7a8a;
 }
 
 .voice-card,

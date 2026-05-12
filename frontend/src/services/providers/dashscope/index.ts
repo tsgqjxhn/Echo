@@ -22,6 +22,7 @@ export const dashscopeCapabilities: ProviderCapabilities = {
   tts: true,
   stt: true,
   imageGeneration: true,
+  imageUnderstanding: true,
   videoGeneration: true,
   modelListing: false,
 }

@@ -19,6 +19,7 @@ export const anthropicCapabilities: ProviderCapabilities = {
   tts: false,
   stt: false,
   imageGeneration: false,
+  imageUnderstanding: false,
   videoGeneration: false,
   modelListing: true,
 }

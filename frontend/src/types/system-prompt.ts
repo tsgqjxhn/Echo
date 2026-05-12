@@ -1,6 +1,7 @@
 /**
  * 系统提示词类型定义
  * 对应 docs/底层提示词.md 中的8大类28个底层提示词
+ * + 第9类：游戏生成（H5 / Phaser）
  */
 
 /** 提示词分类 */
@@ -12,7 +13,8 @@ export type PromptCategory =
   | 'meta'
   | 'multimodal'
   | 'safety'
-  | 'character-creation';
+  | 'character-creation'
+  | 'game';
 
 /** 注入位置 */
 export type InjectionPosition =

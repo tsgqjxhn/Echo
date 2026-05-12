@@ -30,6 +30,7 @@ def get_user(db: Session = Depends(get_db)) -> UserInfo:
         name=profile.name,
         avatar=profile.avatar,
         globalPrompt=profile.global_prompt,
+        corePrompt=profile.core_prompt,
     )
 
 
@@ -39,6 +40,7 @@ def save_user(payload: UserInfo, db: Session = Depends(get_db)) -> UserInfo:
     profile.name = payload.name
     profile.avatar = payload.avatar
     profile.global_prompt = payload.globalPrompt
+    profile.core_prompt = payload.corePrompt
     db.add(profile)
     db.commit()
     return payload

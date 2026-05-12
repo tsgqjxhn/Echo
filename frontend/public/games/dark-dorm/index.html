@@ -26,6 +26,8 @@
     }
   })();
   </script>
+  <script src="../_shared/phaser/phaser.min.js"></script>
+  <script src="../_shared/phaser-host/phaser-host.js"></script>
   <script defer src="./assets/app.js"></script>
   <script>
     (function () {
@@ -104,20 +106,6 @@
           var originalDrawMap = game.drawMap.bind(game);
           game.drawMap = function (ctx) {
             originalDrawMap(ctx);
-            if (!this.map || typeof this.map.getTile !== 'function') return;
-            var tileSize = this.tileSize || 48;
-            var cols = this.map.width || 9;
-            var rows = this.map.height || 13;
-            ctx.save();
-            ctx.fillStyle = '#000';
-            for (var y = 0; y < rows; y += 1) {
-              for (var x = 0; x < cols; x += 1) {
-                if (this.map.getTile(x, y) === 2) {
-                  ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
-                }
-              }
-            }
-            ctx.restore();
           };
         }
 
@@ -128,10 +116,11 @@
             if (!this.ctx) return;
             var tileSize = this.tileSize || 48;
             var cols = (this.map && this.map.width) || 9;
+            var rows = (this.map && this.map.height) || 13;
             this.ctx.save();
-            this.ctx.strokeStyle = '#000';
-            this.ctx.lineWidth = 3;
-            this.ctx.strokeRect(1, tileSize + 1, cols * tileSize - 2, tileSize * 7 - 2);
+            this.ctx.strokeStyle = '#3a2a1a';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(1, 1, cols * tileSize - 2, rows * tileSize - 2);
             this.ctx.restore();
           };
         }
@@ -165,13 +154,23 @@
             return;
           }
         }
+        if (button.id === 'go-menu-btn') {
+          if (typeof game.showMenu === 'function') { game.showMenu(); }
+          else { button.click(); }
+          return;
+        }
+        if (button.id === 'restart-btn') {
+          if (typeof game.restart === 'function') { game.restart(); }
+          else { button.click(); }
+          return;
+        }
         button.click();
       }
 
       var lastTouchAt = 0;
       document.addEventListener('touchend', function (event) {
         var target = event.target;
-        var button = target && target.closest && target.closest('#start-levels-btn, #level-select-back-btn, .level-btn');
+        var button = target && target.closest && target.closest('#start-levels-btn, #level-select-back-btn, .level-btn, #go-menu-btn, #restart-btn');
         if (!button) return;
         var now = Date.now();
         if (now - lastTouchAt < 280) return;
@@ -188,6 +187,7 @@
       });
     })();
   </script>
+  <link rel="stylesheet" href="../_shared/phaser-host/phaser-host.css">
   <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
@@ -242,6 +242,8 @@
   </div>
 
   <div id="build-menu" class="hidden">
+    <button id="build-menu-toggle" type="button" aria-label="展开建筑栏" title="展开建筑栏">展开</button>
+    <div id="build-menu-items">
     <button class="build-btn" data-type="bed">
       <div class="btn-icon bed-icon"></div>
       <div class="btn-label">床铺</div>
@@ -282,11 +284,27 @@
       <div class="btn-label">祭坛</div>
       <div class="btn-cost">180</div>
     </button>
+    <button class="build-btn" data-type="electric_coil">
+      <div class="btn-icon electric-icon"></div>
+      <div class="btn-label">电弧线圈</div>
+      <div class="btn-cost">220</div>
+    </button>
+    <button class="build-btn" data-type="flame_turret">
+      <div class="btn-icon flame-icon"></div>
+      <div class="btn-label">火焰喷灯</div>
+      <div class="btn-cost">180</div>
+    </button>
+    <button class="build-btn" data-type="purifier">
+      <div class="btn-icon purifier-icon"></div>
+      <div class="btn-label">净化灯</div>
+      <div class="btn-cost">210</div>
+    </button>
     <button id="upgrade-door-btn" class="build-btn">
       <div class="btn-icon door-icon"></div>
       <div class="btn-label">加固门</div>
       <div class="btn-cost">80</div>
     </button>
+    </div>
   </div>
 
   <div id="info-panel" class="hidden">
@@ -322,6 +340,7 @@
       <button id="resume-endless-btn" class="menu-btn secondary hidden">继续无尽（第 <span id="resume-wave-val">1</span> 波）</button>
       <button id="prestige-btn" class="menu-btn secondary">声望升级</button>
       <button id="codex-btn" class="menu-btn secondary">图鉴</button>
+      <button id="settings-btn" class="menu-btn secondary">设置</button>
       <div id="menu-prestige">声望点：<span id="menu-prestige-val">0</span></div>
     </div>
     <div id="level-select-screen" class="hidden">
@@ -394,6 +413,21 @@
           <div class="codex-name">暗影</div>
           <div class="codex-desc">高移速，定期拆毁床铺。</div>
         </div>
+        <div class="codex-card">
+          <div class="codex-icon zombie_runner"></div>
+          <div class="codex-name">奔袭丧尸</div>
+          <div class="codex-desc">低血量、高移速，门前爆发攻击。</div>
+        </div>
+        <div class="codex-card">
+          <div class="codex-icon zombie_brute"></div>
+          <div class="codex-name">巨臂丧尸</div>
+          <div class="codex-desc">极高血量和减伤，移速很慢。</div>
+        </div>
+        <div class="codex-card">
+          <div class="codex-icon zombie_toxic"></div>
+          <div class="codex-name">腐毒丧尸</div>
+          <div class="codex-desc">攻击会附带腐蚀伤害，撤退回血中等。</div>
+        </div>
       </div>
       <div class="codex-buildings">
         <h3>建筑图鉴</h3>
@@ -406,6 +440,9 @@
           <div class="codex-card"><div class="codex-icon building bomber"></div><div class="codex-name">爆破塔</div><div class="codex-desc">范围溅射伤害。</div></div>
           <div class="codex-card"><div class="codex-icon building sniper"></div><div class="codex-name">狙击塔</div><div class="codex-desc">远程高伤害，可暴击。</div></div>
           <div class="codex-card"><div class="codex-icon building altar"></div><div class="codex-name">祭坛</div><div class="codex-desc">范围内提升塔攻速，降低怪物移速。</div></div>
+          <div class="codex-card"><div class="codex-icon building electric_coil"></div><div class="codex-name">电弧线圈</div><div class="codex-desc">命中后连锁电击附近敌人。</div></div>
+          <div class="codex-card"><div class="codex-icon building flame_turret"></div><div class="codex-name">火焰喷灯</div><div class="codex-desc">近距离攻击并施加燃烧。</div></div>
+          <div class="codex-card"><div class="codex-icon building purifier"></div><div class="codex-name">净化灯</div><div class="codex-desc">无视部分减伤的净化光束。</div></div>
         </div>
       </div>
       <button id="codex-close" class="menu-btn secondary">关闭</button>
@@ -427,6 +464,39 @@
     </div>
   </div>
 </div>
+
+<!-- Settings Screen -->
+<div id="settings-screen" class="hidden">
+  <div id="settings-content">
+    <h2>游戏设置</h2>
+    <div class="settings-row">
+      <span>背景音乐</span>
+      <label class="switch">
+        <input type="checkbox" id="settings-bgm" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <span>难度</span>
+      <select id="settings-difficulty">
+        <option value="easy">简单</option>
+        <option value="normal" selected>普通</option>
+        <option value="hard">困难</option>
+      </select>
+    </div>
+    <button id="settings-close" class="menu-btn secondary">返回</button>
+  </div>
+</div>
+
+<script>
+window.__echoPhaserHost = window.createEchoPhaserHost({
+  title: '暗黑宿舍',
+  width: 432,
+  height: 760,
+  backgroundColor: '#0b0f19',
+  legacyRootId: 'app'
+});
+</script>
 
 </body>
 </html>

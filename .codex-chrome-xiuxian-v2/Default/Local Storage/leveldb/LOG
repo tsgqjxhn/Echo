@@ -1,0 +1,5 @@
+2026/05/09-01:17:53.319 5470 Creating DB C:\Users\EricWeston\Desktop\Echo\.codex-chrome-xiuxian-v2\Default\Local Storage\leveldb since it was missing.
+2026/05/09-01:17:53.433 5470 Reusing MANIFEST C:\Users\EricWeston\Desktop\Echo\.codex-chrome-xiuxian-v2\Default\Local Storage\leveldb/MANIFEST-000001
+2026/05/09-01:36:14.150 748c Level-0 table #5: started
+2026/05/09-01:36:14.182 748c Level-0 table #5: 42776 bytes OK
+2026/05/09-01:36:14.209 748c Delete type=0 #3

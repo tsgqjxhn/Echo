@@ -83,6 +83,20 @@ class EmotionAnimation(BaseModel):
     animationUrl: str
 
 
+class GroupMember(BaseModel):
+    """群成员"""
+
+    id: str
+    name: str
+    avatar: str | None = None
+    description: str | None = None
+    personality: str | None = None
+    speakingStyle: str | None = None
+    settings: str | None = None
+    isNarrator: bool = False
+    configMode: Literal["simple", "deep"] = "simple"
+
+
 class CharacterBase(BaseModel):
     id: str
     name: str
@@ -102,6 +116,7 @@ class CharacterBase(BaseModel):
     behavior: str | None = None
     values: str | None = None
     members: list[str] | None = None
+    structuredMembers: list[GroupMember] | None = None
     tags: list[str] | None = None
     sourceType: str | None = None
     sourceName: str | None = None
@@ -134,6 +149,7 @@ class UserInfo(BaseModel):
     name: str | None = None
     avatar: str | None = None
     globalPrompt: str | None = None
+    corePrompt: str | None = None
 
 
 class UserSetting(BaseModel):

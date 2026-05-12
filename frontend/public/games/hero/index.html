@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>勇士 - 王国远征</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="../_shared/phaser-host/phaser-host.css">
   <style>
     /* Prevent pull-to-refresh */
     html, body { overscroll-behavior: none; }
@@ -50,20 +51,43 @@
     </div>
   </div>
 
+  <script src="../_shared/phaser/phaser.min.js"></script>
+  <script src="../_shared/phaser-host/phaser-host.js"></script>
+  <script>
+  window.__echoPhaserHost = window.createEchoPhaserHost({
+    title: '勇士',
+    width: 480,
+    height: 800,
+    backgroundColor: '#121826',
+    legacyRootId: 'app'
+  });
+  </script>
+
   <!-- Scripts in dependency order -->
   <script defer src="js/assets.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>
   <script>
   (function(){
     try {
-      var raw = localStorage.getItem('xiang_game_settings');
+      var raw = localStorage.getItem('echo_game_hero_settings') || localStorage.getItem('xiang_game_settings');
       var s = raw ? JSON.parse(raw) : {};
-      var lv = s.difficultyLevel || 'normal';
+      var lv = s.difficultyLevel || s.difficulty || 'normal';
       window.__difficultyMonsterMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
       window.__difficultyRewardMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
     } catch(e) {
       window.__difficultyMonsterMult = 1;
       window.__difficultyRewardMult = 1;
     }
+  })();
+  </script>
+  <script>
+  (function(){
+    window.HERO_SETTINGS_KEY = 'echo_game_hero_settings';
+    window.loadHeroSettings = function() {
+      try { var raw = localStorage.getItem(HERO_SETTINGS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+    };
+    window.saveHeroSettings = function(settings) {
+      try { localStorage.setItem(HERO_SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+    };
   })();
   </script>
   <script defer src="js/audio.js" onload="__heroOnScriptLoad()" onerror="__heroOnScriptError(event)"></script>

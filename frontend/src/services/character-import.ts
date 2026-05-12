@@ -1,6 +1,7 @@
 /**
  * 角色卡导入服务
- * 支持 SillyTavern PNG 角色卡（tEXt/iTXt chunk）和 Character Card JSON（v1/v2/v3）
+ * 支持 SillyTavern PNG 角色卡（tEXt/iTXt chunk）、Character Card JSON（v1/v2/v3）、
+ * 以及 txt / md 文本格式（通过后端智能解析）
  */
 
 import type {
@@ -10,6 +11,7 @@ import type {
   LorebookEntry,
 } from '@/types/character'
 import { generateUUID } from '@/utils/uuid'
+import { runtimeRequest } from './runtime-http'
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
 
@@ -269,7 +271,7 @@ export async function parsePngCharaChunk(arrayBuffer: ArrayBuffer): Promise<Reco
 }
 
 /**
- * 从 PNG 文件导入角色
+ * 从 PNG 文件导入角色（SillyTavern 角色卡）
  */
 export async function importCharacterFromPng(file: File): Promise<ICharacter> {
   const buffer = await file.arrayBuffer()
@@ -310,6 +312,109 @@ export async function importCharacterFromJson(file: File): Promise<ICharacter> {
 }
 
 /**
+ * 从普通图片文件导入角色（仅作为头像，不含角色卡数据）
+ */
+export async function importCharacterFromImage(file: File): Promise<ICharacter> {
+  const imageDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('读取图片文件失败'))
+    reader.readAsDataURL(file)
+  })
+
+  const baseName = file.name.replace(/\.[^/.]+$/, '')
+  const now = Date.now()
+
+  const character: ICharacter = {
+    id: generateUUID(),
+    name: baseName,
+    avatar: imageDataUrl,
+    description: '',
+    greeting: undefined,
+    settings: '',
+    isFavorite: false,
+    createdAt: now,
+    updatedAt: now,
+    mode: 'free-dialogue',
+    category: '综合',
+    subCategory: '角色扮演',
+    sourceType: 'document-import',
+    sourceName: '图片导入',
+    tags: [],
+  }
+
+  return character
+}
+
+export interface ImportCharacterFromTextResponse {
+  id: string
+  name: string
+  avatar: string | null
+  background: string | null
+  description: string
+  greeting: string | null
+  settings: string
+  isFavorite: boolean
+  createdAt: number
+  updatedAt: number
+  mode: string | null
+  category: string | null
+  subCategory: string | null
+  avatarTone: string | null
+  backgroundImage: string | null
+  personality: string | null
+  behavior: string | null
+  values: string | null
+  members: string[] | null
+  tags: string[] | null
+  sourceType: string | null
+  sourceName: string | null
+  exampleDialogue: string | null
+  scenario: string | null
+}
+
+/**
+ * 从后端智能解析文本内容导入角色
+ */
+export async function importCharacterFromText(
+  content: string,
+  fileName: string,
+): Promise<ICharacter> {
+  const response = await runtimeRequest<ImportCharacterFromTextResponse>({
+    url: '/api/import/character-text',
+    method: 'POST',
+    body: { content, fileName },
+  })
+  const data = response.data
+  const now = Date.now()
+  const character: ICharacter = {
+    id: generateUUID(),
+    name: data.name?.trim() || '导入角色',
+    avatar: data.avatar || undefined,
+    background: data.background || undefined,
+    description: data.description?.trim() || '',
+    greeting: data.greeting?.trim() || undefined,
+    settings: data.settings?.trim() || '',
+    isFavorite: data.isFavorite ?? false,
+    createdAt: now,
+    updatedAt: now,
+    mode: (data.mode as ICharacter['mode']) || 'free-dialogue',
+    category: data.category || '综合',
+    subCategory: data.subCategory || '角色扮演',
+    sourceType: 'document-import',
+    sourceName: fileName,
+    tags: data.tags || [],
+    personality: data.personality?.trim() || undefined,
+    behavior: data.behavior?.trim() || undefined,
+    values: data.values?.trim() || undefined,
+    members: data.members || undefined,
+    exampleDialogue: data.exampleDialogue?.trim() || undefined,
+    scenario: data.scenario?.trim() || undefined,
+  }
+  return character
+}
+
+/**
  * 主入口：根据文件扩展名自动分发
  */
 export async function importCharacterFromFile(file: File): Promise<ICharacter> {
@@ -318,7 +423,25 @@ export async function importCharacterFromFile(file: File): Promise<ICharacter> {
     return importCharacterFromPng(file)
   } else if (name.endsWith('.json')) {
     return importCharacterFromJson(file)
+  } else if (name.endsWith('.txt') || name.endsWith('.md')) {
+    const text = await file.text()
+    // 先尝试按 JSON 解析（可能是 Character Card JSON）
+    try {
+      const raw = JSON.parse(text)
+      const hasData = raw.data && typeof raw.data === 'object'
+      const hasName =
+        typeof raw.name === 'string' ||
+        (hasData && typeof (raw.data as Record<string, unknown>).name === 'string')
+      if (hasName) {
+        return charaCardToICharacter(raw)
+      }
+    } catch {
+      // 不是 JSON，继续走文本解析
+    }
+    return importCharacterFromText(text, file.name)
+  } else if (name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp') || name.endsWith('.cwebp')) {
+    return importCharacterFromImage(file)
   } else {
-    throw new Error('不支持的文件格式，请上传 .png 或 .json 文件')
+    throw new Error('不支持的文件格式，请上传 .png、.json、.txt、.md、.jpg、.jpeg、.webp 或 .cwebp 文件')
   }
 }

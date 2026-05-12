@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0f1923">
   <title>圣王国 - 产业链模拟经营</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="../_shared/phaser-host/phaser-host.css">
   <style>
     .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:#e0e8f0;font-family:system-ui,sans-serif;touch-action:none}
     .loading-screen h1{font-size:28px;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px}
@@ -24,13 +25,24 @@
     <p>加载产业链模拟经营系统...</p>
   </div>
 </div>
+<script src="../_shared/phaser/phaser.min.js"></script>
+<script src="../_shared/phaser-host/phaser-host.js"></script>
+<script>
+window.__echoPhaserHost = window.createEchoPhaserHost({
+  title: '圣王国',
+  width: 480,
+  height: 800,
+  backgroundColor: '#0f1923',
+  legacyRootId: 'app'
+});
+</script>
 <script src="js/assets.js"></script>
 <script>
 (function(){
   try {
-    var raw = localStorage.getItem('xiang_game_settings');
+    var raw = localStorage.getItem('echo_game_empire_settings') || localStorage.getItem('xiang_game_settings');
     var s = raw ? JSON.parse(raw) : {};
-    var lv = s.difficultyLevel || 'normal';
+    var lv = s.difficultyLevel || s.difficulty || 'normal';
     window.__difficultyMonsterMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
     window.__difficultyRewardMult = lv === 'easy' ? 0.5 : lv === 'hard' ? 2 : 1;
   } catch(e) {
@@ -38,6 +50,15 @@
     window.__difficultyRewardMult = 1;
   }
 })();
+</script>
+<script>
+const EMPIRE_SETTINGS_KEY = 'echo_game_empire_settings';
+function loadEmpireSettings() {
+  try { var raw = localStorage.getItem(EMPIRE_SETTINGS_KEY); return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
+}
+function saveEmpireSettings(settings) {
+  try { localStorage.setItem(EMPIRE_SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+}
 </script>
 <script>
 // ===== Web Audio Engine =====
@@ -1238,7 +1259,26 @@ function notifyOuterScreen(screen) {
 }
 
 function renderSettingsModal(s) {
-  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()"><h3>设置</h3><div class="modal-actions"><button class="btn-action" onclick="window.game.toggleBGM()">' + (s.settings.bgm ? '关闭' : '开启') + '背景音乐</button><button class="btn-action" onclick="window.game.toggleSFX()">' + (s.settings.sfx ? '关闭' : '开启') + '音效</button><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div><div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p><p>季节周期: 每5分钟切换</p><p>成就数: ' + Object.keys(s.achievements).length + '/' + ACHIEVEMENT_DATA.length + '</p></div></div></div>';
+  var es = loadEmpireSettings();
+  var bgmOn = s.settings.bgm !== false;
+  var sfxOn = s.settings.sfx !== false;
+  var diff = es.difficultyLevel || s.settings.difficultyLevel || 'normal';
+  var diffOpts = [
+    {k:'easy', n:'\u{1F31F} 简单', d:'种子成本与建筑成本减半，售价减半'},
+    {k:'normal', n:'\u{2B50} 普通', d:'标准数值'},
+    {k:'hard', n:'\u{1F525} 困难', d:'种子成本与建筑成本翻倍，售价翻倍'}
+  ];
+  var diffHtml = diffOpts.map(function(o) {
+    return '<button class="btn-action ' + (diff === o.k ? 'btn-primary' : '') + '" onclick="window.game.setDifficulty(\'' + o.k + '\')">' + o.n + '</button>' +
+      '<p style="font-size:11px;color:#8899aa;margin:2px 0 8px">' + o.d + '</p>';
+  }).join('');
+  return '<div class="modal-overlay" onclick="window.game.closeModal()"><div class="modal" onclick="event.stopPropagation()" style="max-width:420px"><h3>\u{2699}\u{FE0F} 设置</h3>' +
+    '<div style="text-align:left;margin:12px 0"><div style="font-size:13px;font-weight:600;color:#22d3ee;margin-bottom:8px">音频</div>' +
+    '<div class="modal-actions"><button class="btn-action" onclick="window.game.toggleBGM()">' + (bgmOn ? '\u{1F50A} 关闭' : '\u{1F507} 开启') + '背景音乐</button>' +
+    '<button class="btn-action" onclick="window.game.toggleSFX()">' + (sfxOn ? '\u{1F50A} 关闭' : '\u{1F507} 开启') + '音效</button></div></div>' +
+    '<div style="text-align:left;margin:12px 0"><div style="font-size:13px;font-weight:600;color:#22d3ee;margin-bottom:8px">难度</div>' + diffHtml + '</div>' +
+    '<div class="modal-actions"><button class="btn-action" onclick="window.game.hardReset()">重置存档</button><button class="btn-action" onclick="window.game.closeModal()">关闭</button></div>' +
+    '<div class="modal-info"><p>游戏自动保存于浏览器本地</p><p>上次保存: ' + new Date(s.lastSaveTime).toLocaleString() + '</p><p>成就数: ' + Object.keys(s.achievements).length + '/' + ACHIEVEMENT_DATA.length + '</p></div></div></div>';
 }
 
 function renderOfflineModal(e) {
@@ -1266,6 +1306,10 @@ var game;
     }
     lastTick = performance.now(); lastSave = Date.now(); lastUI = 0;
     generateQuests(state);
+    var es = loadEmpireSettings();
+    if (es.difficultyLevel) state.settings.difficultyLevel = es.difficultyLevel;
+    AudioEngine.bgmEnabled = state.settings.bgm !== false;
+    AudioEngine.sfxEnabled = state.settings.sfx !== false;
     render();
     requestAnimationFrame(loop);
 
@@ -1381,8 +1425,17 @@ var game;
     closeModal: function() { modalHTML = ''; render(); },
     hardReset: function() { if (confirm('确定要重置所有进度吗？此操作不可撤销！')) { if (confirm('真的确定吗？所有数据将永久删除！')) { deleteSave(); state = createInitialState(); modalHTML = ''; render(); } } },
     dismissOffline: function() { if (offlineEarnings) { applyOfflineEarnings(state, offlineEarnings); offlineEarnings = null; } modalHTML = ''; render(); },
-    toggleBGM: function() { state.settings.bgm = !state.settings.bgm; AudioEngine.bgmEnabled = state.settings.bgm; if (!state.settings.bgm) AudioEngine.stopBGM(); else AudioEngine.switchBGM(state.currentTab); render(); },
-    toggleSFX: function() { state.settings.sfx = !state.settings.sfx; AudioEngine.sfxEnabled = state.settings.sfx; render(); },
+    toggleBGM: function() { state.settings.bgm = !state.settings.bgm; AudioEngine.bgmEnabled = state.settings.bgm; if (!state.settings.bgm) AudioEngine.stopBGM(); else AudioEngine.switchBGM(state.currentTab); saveGame(state, { force: true }); render(); },
+    toggleSFX: function() { state.settings.sfx = !state.settings.sfx; AudioEngine.sfxEnabled = state.settings.sfx; saveGame(state, { force: true }); render(); },
+    setDifficulty: function(lv) {
+      state.settings.difficultyLevel = lv;
+      saveGame(state, { force: true });
+      var es = loadEmpireSettings();
+      es.difficultyLevel = lv;
+      saveEmpireSettings(es);
+      modalHTML = '<div class="modal-overlay"><div class="modal"><h3>难度已更改</h3><p>新难度将在下次加载游戏时生效。</p><p>当前难度: ' + (lv === 'easy' ? '简单' : lv === 'hard' ? '困难' : '普通') + '</p><button class="btn-action btn-large" onclick="window.game.closeModal()">确定</button></div></div>';
+      render();
+    },
     claimQuest: function(qid) { if (claimQuestReward(state, qid)) render(); },
     advanceNPC: function(npcId) {
       var result = advanceNPC(state, npcId);
@@ -1406,9 +1459,51 @@ var game;
   document.addEventListener('touchstart', onFirstInteraction, { passive: true });
   document.addEventListener('click', onFirstInteraction);
 
+  // Echo Game Settings Bridge
+  function empireApplySettings(payload) {
+    if (typeof payload.globalSoundEnabled === 'boolean') {
+      AudioEngine.sfxEnabled = payload.globalSoundEnabled;
+    }
+    if (typeof payload.globalBgmEnabled === 'boolean') {
+      AudioEngine.bgmEnabled = payload.globalBgmEnabled;
+      if (!payload.globalBgmEnabled) AudioEngine.stopBGM();
+      else AudioEngine.switchBGM(state.currentTab);
+    }
+  }
+  window.setGameSettings = empireApplySettings;
+
   window.addEventListener('message', function(event) {
     var data = event.data;
-    if (!data || data.source !== 'empire-host') return;
+    if (!data) return;
+
+    if (data.type === 'game-settings-changed') {
+      empireApplySettings(data.payload || {});
+      return;
+    }
+    if (data.type === 'game-export-request') {
+      var saveData = null;
+      try { saveData = localStorage.getItem('vertical_farm_game_save_v2'); } catch (_) {}
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'game-export-data', requestId: data.requestId, data: { saveData: saveData } }, '*');
+      }
+      return;
+    }
+    if (data.type === 'game-import-request') {
+      var success = false;
+      try {
+        if (data.saveData) {
+          localStorage.setItem('vertical_farm_game_save_v2', data.saveData);
+          success = true;
+          setTimeout(function() { location.reload(); }, 100);
+        }
+      } catch (_) {}
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: 'game-import-result', requestId: data.requestId, success: success }, '*');
+      }
+      return;
+    }
+
+    if (data.source !== 'empire-host') return;
     if (data.type === 'switch-screen') {
       var allowed = ['farm', 'factory', 'shop', 'logistics', 'upgrades', 'buffs', 'quests', 'achievements', 'npc', 'overview'];
       if (allowed.indexOf(data.screen) !== -1) {

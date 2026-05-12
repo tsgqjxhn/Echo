@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
@@ -8,24 +10,153 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.entities import AssetRecord, CharacterRecord, ExportTaskRecord
-from app.schemas.entities import CharacterResponse, ExportTaskResponse, ImportSummary, OverviewResponse, StoryResponse
+from app.schemas.entities import (
+    CharacterResponse,
+    ChatContextRequest,
+    ChatMessage,
+    ExportTaskResponse,
+    ImportSummary,
+    OverviewResponse,
+    StoryResponse,
+)
 from app.services.export_service import (
     build_backup_export,
     build_standard_export,
     create_character_from_document,
     get_overview,
     import_snapshot,
+    infer_character_mode,
     render_markdown_export,
     save_export_file,
 )
+from app.services.llm_service import LLMService
 from app.services.story_service import upsert_story_from_markdown
 from app.services.utils import new_id, now_ms
 
 
 router = APIRouter(prefix="/api", tags=["import-export"])
 settings = get_settings()
+llm_service = LLMService(settings)
 DEFAULT_CATEGORY = "剧情模式"
 DEFAULT_SUB_CATEGORY = "现实悬疑"
+
+
+def _fallback_parse_character_text(text: str, filename: str) -> dict[str, Any]:
+    """当 LLM 不可用时，使用简单规则解析文本中的角色信息。"""
+    lines = text.splitlines()
+    fields: dict[str, str] = {}
+    current_key: str | None = None
+    current_value: list[str] = []
+
+    # 支持的多语言标签映射
+    label_map: dict[str, str] = {
+        "name": "name",
+        "名称": "name",
+        "character": "name",
+        "description": "description",
+        "描述": "description",
+        "personality": "personality",
+        "性格": "personality",
+        "个性": "personality",
+        "scenario": "scenario",
+        "场景": "scenario",
+        "背景": "scenario",
+        "greeting": "greeting",
+        "问候": "greeting",
+        "开场白": "greeting",
+        "example dialogue": "exampleDialogue",
+        "示例对话": "exampleDialogue",
+        "对话示例": "exampleDialogue",
+        "settings": "settings",
+        "设定": "settings",
+        "first message": "greeting",
+    }
+
+    def flush() -> None:
+        nonlocal current_key, current_value
+        if current_key and current_value:
+            fields[current_key] = "\n".join(current_value).strip()
+        current_key = None
+        current_value = []
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        # 匹配 "Label: value" 或 "标签：值"
+        match = re.match(r"^([\w\s\u4e00-\u9fff]+)[\s]*[:：][\s]*(.*)$", line)
+        if match:
+            flush()
+            label = match.group(1).strip().lower()
+            mapped = label_map.get(label)
+            if mapped:
+                current_key = mapped
+                current_value = [match.group(2).strip()] if match.group(2).strip() else []
+            else:
+                current_key = None
+        elif current_key:
+            current_value.append(line)
+
+    flush()
+
+    name = fields.get("name") or fields.get("description", "").split("\n")[0][:40] or "导入角色"
+    description = fields.get("description") or fields.get("personality", "") or ""
+    if not description:
+        description = (text[:280] or "由导入文档生成的角色设定。").strip()
+
+    return {
+        "name": name,
+        "description": description,
+        "personality": fields.get("personality", ""),
+        "scenario": fields.get("scenario", ""),
+        "greeting": fields.get("greeting", ""),
+        "exampleDialogue": fields.get("exampleDialogue", ""),
+        "settings": fields.get("settings", ""),
+    }
+
+
+async def _llm_parse_character_text(text: str, filename: str) -> dict[str, Any] | None:
+    """尝试使用 LLM 从文本中解析角色信息。"""
+    try:
+        truncated = text[:4000] if len(text) > 4000 else text
+        system_prompt = (
+            "你是一个角色信息提取助手。请从以下文本中提取角色设定信息，"
+            "并以纯 JSON 格式返回（不要包含 markdown 代码块标记）。"
+            "必须包含以下字段：name, description, personality, scenario, greeting, exampleDialogue, settings。"
+            "如果某字段在文本中找不到，使用空字符串。只返回 JSON，不要其他说明。"
+        )
+        request = ChatContextRequest(
+            systemPrompt=system_prompt,
+            messages=[ChatMessage(role="user", content=truncated)],
+        )
+        response = await llm_service.chat(None, request)  # type: ignore[arg-type]
+        content = response.content.strip()
+        # 移除可能的 markdown 代码块
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+        parsed = json.loads(content)
+        if isinstance(parsed, dict) and parsed.get("name"):
+            return {
+                "name": str(parsed.get("name", "")),
+                "description": str(parsed.get("description", "")),
+                "personality": str(parsed.get("personality", "")),
+                "scenario": str(parsed.get("scenario", "")),
+                "greeting": str(parsed.get("greeting", "")),
+                "exampleDialogue": str(parsed.get("exampleDialogue", "")),
+                "settings": str(parsed.get("settings", "")),
+            }
+    except Exception:
+        pass
+    return None
+
+
+async def _parse_character_text(text: str, filename: str) -> dict[str, Any]:
+    """优先使用 LLM 解析，失败后回退到简单规则。"""
+    llm_result = await _llm_parse_character_text(text, filename)
+    if llm_result:
+        return llm_result
+    return _fallback_parse_character_text(text, filename)
 
 
 def _task_response(task: ExportTaskRecord, asset: AssetRecord | None) -> ExportTaskResponse:
@@ -52,16 +183,10 @@ def overview(db: Session = Depends(get_db)) -> OverviewResponse:
 
 
 @router.post("/export/standard", response_model=ExportTaskResponse)
-def export_standard(format: str = Query(default="json"), db: Session = Depends(get_db)) -> ExportTaskResponse:
-    if format == "md":
-        content = render_markdown_export(db).encode("utf-8")
-        filename = f"xiang-export-{now_ms()}.md"
-        mime_type = "text/markdown"
-    else:
-        content = json.dumps(build_standard_export(db), ensure_ascii=False, indent=2).encode("utf-8")
-        filename = f"xiang-export-{now_ms()}.json"
-        mime_type = "application/json"
-    return save_export_file(db, export_type="standard", filename=filename, content=content, mime_type=mime_type)
+def export_standard(db: Session = Depends(get_db)) -> ExportTaskResponse:
+    content = json.dumps(build_standard_export(db), ensure_ascii=False, indent=2).encode("utf-8")
+    filename = f"xiang-export-{now_ms()}.json"
+    return save_export_file(db, export_type="standard", filename=filename, content=content, mime_type="application/json")
 
 
 @router.post("/export/full", response_model=ExportTaskResponse)
@@ -132,37 +257,124 @@ async def import_full(
 
 @router.post("/import/character", response_model=CharacterResponse)
 async def import_character(
-    file: UploadFile = File(...),
+    request: UploadFile = File(...),
     category: str = Form(default=DEFAULT_CATEGORY),
     subCategory: str = Form(default=DEFAULT_SUB_CATEGORY),
     db: Session = Depends(get_db),
 ) -> CharacterResponse:
-    content = (await file.read()).decode("utf-8", errors="ignore")
-    parsed = create_character_from_document(file.filename or "导入角色.txt", content, category, subCategory)
+    """接收 multipart 文件上传导入角色。txt/md/json 均通过此路由处理。"""
+    text_content = (await request.read()).decode("utf-8", errors="ignore")
+    source_name = request.filename or "导入文档.txt"
+    return await _create_character_from_text(db, text_content, source_name, category, subCategory)
+
+
+@router.post("/import/character-text", response_model=CharacterResponse)
+async def import_character_text(
+    payload: dict[str, Any],
+    db: Session = Depends(get_db),
+) -> CharacterResponse:
+    """接收 JSON body { content, fileName?, category?, subCategory? } 导入角色。"""
+    text_content = payload.get("content", "")
+    source_name = payload.get("fileName") or "导入文档.txt"
+    category = payload.get("category") or DEFAULT_CATEGORY
+    subCategory = payload.get("subCategory") or DEFAULT_SUB_CATEGORY
+    return await _create_character_from_text(db, text_content, source_name, category, subCategory)
+
+
+async def _create_character_from_text(
+    db: Session,
+    text_content: str,
+    source_name: str,
+    category: str,
+    subCategory: str,
+) -> CharacterResponse:
+    # 如果是 .json 文件/内容，尝试直接解析为 Character Card
+    if source_name.lower().endswith(".json"):
+        try:
+            raw = json.loads(text_content)
+            if isinstance(raw, dict) and (raw.get("name") or (raw.get("data") and isinstance(raw["data"], dict) and raw["data"].get("name"))):
+                data = raw.get("data", raw) if isinstance(raw.get("data"), dict) else raw
+                timestamp = now_ms()
+                record = CharacterRecord(
+                    id=new_id("character"),
+                    name=str(data.get("name", "导入角色")),
+                    avatar=None,
+                    background=f"{category} / {subCategory}",
+                    description=str(data.get("description", "")),
+                    greeting=str(data.get("first_mes", data.get("greeting", ""))),
+                    settings="",
+                    is_favorite=False,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    mode=infer_character_mode(category),
+                    category=category,
+                    sub_category=subCategory,
+                    avatar_tone="silver",
+                    background_image=None,
+                    personality=str(data.get("personality", "")),
+                    behavior="优先围绕导入内容继续展开",
+                    values="保留原文档中的关键信息",
+                    members=[],
+                    tags=[category, subCategory, "文档导入"],
+                    source_type="document-import",
+                    source_name=source_name,
+                )
+                db.add(record)
+                db.commit()
+                db.refresh(record)
+                return CharacterResponse(
+                    id=record.id,
+                    name=record.name,
+                    avatar=record.avatar,
+                    background=record.background,
+                    description=record.description,
+                    greeting=record.greeting,
+                    settings=record.settings,
+                    isFavorite=record.is_favorite,
+                    createdAt=record.created_at,
+                    updatedAt=record.updated_at,
+                    mode=record.mode,
+                    category=record.category,
+                    subCategory=record.sub_category,
+                    avatarTone=record.avatar_tone,
+                    backgroundImage=record.background_image,
+                    personality=record.personality,
+                    behavior=record.behavior,
+                    values=record.values,
+                    members=record.members,
+                    tags=record.tags,
+                    sourceType=record.source_type,
+                    sourceName=record.source_name,
+                )
+        except Exception:
+            pass
+
+    # 普通文本（txt/md）使用智能解析
+    parsed = await _parse_character_text(text_content, source_name)
     timestamp = now_ms()
     record = CharacterRecord(
         id=new_id("character"),
-        name=parsed["name"],
+        name=parsed["name"] or "导入角色",
         avatar=None,
         background=f"{category} / {subCategory}",
-        description=parsed["description"],
-        greeting=f"我已经读完《{file.filename or '导入文档'}》里的内容，你想从哪里开始聊？",
-        settings=parsed["settings"],
+        description=parsed["description"] or (text_content[:280] or "由导入文档生成的角色设定。").strip(),
+        greeting=parsed["greeting"] or f"我已经读完《{source_name}》里的内容，你想从哪里开始聊？",
+        settings=parsed["settings"] or "",
         is_favorite=False,
         created_at=timestamp,
         updated_at=timestamp,
-        mode=parsed["mode"],
+        mode=infer_character_mode(category),
         category=category,
         sub_category=subCategory,
         avatar_tone="silver",
         background_image=None,
-        personality="善于根据资料展开交流",
+        personality=parsed["personality"] or "善于根据资料展开交流",
         behavior="优先围绕导入内容继续展开",
         values="保留原文档中的关键信息",
         members=[],
         tags=[category, subCategory, "文档导入"],
         source_type="document-import",
-        source_name=file.filename,
+        source_name=source_name,
     )
     db.add(record)
     db.commit()

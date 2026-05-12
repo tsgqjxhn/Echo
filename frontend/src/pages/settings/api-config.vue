@@ -61,7 +61,7 @@
           <span>配置名称</span>
           <input v-model="form.name" type="text" maxlength="40" placeholder="例如：主账号" />
         </label>
-        <p class="hint capability-hint">文本模型是目前支持的模型，如果在语音、图片、动图中没有出现分类，则代表该厂商未提供该服务或者仅对企业开放该服务</p>
+        <p class="hint capability-hint">文本模型是目前支持的模型，如果在语音、图片识别、图片生成、动图中没有出现分类，则代表该厂商未提供该服务或者仅对企业开放该服务</p>
         <label class="field">
           <span>Provider 类型</span>
           <select v-model="form.provider" class="field-select" @change="onProviderChange">
@@ -192,57 +192,62 @@
       </button>
     </section>
 
-    <section v-if="activeType === 'voice'" class="config-section card">
+    <!-- TTS 设置 -->
+    <section v-if="activeType === 'voice' && voiceSubType === 'tts'" class="config-section card">
       <div class="section-head">
-        <span class="section-label">语音偏好</span>
+        <span class="section-label">TTS 朗读设置</span>
         <button type="button" class="mini-btn" @click="resetVoiceSettings">重置</button>
       </div>
-      <div class="voice-prefs-grid">
-        <article class="settings-card-voice">
-          <p class="section-title-voice">TTS 朗读</p>
-          <label class="range-row">
-            <span>语速</span>
-            <strong>{{ (ttsConfig.rate ?? 1).toFixed(1) }}x</strong>
-            <input v-model.number="ttsConfig.rate" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
-          </label>
-          <label class="range-row">
-            <span>音调</span>
-            <strong>{{ (ttsConfig.pitch ?? 1).toFixed(1) }}</strong>
-            <input v-model.number="ttsConfig.pitch" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
-          </label>
-          <label class="range-row">
-            <span>音量</span>
-            <strong>{{ Math.round((ttsConfig.volume ?? 1) * 100) }}%</strong>
-            <input v-model.number="ttsConfig.volume" type="range" min="0" max="1" step="0.05" @change="saveVoiceSettings" />
-          </label>
-          <button type="button" class="primary-btn voice-test-btn" @click="testTTS">
-            {{ isTesting ? '停止试听' : '试听朗读效果' }}
-          </button>
-        </article>
-        <article class="settings-card-voice">
-          <p class="section-title-voice">STT 语音输入</p>
-          <label class="field">
-            <span>识别语言</span>
-            <select v-model="sttConfig.language" class="field-select" @change="saveVoiceSettings">
-              <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>录音质量</span>
-            <select v-model="sttConfig.quality" class="field-select" @change="saveVoiceSettings">
-              <option v-for="opt in qualityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-            </select>
-          </label>
-          <label class="toggle-row">
-            <span>录音结束后自动发送</span>
-            <input v-model="sttConfig.autoSend" type="checkbox" @change="saveVoiceSettings" />
-          </label>
-          <label class="toggle-row">
-            <span>录音时显示波形动画</span>
-            <input v-model="sttConfig.showWaveform" type="checkbox" @change="saveVoiceSettings" />
-          </label>
-        </article>
+      <article class="settings-card-voice">
+        <label class="range-row">
+          <span>语速</span>
+          <strong>{{ (ttsConfig.rate ?? 1).toFixed(1) }}x</strong>
+          <input v-model.number="ttsConfig.rate" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
+        </label>
+        <label class="range-row">
+          <span>音调</span>
+          <strong>{{ (ttsConfig.pitch ?? 1).toFixed(1) }}</strong>
+          <input v-model.number="ttsConfig.pitch" type="range" min="0.5" max="2" step="0.1" @change="saveVoiceSettings" />
+        </label>
+        <label class="range-row">
+          <span>音量</span>
+          <strong>{{ Math.round((ttsConfig.volume ?? 1) * 100) }}%</strong>
+          <input v-model.number="ttsConfig.volume" type="range" min="0" max="1" step="0.05" @change="saveVoiceSettings" />
+        </label>
+        <button type="button" class="primary-btn voice-test-btn" @click="testTTS">
+          {{ isTesting ? '停止试听' : '试听朗读效果' }}
+        </button>
+      </article>
+    </section>
+
+    <!-- STT 设置 -->
+    <section v-if="activeType === 'voice' && voiceSubType === 'stt'" class="config-section card">
+      <div class="section-head">
+        <span class="section-label">STT 语音输入设置</span>
+        <button type="button" class="mini-btn" @click="resetVoiceSettings">重置</button>
       </div>
+      <article class="settings-card-voice">
+        <label class="field">
+          <span>识别语言</span>
+          <select v-model="sttConfig.language" class="field-select" @change="saveVoiceSettings">
+            <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>录音质量</span>
+          <select v-model="sttConfig.quality" class="field-select" @change="saveVoiceSettings">
+            <option v-for="opt in qualityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+        <label class="toggle-row">
+          <span>录音结束后自动发送</span>
+          <input v-model="sttConfig.autoSend" type="checkbox" @change="saveVoiceSettings" />
+        </label>
+        <label class="toggle-row">
+          <span>录音时显示波形动画</span>
+          <input v-model="sttConfig.showWaveform" type="checkbox" @change="saveVoiceSettings" />
+        </label>
+      </article>
     </section>
   </div>
 </template>
@@ -270,7 +275,8 @@ const router = useRouter()
 const typeTabs: { label: string; value: APIConfigType }[] = [
   { label: '文本', value: 'text' },
   { label: '语音', value: 'voice' },
-  { label: '图片', value: 'image' },
+  { label: '图片识别', value: 'image-understanding' },
+  { label: '图片生成', value: 'image-gen' },
   { label: '动图', value: 'video' }
 ]
 
@@ -301,21 +307,14 @@ const isLocalType = computed(() => {
 
 const localEngineLabel = computed(() => {
   if (voiceSubType.value === 'tts') return '系统语音合成 (TTS)'
-  if (form.value.provider === 'local-builtin') return '软件内置 (sherpa-ncnn)'
-  if (form.value.provider === 'local-gms') return '谷歌服务安卓内置 (GMS SpeechRecognizer)'
   return '系统语音识别'
 })
 
-const localNetworkLabel = computed(() => {
-  if (form.value.provider === 'local-gms') return '需要联网'
-  return '离线可用'
-})
+const localNetworkLabel = computed(() => '离线可用')
 
 const localEngineHint = computed(() => {
-  if (voiceSubType.value === 'tts') return '使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。'
-  if (form.value.provider === 'local-builtin') return '使用软件内置 sherpa-ncnn 引擎，完全离线，无需 API Key。'
-  if (form.value.provider === 'local-gms') return '使用 Android 系统语音识别（依赖谷歌 GMS 服务），默认不含国内网络环境。无需 API Key。'
-  return '使用设备内置语音引擎，无需 API Key。音色和语速可在「语音设置」中调整。'
+  if (voiceSubType.value === 'tts') return '使用设备内置语音引擎，无需 API Key。音色和语速可在下方调整。'
+  return '使用设备内置语音引擎，无需 API Key。识别参数可在下方调整。'
 })
 
 const providerOptions = computed(() => {
@@ -327,7 +326,8 @@ const providerOptions = computed(() => {
       case 'text': supported = adapter.capabilities.chat; break
       case 'tts': supported = adapter.capabilities.tts; break
       case 'stt': supported = adapter.capabilities.stt; break
-      case 'image': supported = adapter.capabilities.imageGeneration; break
+      case 'image-understanding': supported = adapter.capabilities.imageUnderstanding; break
+      case 'image-gen': supported = adapter.capabilities.imageGeneration; break
       case 'video': supported = adapter.capabilities.videoGeneration; break
     }
     if (supported) {
@@ -371,7 +371,10 @@ const capabilityWarning = computed(() => {
   if ((type === 'stt' || type === 'tts') && !adapter.capabilities.tts && !adapter.capabilities.stt) {
     warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持语音服务，请为语音类型配置其他提供商`)
   }
-  if (type === 'image' && !adapter.capabilities.imageGeneration) {
+  if (type === 'image-understanding' && !adapter.capabilities.imageUnderstanding) {
+    warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持图片识别（Vision）`)
+  }
+  if (type === 'image-gen' && !adapter.capabilities.imageGeneration) {
     warnings.push(`${PROVIDER_DISPLAY_NAMES[form.value.provider]} 不支持图片生成`)
   }
   if (type === 'video' && !adapter.capabilities.videoGeneration) {
@@ -398,12 +401,24 @@ const canConnect = computed(() => !!form.value.apiKey.trim() || !!selectedConfig
 const sectionLabel = computed(() => {
   if (activeType.value === 'text') return '配置聊天文本补全模型'
   if (activeType.value === 'voice') return voiceSubType.value === 'stt' ? '配置语音转文本模型' : '配置文本转语音模型'
-  if (activeType.value === 'image') return '配置图片生成模型'
+  if (activeType.value === 'image-understanding') return '配置图片识别模型（Vision）'
+  if (activeType.value === 'image-gen') return '配置图片生成模型'
   return '配置动图/视频生成模型'
 })
 
+/** 向后兼容：将旧的 'image' 类型映射为 'image-gen' */
+function migrateLegacyImageType(configs: APIConfig[]): APIConfig[] {
+  return configs.map(c => {
+    if ((c.configType as string) === 'image') {
+      return { ...c, configType: 'image-gen' as APIConfigType }
+    }
+    return c
+  })
+}
+
 async function loadAll() {
-  allConfigs.value = await apiConfigService.getAll()
+  const raw = await apiConfigService.getAll()
+  allConfigs.value = migrateLegacyImageType(raw)
 }
 
 function normalizeModelList(models: Array<string | undefined | null>): string[] {
@@ -424,8 +439,7 @@ function switchType(type: APIConfigType) {
   noModelsAfterConnect.value = false
   clearForm()
   if (type === 'voice') {
-    // STT 默认软件内置 (sherpa-ncnn)；TTS 仍用系统 'local'
-    form.value.provider = voiceSubType.value === 'stt' ? 'local-builtin' : 'local'
+    form.value.provider = 'local'
   }
 }
 
@@ -438,8 +452,7 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   noModelsAfterConnect.value = false
   clearForm()
   if (isLocalType.value) {
-    // STT 默认软件内置；TTS 仍用系统 'local'
-    form.value.provider = sub === 'stt' ? 'local-builtin' : 'local'
+    form.value.provider = 'local'
   }
 }
 
@@ -849,7 +862,7 @@ $mint-light: #6ee7b7;
 .type-tabs {
   width: min(960px, calc(100% - 32px));
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin: 16px auto 0;
 }

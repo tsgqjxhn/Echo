@@ -23,6 +23,7 @@ export const baiduCapabilities: ProviderCapabilities = {
   tts: true,
   stt: true,
   imageGeneration: true,
+  imageUnderstanding: true,
   videoGeneration: false,
   modelListing: false,
 }

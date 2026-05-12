@@ -4,95 +4,446 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>幸存者防线</title>
+    <link rel="stylesheet" href="../_shared/phaser-host/phaser-host.css">
     <style>
-      button {
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
+      * {
+        box-sizing: border-box;
       }
-      /* 强制横屏与全屏适配 */
-      html, body, #root {
+
+      html,
+      body,
+      #root {
         width: 100%;
         height: 100%;
         margin: 0;
         padding: 0;
         overflow: hidden;
-        background: #0a0a0a;
+        background: #050606;
       }
-      /* 竖屏提示 */
-      @media screen and (orientation: portrait) {
-        #root {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-        }
-        #root > *:not(#echo-portrait-tip) {
-          display: none !important;
-        }
+
+      body {
+        overscroll-behavior: none;
       }
-      @media screen and (orientation: landscape) {
-        #echo-portrait-tip {
-          display: none !important;
-        }
+
+      button {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
       }
-      /* 返回按钮 */
+
+      #root {
+        position: relative;
+      }
+
+      #root > div {
+        width: 100%;
+        height: 100%;
+      }
+
+      #root canvas {
+        display: block;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        object-fit: contain !important;
+        touch-action: none;
+      }
+
+      #echo-portrait-tip {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 20px;
+        background: #050606;
+        color: #ffd740;
+        font-size: 16px;
+        line-height: 1.6;
+        text-align: center;
+      }
+
       #echo-game-back-btn {
         position: fixed;
         top: max(env(safe-area-inset-top, 0px), 6px);
-        left: 6px;
+        left: max(env(safe-area-inset-left, 0px), 6px);
         z-index: 99998;
         display: flex;
         align-items: center;
         justify-content: center;
         width: 38px;
         height: 38px;
-        border: none;
+        border: 1px solid rgba(255, 255, 255, 0.16);
         border-radius: 10px;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.48);
         color: #fff;
         font-size: 18px;
         line-height: 1;
         cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
-        transition: transform 0.15s ease;
+        transition: transform 0.15s ease, background 0.15s ease;
       }
+
+      #echo-game-back-btn:hover {
+        background: rgba(0, 0, 0, 0.68);
+      }
+
       #echo-game-back-btn:active {
         transform: scale(0.92);
       }
-      #echo-portrait-tip {
-        position: fixed;
-        inset: 0;
-        z-index: 99999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #0a0a0a;
-        color: #ffd740;
-        font-size: 16px;
-        text-align: center;
-        padding: 20px;
-        gap: 12px;
+
+      @media screen and (orientation: portrait) {
+        #root {
+          visibility: hidden;
+          pointer-events: none;
+        }
+
+        #echo-game-back-btn {
+          display: none;
+        }
+
+        #echo-portrait-tip {
+          display: flex !important;
+        }
+      }
+
+      @media screen and (orientation: landscape) {
+        #echo-portrait-tip {
+          display: none !important;
+        }
       }
     </style>
+    <script src="../_shared/phaser/phaser.min.js"></script>
+    <script src="../_shared/phaser-host/phaser-host.js"></script>
     <script type="module" crossorigin src="./assets/index-CMpIraSm.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Dqswym4k.css">
+    <style id="echo-survivor-ui-patch">
+      body {
+        --survivor-deploy-width: clamp(118px, 16vw, 156px);
+      }
+
+      #root,
+      #root > div {
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100svh !important;
+        overflow: hidden !important;
+        background: #050606 !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:241:5"] {
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100svh !important;
+        min-height: 100vh !important;
+        background: #050606 !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:242:7"] {
+        width: max(100vw, calc(100vh * 1200 / 700)) !important;
+        height: max(100vh, calc(100vw * 700 / 1200)) !important;
+        max-width: none !important;
+        max-height: none !important;
+        flex: 0 0 auto !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:350:11"] {
+        position: absolute !important;
+        inset: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #root canvas {
+        max-width: none !important;
+        max-height: none !important;
+        object-fit: fill !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:369:15"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 40 !important;
+        min-height: clamp(44px, 8vh, 58px) !important;
+        padding: max(env(safe-area-inset-top, 0px), 6px) 18px 8px max(env(safe-area-inset-left, 0px), 54px) !important;
+        background: rgba(0, 0, 0, 0.34) !important;
+        border-bottom-color: rgba(34, 197, 94, 0.22) !important;
+        backdrop-filter: blur(10px) saturate(1.2) !important;
+        -webkit-backdrop-filter: blur(10px) saturate(1.2) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:399:21"] {
+        background: rgba(220, 38, 38, 0.72) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:411:19"] {
+        background: rgba(255, 255, 255, 0.12) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:423:15"] {
+        position: fixed !important;
+        top: clamp(58px, 10vh, 76px) !important;
+        right: max(env(safe-area-inset-right, 0px), 0px) !important;
+        bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
+        left: auto !important;
+        z-index: 42 !important;
+        width: var(--survivor-deploy-width) !important;
+        max-width: var(--survivor-deploy-width) !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+        padding: 8px !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        background: rgba(0, 0, 0, 0.36) !important;
+        border-top: 0 !important;
+        border-left: 1px solid rgba(34, 197, 94, 0.28) !important;
+        border-radius: 14px 0 0 14px !important;
+        box-shadow: -14px 0 34px rgba(0, 0, 0, 0.22) !important;
+        backdrop-filter: blur(12px) saturate(1.18) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(1.18) !important;
+        transition: transform 0.22s ease, opacity 0.22s ease !important;
+        scrollbar-width: none;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:423:15"]::-webkit-scrollbar {
+        display: none;
+      }
+
+      body.survivor-deploy-collapsed #root [code-path="src/pages/GamePage.tsx:423:15"] {
+        transform: translateX(calc(var(--survivor-deploy-width) + 16px)) !important;
+        opacity: 0.22 !important;
+        pointer-events: none !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:423:15"] > button {
+        width: 100% !important;
+        min-height: clamp(82px, 18vh, 108px) !important;
+        padding: 7px 5px !important;
+        background: rgba(0, 0, 0, 0.34) !important;
+        border-color: rgba(148, 163, 184, 0.42) !important;
+        border-radius: 12px !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:423:15"] > button img {
+        width: clamp(36px, 7vh, 48px) !important;
+        height: clamp(36px, 7vh, 48px) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:486:19"] {
+        width: 100% !important;
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-top: 8px !important;
+        border-left: 0 !important;
+        border-top: 1px solid rgba(148, 163, 184, 0.32) !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:495:21"] {
+        width: 100% !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:497:25"],
+      #root [code-path="src/pages/GamePage.tsx:517:23"] {
+        width: 100% !important;
+        justify-content: center !important;
+        background: rgba(37, 99, 235, 0.72) !important;
+      }
+
+      #root [code-path="src/pages/GamePage.tsx:517:23"] {
+        background: rgba(220, 38, 38, 0.72) !important;
+      }
+
+      #echo-game-back-btn,
+      #echo-deploy-toggle {
+        backdrop-filter: blur(10px) saturate(1.15);
+        -webkit-backdrop-filter: blur(10px) saturate(1.15);
+      }
+
+      #echo-game-back-btn {
+        background: rgba(0, 0, 0, 0.34);
+      }
+
+      #echo-deploy-toggle {
+        position: fixed;
+        top: 50%;
+        right: calc(max(env(safe-area-inset-right, 0px), 0px) + var(--survivor-deploy-width) + 6px);
+        z-index: 43;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        min-width: 38px;
+        height: 44px;
+        padding: 0 8px;
+        border: 1px solid rgba(34, 197, 94, 0.34);
+        border-radius: 12px 0 0 12px;
+        background: rgba(0, 0, 0, 0.42);
+        color: #f8fafc;
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: -10px 0 24px rgba(0, 0, 0, 0.24);
+        transform: translateY(-50%);
+        transition: right 0.22s ease, background 0.18s ease, transform 0.18s ease;
+      }
+
+      #echo-deploy-toggle:active {
+        transform: translateY(-50%) scale(0.94);
+      }
+
+      body.survivor-deploy-collapsed #echo-deploy-toggle {
+        right: max(env(safe-area-inset-right, 0px), 6px);
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.56);
+      }
+      /* ===== 备用：隐藏重复的结束菜单覆盖层 ===== */
+      #root [code-path="src/pages/GamePage.tsx:570:15"]:has(~ [code-path="src/pages/GamePage.tsx:570:15"]) {
+        display: none !important;
+      }
+      #root [code-path="src/pages/GamePage.tsx:602:15"]:has(~ [code-path="src/pages/GamePage.tsx:602:15"]) {
+        display: none !important;
+      }
+
+      /* ===== 响应式：小屏幕结束菜单适配 ===== */
+      @media screen and (max-width: 640px) {
+        /* 菜单容器：缩小内边距和最小宽度 */
+        #root [code-path="src/pages/GamePage.tsx:571:17"],
+        #root [code-path="src/pages/GamePage.tsx:603:17"] {
+          padding: 16px !important;
+          min-width: 260px !important;
+          gap: 10px !important;
+        }
+
+        /* 标题字号缩小 */
+        #root [code-path="src/pages/GamePage.tsx:572:19"],
+        #root [code-path="src/pages/GamePage.tsx:605:19"] {
+          font-size: 1.5rem !important;
+          line-height: 2rem !important;
+        }
+
+        /* 奖杯图标缩小 */
+        #root [code-path="src/pages/GamePage.tsx:604:19"] {
+          width: 2.25rem !important;
+          height: 2.25rem !important;
+        }
+
+        /* 星星图标缩小 */
+        #root [code-path="src/pages/GamePage.tsx:608:23"] {
+          width: 2rem !important;
+          height: 2rem !important;
+        }
+
+        /* 统计信息区域缩小间距 */
+        #root [code-path="src/pages/GamePage.tsx:574:19"],
+        #root [code-path="src/pages/GamePage.tsx:617:19"] {
+          gap: 8px !important;
+          font-size: 0.75rem !important;
+        }
+
+        /* 按钮缩小 */
+        #root [code-path="src/pages/GamePage.tsx:582:19"],
+        #root [code-path="src/pages/GamePage.tsx:589:19"],
+        #root [code-path="src/pages/GamePage.tsx:631:21"],
+        #root [code-path="src/pages/GamePage.tsx:639:19"],
+        #root [code-path="src/pages/GamePage.tsx:646:19"] {
+          padding: 8px 16px !important;
+          font-size: 0.875rem !important;
+        }
+
+        /* 按钮内图标缩小 */
+        #root [code-path="src/pages/GamePage.tsx:582:19"] svg,
+        #root [code-path="src/pages/GamePage.tsx:589:19"] svg,
+        #root [code-path="src/pages/GamePage.tsx:631:21"] svg,
+        #root [code-path="src/pages/GamePage.tsx:639:19"] svg,
+        #root [code-path="src/pages/GamePage.tsx:646:19"] svg {
+          width: 1rem !important;
+          height: 1rem !important;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root">
-      <div id="echo-portrait-tip">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-          <path d="M12 18h.01"/>
-        </svg>
-        <span>请旋转设备至横屏<br>以获得最佳游戏体验</span>
-      </div>
+    <div id="root"></div>
+
+    <script>
+      window.__echoPhaserHost = window.createEchoPhaserHost({
+        title: '幸存者防线',
+        width: 1200,
+        height: 700,
+        backgroundColor: '#050606',
+        legacyRootId: 'root'
+      });
+    </script>
+
+    <div id="echo-portrait-tip" aria-live="polite">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+        <path d="M12 18h.01"/>
+      </svg>
+      <span>请旋转设备至横屏<br>以获得最佳游戏体验</span>
     </div>
-    <button id="echo-game-back-btn" aria-label="返回">←</button>
+
+    <button id="echo-game-back-btn" type="button" aria-label="返回">←</button>
+
     <script>
       (function () {
-        // 返回按钮
+        'use strict';
+
+        var root = document.getElementById('root');
+        var deployCollapsed = false;
+        var deployToggle = document.createElement('button');
+        deployToggle.id = 'echo-deploy-toggle';
+        deployToggle.type = 'button';
+        deployToggle.setAttribute('aria-controls', 'survivor-deploy-panel');
+        document.body.appendChild(deployToggle);
+
+        function getDeployPanel() {
+          return document.querySelector('[code-path="src/pages/GamePage.tsx:423:15"]');
+        }
+
+        function updateDeployToggle() {
+          var panel = getDeployPanel();
+          var visible = !!panel;
+          document.body.classList.toggle('survivor-deploy-collapsed', deployCollapsed);
+          deployToggle.style.display = visible ? 'flex' : 'none';
+          deployToggle.textContent = deployCollapsed ? '部署' : '›';
+          deployToggle.setAttribute('aria-expanded', deployCollapsed ? 'false' : 'true');
+          deployToggle.setAttribute('aria-label', deployCollapsed ? '展开部队部署栏' : '收起部队部署栏');
+          if (panel) panel.id = 'survivor-deploy-panel';
+        }
+
+        deployToggle.addEventListener('click', function () {
+          deployCollapsed = !deployCollapsed;
+          updateDeployToggle();
+        });
+
+        function requestLandscapeMode() {
+          try {
+            var doc = document.documentElement;
+            if (!document.fullscreenElement && doc.requestFullscreen) {
+              doc.requestFullscreen().catch(function () {});
+            }
+          } catch (_) {}
+
+          try {
+            var orientation = screen && screen.orientation;
+            if (orientation && orientation.lock) {
+              orientation.lock('landscape').catch(function () {});
+            }
+          } catch (_) {}
+        }
+
         var backBtn = document.getElementById('echo-game-back-btn');
         if (backBtn) {
           backBtn.addEventListener('click', function () {
@@ -102,15 +453,16 @@
           });
         }
 
-        // 触摸点击兼容
         var lastTouchAt = 0;
         document.addEventListener('touchend', function (event) {
           var target = event.target;
           var button = target && target.closest && target.closest('button');
           if (!button || button.disabled) return;
+
           var now = Date.now();
           if (now - lastTouchAt < 280) return;
           lastTouchAt = now;
+
           event.preventDefault();
           event.stopPropagation();
           setTimeout(function () {
@@ -118,9 +470,53 @@
           }, 0);
         }, { passive: false, capture: true });
 
-        // 存档桥接
+        // Echo Game Settings Bridge
+        window.__survivorSoundEnabled = true;
+        window.__survivorBgmEnabled = true;
+
         window.addEventListener('message', function (event) {
           var data = event.data;
+          if (!data) return;
+
+          if (data.type === 'game-settings-changed') {
+            var p = data.payload || {};
+            if (typeof p.globalSoundEnabled === 'boolean') window.__survivorSoundEnabled = p.globalSoundEnabled;
+            if (typeof p.globalBgmEnabled === 'boolean') window.__survivorBgmEnabled = p.globalBgmEnabled;
+            document.querySelectorAll('audio').forEach(function(a) {
+              if (!window.__survivorBgmEnabled && !a.paused) a.pause();
+            });
+            return;
+          }
+          if (data.type === 'game-export-request') {
+            var saveData = null;
+            try {
+              var keys = [];
+              for (var i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+              var obj = {};
+              keys.forEach(function(k) { try { obj[k] = localStorage.getItem(k); } catch(e) {} });
+              saveData = JSON.stringify(obj);
+            } catch (_) {}
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'game-export-data', requestId: data.requestId, data: { saveData: saveData } }, '*');
+            }
+            return;
+          }
+          if (data.type === 'game-import-request') {
+            var success = false;
+            try {
+              if (data.saveData) {
+                var parsed = JSON.parse(data.saveData);
+                Object.keys(parsed).forEach(function(k) { localStorage.setItem(k, parsed[k]); });
+                success = true;
+                setTimeout(function() { location.reload(); }, 100);
+              }
+            } catch (_) {}
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'game-import-result', requestId: data.requestId, success: success }, '*');
+            }
+            return;
+          }
+
           if (!data || data.source !== 'survivor-defense-host' || data.type !== 'save-now') return;
           try {
             window.parent.postMessage({
@@ -131,6 +527,71 @@
             }, '*');
           } catch (_) {}
         });
+
+        (function audioMutePatch() {
+          var origPlay = HTMLAudioElement.prototype.play;
+          HTMLAudioElement.prototype.play = function() {
+            if (window.__survivorSoundEnabled === false || window.__survivorBgmEnabled === false) {
+              return Promise.resolve();
+            }
+            return origPlay.apply(this, arguments);
+          };
+        })();
+
+        /* ===== 防止结束菜单重复弹出（防御层） ===== */
+        /* 根因已在 index-CMpIraSm.js 中修复：
+           loop() 方法中 onStateChange 现在在游戏结束后只调用一次
+           （通过 _endNotified 标志）。以下代码作为 DOM 层防御，
+           处理任何极端情况下的重复节点。 */
+        var _menuOverlayPaths = {
+          gameOver: 'src/pages/GamePage.tsx:570:15',
+          levelComplete: 'src/pages/GamePage.tsx:602:15'
+        };
+
+        function cleanDuplicateOverlays() {
+          var keys = Object.keys(_menuOverlayPaths);
+          for (var k = 0; k < keys.length; k++) {
+            var path = _menuOverlayPaths[keys[k]];
+            var overlays = root.querySelectorAll('[code-path="' + path + '"]');
+            if (overlays.length > 1) {
+              for (var j = 0; j < overlays.length - 1; j++) {
+                overlays[j].parentNode.removeChild(overlays[j]);
+              }
+            }
+          }
+        }
+
+        var patchScheduled = false;
+        function patchCanvasTouch() {
+          patchScheduled = false;
+          if (!root) return;
+          var canvases = root.querySelectorAll('canvas');
+          for (var i = 0; i < canvases.length; i++) {
+            canvases[i].style.touchAction = 'none';
+          }
+          updateDeployToggle();
+          cleanDuplicateOverlays();
+        }
+
+        function schedulePatch() {
+          if (patchScheduled) return;
+          patchScheduled = true;
+          requestAnimationFrame(patchCanvasTouch);
+        }
+
+        setTimeout(schedulePatch, 200);
+        setTimeout(schedulePatch, 800);
+        setTimeout(requestLandscapeMode, 300);
+        document.addEventListener('pointerdown', requestLandscapeMode, { once: true, capture: true });
+        window.addEventListener('resize', schedulePatch);
+
+        if (root && typeof MutationObserver !== 'undefined') {
+          var observer = new MutationObserver(function () {
+            cleanDuplicateOverlays();
+            schedulePatch();
+          });
+          observer.observe(root, { childList: true, subtree: true });
+        }
       })();
     </script>
   </body>

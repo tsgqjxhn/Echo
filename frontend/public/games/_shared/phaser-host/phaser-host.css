@@ -1,0 +1,85 @@
+html.echo-phaser-host-html,
+body.echo-phaser-host-body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--echo-phaser-host-background, #0f172a);
+}
+
+body.echo-phaser-host-body {
+  touch-action: manipulation;
+}
+
+.echo-phaser-host {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--echo-phaser-host-background, #0f172a);
+}
+
+.echo-phaser-canvas-layer,
+.echo-phaser-legacy-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.echo-phaser-canvas-layer {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.echo-phaser-canvas-layer.echo-phaser-canvas-interactive {
+  pointer-events: auto;
+}
+
+.echo-phaser-canvas-layer canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.echo-phaser-legacy-layer {
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.echo-phaser-legacy-root {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100%;
+}
+
+.echo-phaser-host-badge {
+  position: fixed;
+  right: max(env(safe-area-inset-right, 0px), 10px);
+  bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+  z-index: 3;
+  padding: 4px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.42);
+  color: rgba(226, 232, 240, 0.58);
+  font: 600 11px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  user-select: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@media (max-width: 640px) {
+  .echo-phaser-host-badge {
+    display: none;
+  }
+}

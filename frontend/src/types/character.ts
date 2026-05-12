@@ -1,9 +1,24 @@
 import type { WorldBook } from './world-book'
 
 export interface GroupMember {
+  /** 成员唯一标识 */
+  id: string
+  /** 角色名称 */
   name: string
-  personality: string
-  speakingStyle: string
+  /** 头像URL */
+  avatar?: string
+  /** 一句话描述/标签 */
+  description?: string
+  /** 性格特征 */
+  personality?: string
+  /** 说话风格 */
+  speakingStyle?: string
+  /** 角色设定（深度配置时使用） */
+  settings?: string
+  /** 是否为旁白角色 */
+  isNarrator?: boolean
+  /** 配置模式：simple=简单配置, deep=深度配置 */
+  configMode?: 'simple' | 'deep'
 }
 
 /**
@@ -64,6 +79,15 @@ export interface Lorebook {
   scanRange: number
 }
 
+export type CharacterMode =
+  | 'challenge-dialogue'
+  | 'free-dialogue'
+  | 'group-chat'
+  | 'group-challenge'
+  | 'multi-free'
+  | 'multi-story'
+  | 'multi-game'
+
 export interface ICharacter {
   id: string
   name: string
@@ -75,7 +99,7 @@ export interface ICharacter {
   isFavorite: boolean
   createdAt: number
   updatedAt: number
-  mode?: 'challenge-dialogue' | 'free-dialogue' | 'group-chat' | 'group-challenge'
+  mode?: CharacterMode
   category?: string
   subCategory?: string
   avatarTone?: string
@@ -83,8 +107,12 @@ export interface ICharacter {
   personality?: string
   behavior?: string
   values?: string
+  /** @deprecated 使用 structuredMembers 替代 */
   members?: string[]
+  /** @deprecated 使用 structuredMembers 替代 */
   memberIds?: string[]
+  /** 结构化群成员列表 */
+  structuredMembers?: GroupMember[]
   groupAvatar?: string
   groupAnnouncement?: string
   groupDescription?: string
@@ -137,7 +165,7 @@ export interface CreateCharacterRequest {
   description: string
   greeting?: string
   settings: string
-  mode?: ICharacter['mode']
+  mode?: CharacterMode
   category?: string
   subCategory?: string
   avatarTone?: string
@@ -146,6 +174,7 @@ export interface CreateCharacterRequest {
   behavior?: string
   values?: string
   members?: string[]
+  structuredMembers?: GroupMember[]
   tags?: string[]
   sourceType?: ICharacter['sourceType']
   sourceName?: string

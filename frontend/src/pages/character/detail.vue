@@ -14,64 +14,169 @@
         </svg>
       </button>
 
-      <h1 class="title">{{ character?.name || '角色详情' }}</h1>
+      <h1 class="title">{{ displayCharacter?.name || '角色详情' }}</h1>
 
-      <div class="header-actions">
-        <button class="action-btn" @click="cloneCharacter">复制</button>
-        <button class="action-btn" @click="goToEdit">编辑</button>
+      <button class="more-btn" @click="showMoreMenu" aria-label="更多">
+        <svg class="more-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="6" r="1.5" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+          <circle cx="12" cy="18" r="1.5" fill="currentColor" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- 群聊成员头像栏 -->
+    <div v-if="isGroupMode && character" class="member-avatars-bar">
+      <div class="member-avatars-scroll">
+        <div
+          class="member-avatar-item"
+          :class="{ active: selectedMemberId === '' }"
+          @click="selectGroup"
+        >
+          <div class="member-avatar group-settings-avatar">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path
+                d="M12 15a3 3 0 100-6 3 3 0 000 6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+          <span class="member-avatar-name">群聊设置</span>
+        </div>
+        <div
+          v-for="member in groupMembers"
+          :key="member.id"
+          class="member-avatar-item"
+          :class="{ active: selectedMemberId === member.id }"
+          @click="selectMember(member.id)"
+        >
+          <img
+            :src="member.avatar || defaultAvatar"
+            :alt="member.name"
+            class="member-avatar"
+          />
+          <span class="member-avatar-name">{{ member.name }}</span>
+        </div>
       </div>
     </div>
 
-    <div v-if="character" class="character-info">
+    <div v-if="displayCharacter" class="character-info">
       <div class="avatar-section">
-        <img :src="character.avatar || defaultAvatar" :alt="character.name" class="avatar" />
-        <div v-if="character.chatBackground || character.globalBackground || character.switchAnimation || (character.emotionAnimations && character.emotionAnimations.length)" class="media-tags">
-          <span v-if="character.chatBackground" class="media-tag">🖼️ 聊天背景</span>
-          <span v-if="character.globalBackground" class="media-tag">🌐 全局背景</span>
-          <span v-if="character.switchAnimation" class="media-tag">🎬 切换动图</span>
-          <span v-if="character.emotionAnimations && character.emotionAnimations.length" class="media-tag">😊 情感动图 {{ character.emotionAnimations.length }}个</span>
+        <img
+          :src="displayCharacter.avatar || defaultAvatar"
+          :alt="displayCharacter.name"
+          class="avatar"
+        />
+        <div
+          v-if="
+            displayCharacter.chatBackground ||
+            displayCharacter.globalBackground ||
+            displayCharacter.switchAnimation ||
+            (displayCharacter.emotionAnimations && displayCharacter.emotionAnimations.length)
+          "
+          class="media-tags"
+        >
+          <span v-if="displayCharacter.chatBackground" class="media-tag">🖼️ 聊天背景</span>
+          <span v-if="displayCharacter.globalBackground" class="media-tag">🌐 全局背景</span>
+          <span v-if="displayCharacter.switchAnimation" class="media-tag">🎬 切换动图</span>
+          <span
+            v-if="displayCharacter.emotionAnimations && displayCharacter.emotionAnimations.length"
+            class="media-tag"
+          >
+            😊 情感动图 {{ displayCharacter.emotionAnimations.length }}个
+          </span>
         </div>
       </div>
 
       <div class="info-section">
         <div class="info-item">
           <label>名称</label>
-          <p>{{ character.name }}</p>
+          <p>{{ displayCharacter.name }}</p>
         </div>
         <div class="info-item">
           <label>背景</label>
-          <p>{{ character.background || '无' }}</p>
+          <p>{{ displayCharacter.background || '无' }}</p>
         </div>
         <div class="info-item">
           <label>描述</label>
-          <p>{{ character.description }}</p>
+          <p>{{ displayCharacter.description }}</p>
         </div>
         <div class="info-item">
           <label>开场白</label>
-          <p>{{ character.greeting || '无' }}</p>
+          <p>{{ displayCharacter.greeting || '无' }}</p>
         </div>
         <div class="info-item">
           <label>整体设定</label>
-          <p class="settings-text">{{ character.settings }}</p>
+          <p class="settings-text">{{ displayCharacter.settings }}</p>
+        </div>
+
+        <!-- 群聊专属信息 -->
+        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+          <label>群聊公告</label>
+          <p class="settings-text">{{ character.groupAnnouncement || '无' }}</p>
+        </div>
+        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+          <label>群聊描述</label>
+          <p class="settings-text">{{ character.groupDescription || '无' }}</p>
+        </div>
+        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+          <label>发言模式</label>
+          <p>{{ character.groupChatMode === 'queue' ? '排队' : '自由' }}</p>
         </div>
 
         <!-- 媒体设定预览 -->
-        <div v-if="character.chatBackground || character.globalBackground || character.switchAnimation || (character.emotionAnimations && character.emotionAnimations.length)" class="info-item media-preview-section">
+        <div
+          v-if="
+            displayCharacter.chatBackground ||
+            displayCharacter.globalBackground ||
+            displayCharacter.switchAnimation ||
+            (displayCharacter.emotionAnimations && displayCharacter.emotionAnimations.length)
+          "
+          class="info-item media-preview-section"
+        >
           <label>媒体设定</label>
           <div class="media-grid">
-            <div v-if="character.chatBackground" class="media-card">
+            <div v-if="displayCharacter.chatBackground" class="media-card">
               <span class="media-label">聊天背景</span>
-              <img :src="character.chatBackground" alt="聊天背景" class="media-thumb" />
+              <img
+                :src="displayCharacter.chatBackground"
+                alt="聊天背景"
+                class="media-thumb"
+              />
             </div>
-            <div v-if="character.globalBackground" class="media-card">
+            <div v-if="displayCharacter.globalBackground" class="media-card">
               <span class="media-label">全局背景</span>
-              <img :src="character.globalBackground" alt="全局背景" class="media-thumb" />
+              <img
+                :src="displayCharacter.globalBackground"
+                alt="全局背景"
+                class="media-thumb"
+              />
             </div>
-            <div v-if="character.switchAnimation" class="media-card">
+            <div v-if="displayCharacter.switchAnimation" class="media-card">
               <span class="media-label">切换动图</span>
-              <img :src="character.switchAnimation" alt="切换动图" class="media-thumb" />
+              <img
+                :src="displayCharacter.switchAnimation"
+                alt="切换动图"
+                class="media-thumb"
+              />
             </div>
-            <div v-for="(ea, idx) in character.emotionAnimations" :key="idx" class="media-card">
+            <div
+              v-for="(ea, idx) in displayCharacter.emotionAnimations"
+              :key="idx"
+              class="media-card"
+            >
               <span class="media-label">{{ ea.emotion || '情感' }} 动图</span>
               <img :src="ea.animationUrl" :alt="ea.emotion" class="media-thumb" />
             </div>
@@ -96,17 +201,30 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
 import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
+import { exportService } from '@/services/export'
 import defaultAvatarAsset from '@/static/images/user-avatar.svg'
+import type { ICharacter } from '@/types/character'
 
 const route = useRoute()
 const router = useRouter()
 const characterStore = useCharacterStore()
 
-const character = ref<any>(null)
+const character = ref<ICharacter | null>(null)
 const loading = ref(false)
 const defaultAvatar = defaultAvatarAsset
+const groupMembers = ref<ICharacter[]>([])
+const selectedMemberId = ref('')
 
 const characterId = computed(() => route.params.id as string)
+
+const isGroupMode = computed(() => {
+  return character.value?.mode === 'group-chat' || character.value?.mode === 'group-challenge'
+})
+
+const displayCharacter = computed(() => {
+  if (!selectedMemberId.value || !character.value) return character.value
+  return groupMembers.value.find((m) => m.id === selectedMemberId.value) || character.value
+})
 
 onMounted(async () => {
   if (characterId.value) {
@@ -123,6 +241,10 @@ async function loadCharacter(id: string) {
       setTimeout(() => {
         router.back()
       }, 1500)
+      return
+    }
+    if (character.value.memberIds?.length) {
+      await loadGroupMembers(character.value.memberIds)
     }
   } catch {
     uni.showToast({ title: '加载失败', icon: 'none' })
@@ -131,25 +253,69 @@ async function loadCharacter(id: string) {
   }
 }
 
+async function loadGroupMembers(memberIds: string[]) {
+  const members: ICharacter[] = []
+  for (const mid of memberIds) {
+    try {
+      const m = await characterStore.getCharacterById(mid)
+      if (m) members.push(m)
+    } catch {
+      // 忽略找不到的成员
+    }
+  }
+  groupMembers.value = members
+}
+
+function selectGroup() {
+  selectedMemberId.value = ''
+}
+
+function selectMember(id: string) {
+  selectedMemberId.value = id
+}
+
 function goBack() {
   router.back()
+}
+
+function showMoreMenu() {
+  uni.showActionSheet({
+    itemList: ['编辑', '克隆', '删除', '导出'],
+    itemColor: '#38bdf8',
+    success: (res: { tapIndex: number }) => {
+      switch (res.tapIndex) {
+        case 0:
+          goToEdit()
+          break
+        case 1:
+          cloneCharacter()
+          break
+        case 2:
+          confirmDelete()
+          break
+        case 3:
+          exportCharacter()
+          break
+      }
+    },
+  })
 }
 
 async function cloneCharacter() {
   if (!character.value) return
   uni.showModal({
-    title: '复制角色',
-    content: `确定要复制「${character.value.name}」吗？`,
+    title: '克隆角色',
+    content: `确定要克隆「${character.value.name}」吗？`,
     success: async (res: { confirm: boolean }) => {
       if (res.confirm) {
         try {
-          const newId = await characterStore.cloneCharacter(character.value.id)
-          uni.showToast({ title: '复制成功', icon: 'success' })
+          const newId = await characterStore.cloneCharacter(character.value!.id)
+          uni.showToast({ title: '克隆成功', icon: 'success' })
           setTimeout(() => {
             router.push(`/character/edit?id=${newId}`)
           }, 800)
         } catch {
-          uni.showToast({ title: '复制失败', icon: 'none' })
+          uni.showToast({ title: '克隆失败', icon: 'none' })
         }
       }
     },
@@ -158,6 +324,18 @@ async function cloneCharacter() {
 
 function goToEdit() {
   router.push(`/character/edit?id=${characterId.value}`)
+}
+
+async function exportCharacter() {
+  if (!character.value) return
+  try {
+    uni.showToast({ title: '导出中…', icon: 'loading' })
+    const task = await exportService.exportCharacter(character.value.id)
+    await exportService.downloadTask(task)
+    uni.showToast({ title: '导出成功', icon: 'success' })
+  } catch {
+    uni.showToast({ title: '导出失败', icon: 'none' })
+  }
 }
 
 function goToChat() {
@@ -261,7 +439,7 @@ async function deleteCharacter() {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
   align-items: center;
   gap: 8px;
   min-height: calc(env(safe-area-inset-top, 0px) + 44px);
@@ -287,7 +465,7 @@ async function deleteCharacter() {
 }
 
 .back-btn,
-.action-btn {
+.more-btn {
   min-height: 34px;
   padding: 0 6px;
   border: none;
@@ -322,6 +500,19 @@ async function deleteCharacter() {
   overflow: visible;
 }
 
+.more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+}
+
+.more-icon {
+  width: 20px;
+  height: 20px;
+}
+
 .title {
   min-width: 0;
   font-size: 17px;
@@ -331,10 +522,81 @@ async function deleteCharacter() {
   text-align: center;
 }
 
-.header-actions {
+/* ── 群聊成员头像栏 ── */
+.member-avatars-bar {
+  width: min(1200px, calc(100% - 32px));
+  margin: 12px auto 0;
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: var(--surface-gradient);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(var(--backdrop-blur));
+}
+
+.member-avatars-scroll {
   display: flex;
-  justify-content: flex-end;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.member-avatar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform var(--transition-base);
+
+  &:active {
+    transform: scale(0.92);
+  }
+
+  &.active {
+    .member-avatar {
+      box-shadow: 0 0 0 2px var(--primary-color), 0 0 0 4px rgba(56, 189, 248, 0.2);
+    }
+
+    .member-avatar-name {
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+  }
+}
+
+.member-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  transition: box-shadow var(--transition-base);
+}
+
+.group-settings-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
+  color: var(--text-tertiary);
+}
+
+.member-avatar-name {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  max-width: 56px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--transition-base);
 }
 
 .character-info {
@@ -426,7 +688,8 @@ async function deleteCharacter() {
   border-radius: 18px;
   font-size: 16px;
   cursor: pointer;
-  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+  transition: transform var(--transition-base), box-shadow var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .primary-btn {
@@ -489,6 +752,13 @@ async function deleteCharacter() {
   .loading,
   .empty {
     width: calc(100% - 20px);
+  }
+
+  .member-avatars-bar {
+    width: calc(100% - 20px);
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 16px;
   }
 }
 </style>
