@@ -1,5 +1,11 @@
 import { Capacitor } from '@capacitor/core'
 import { nativeHttpRequest } from './native-http'
+import {
+  getEffectiveNetworkSettings,
+  getCustomHeaders,
+  getRetryDelay,
+  type NetworkSettings,
+} from './network-settings'
 
 export type RuntimeResponseType = 'json' | 'text' | 'blob'
 
@@ -175,8 +181,24 @@ function parseNativeJSON<T>(payload: string | undefined): T {
   }
 }
 
-export async function runtimeRequest<T = unknown>(
-  options: RuntimeRequestOptions
+function applyNetworkSettingsToHeaders(
+  headers: Record<string, string>,
+  settings: NetworkSettings
+): Record<string, string> {
+  const customHeaders = getCustomHeaders(settings)
+  return { ...headers, ...customHeaders }
+}
+
+function getEffectiveTimeout(userTimeout?: number, settings?: NetworkSettings): number {
+  if (userTimeout !== undefined) return userTimeout
+  if (settings) return settings.timeout * 1000
+  return 60_000
+}
+
+async function doRuntimeRequest<T>(
+  options: RuntimeRequestOptions,
+  attempt: number,
+  settings: NetworkSettings
 ): Promise<RuntimeResponse<T>> {
   if (options.signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError')
@@ -185,16 +207,20 @@ export async function runtimeRequest<T = unknown>(
   const method = options.method || 'GET'
   const responseType = options.responseType || 'json'
 
+  const connectTimeout = getEffectiveTimeout(options.connectTimeout, settings)
+  const readTimeout = getEffectiveTimeout(options.readTimeout, settings)
+
   if (isNativeRuntime()) {
     const prepared = prepareNativeRequest(options)
+    const mergedHeaders = applyNetworkSettingsToHeaders(prepared.headers, settings)
     const response = await nativeHttpRequest({
       url: options.url,
       method,
-      headers: prepared.headers,
+      headers: mergedHeaders,
       data: prepared.data,
       responseType,
-      connectTimeout: options.connectTimeout,
-      readTimeout: options.readTimeout,
+      connectTimeout,
+      readTimeout,
     })
 
     const contentType =
@@ -219,9 +245,14 @@ export async function runtimeRequest<T = unknown>(
   }
 
   const prepared = prepareWebRequest(options)
+  const mergedHeaders = applyNetworkSettingsToHeaders(
+    normalizeHeaders(prepared.headers),
+    settings
+  )
+
   const response = await fetch(options.url, {
     method,
-    headers: prepared.headers,
+    headers: mergedHeaders,
     body: prepared.body,
     signal: options.signal,
   })
@@ -242,4 +273,45 @@ export async function runtimeRequest<T = unknown>(
     status: response.status,
     url: response.url,
   }
+}
+
+export async function runtimeRequest<T = unknown>(
+  options: RuntimeRequestOptions
+): Promise<RuntimeResponse<T>> {
+  const settings = await getEffectiveNetworkSettings()
+  const maxRetries = settings.retryCount
+
+  let lastError: Error | undefined
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await doRuntimeRequest<T>(options, attempt, settings)
+      return result
+    } catch (error) {
+      lastError = error as Error
+
+      // Don't retry on abort or client errors (4xx)
+      if (
+        options.signal?.aborted ||
+        (error instanceof DOMException && error.name === 'AbortError')
+      ) {
+        throw error
+      }
+
+      // Check if it's a 4xx error (don't retry client errors)
+      if (error && typeof error === 'object' && 'status' in error) {
+        const status = (error as any).status
+        if (typeof status === 'number' && status >= 400 && status < 500) {
+          throw error
+        }
+      }
+
+      if (attempt < maxRetries) {
+        const delay = getRetryDelay(settings, attempt)
+        await new Promise(r => setTimeout(r, delay))
+      }
+    }
+  }
+
+  throw lastError || new Error('Request failed after retries')
 }

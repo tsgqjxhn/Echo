@@ -25,8 +25,8 @@
       </button>
     </div>
 
-    <!-- 群聊成员头像栏 -->
-    <div v-if="isGroupMode && character" class="member-avatars-bar">
+    <!-- 群聊成员头像栏（多人模式已隐藏） -->
+    <div v-if="false && isGroupMode && character" class="member-avatars-bar">
       <div class="member-avatars-scroll">
         <div
           class="member-avatar-item"
@@ -122,18 +122,18 @@
           <p class="settings-text">{{ displayCharacter.settings }}</p>
         </div>
 
-        <!-- 群聊专属信息 -->
-        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+        <!-- 群聊专属信息（多人模式已隐藏） -->
+        <div v-if="false && isGroupMode && selectedMemberId === '' && character" class="info-item">
           <label>群聊公告</label>
-          <p class="settings-text">{{ character.groupAnnouncement || '无' }}</p>
+          <p class="settings-text">{{ character?.groupAnnouncement || '无' }}</p>
         </div>
-        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+        <div v-if="false && isGroupMode && selectedMemberId === '' && character" class="info-item">
           <label>群聊描述</label>
-          <p class="settings-text">{{ character.groupDescription || '无' }}</p>
+          <p class="settings-text">{{ character?.groupDescription || '无' }}</p>
         </div>
-        <div v-if="isGroupMode && selectedMemberId === '' && character" class="info-item">
+        <div v-if="false && isGroupMode && selectedMemberId === '' && character" class="info-item">
           <label>发言模式</label>
-          <p>{{ character.groupChatMode === 'queue' ? '排队' : '自由' }}</p>
+          <p>{{ character?.groupChatMode === 'queue' ? '排队' : '自由' }}</p>
         </div>
 
         <!-- 媒体设定预览 -->
@@ -184,6 +184,29 @@
         </div>
       </div>
 
+      <!-- 世界书 -->
+      <div v-if="displayCharacter && !selectedMemberId" class="info-item world-book-section">
+        <div class="world-book-header-row">
+          <label>世界书</label>
+          <button class="add-world-book-btn" @click="addWorldBook">添加世界书</button>
+        </div>
+        <div v-if="!character?.worldBooks?.length" class="world-book-empty">暂无世界书</div>
+        <div v-else class="world-book-list">
+          <div
+            v-for="(wb, idx) in character?.worldBooks"
+            :key="wb.id"
+            class="world-book-item"
+            @click="goToWorldBook(wb.id)"
+          >
+            <div class="world-book-info">
+              <span class="world-book-name">{{ wb.name || '未命名世界书' }}</span>
+              <span class="world-book-meta">{{ wb.entries?.length || 0 }} 词条</span>
+            </div>
+            <button class="remove-world-book-btn" @click.stop="removeWorldBook(idx)">移除</button>
+          </div>
+        </div>
+      </div>
+
       <div class="action-section">
         <button class="primary-btn" @click="goToChat">开始聊天</button>
         <button class="danger-btn" @click="confirmDelete">删除角色</button>
@@ -204,6 +227,8 @@ import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
 import { exportService } from '@/services/export'
 import defaultAvatarAsset from '@/static/images/user-avatar.svg'
 import type { ICharacter } from '@/types/character'
+import type { WorldBook } from '@/types/world-book'
+import { generateUUID } from '@/utils/uuid'
 
 const route = useRoute()
 const router = useRouter()
@@ -372,6 +397,54 @@ async function deleteCharacter() {
     uni.showToast({ title: '删除失败', icon: 'none' })
   }
 }
+
+/* ── 世界书 ── */
+function addWorldBook() {
+  if (!character.value) return
+  const name = window.prompt('输入世界书名称')
+  if (name?.trim()) {
+    const newBook: WorldBook = {
+      id: generateUUID(),
+      name: name.trim(),
+      entries: [],
+      scanRange: 100,
+    }
+    if (!character.value.worldBooks) character.value.worldBooks = []
+    character.value.worldBooks.push(newBook)
+    saveWorldBooks()
+  }
+}
+
+function removeWorldBook(index: number) {
+  if (!character.value) return
+  uni.showModal({
+    title: '确认移除',
+    content: '确定要移除该世界书吗？',
+    success: (res: { confirm: boolean }) => {
+      if (res.confirm && character.value?.worldBooks) {
+        character.value.worldBooks.splice(index, 1)
+        if (character.value.worldBooks.length === 0) {
+          delete (character.value as any).worldBooks
+        }
+        saveWorldBooks()
+      }
+    },
+  })
+}
+
+function goToWorldBook(worldBookId: string) {
+  router.push(`/world-book/edit?id=${worldBookId}&characterId=${characterId.value}`)
+}
+
+async function saveWorldBooks() {
+  if (!character.value) return
+  try {
+    await characterStore.updateCharacter(character.value)
+    uni.showToast({ title: '保存成功', icon: 'success' })
+  } catch {
+    uni.showToast({ title: '保存失败', icon: 'none' })
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -414,7 +487,7 @@ async function deleteCharacter() {
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    border-radius: 12px;
+    border-radius: 6px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
@@ -429,7 +502,7 @@ async function deleteCharacter() {
     width: 100%;
     height: 100px;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: 4px;
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
 }
@@ -469,7 +542,7 @@ async function deleteCharacter() {
   min-height: 34px;
   padding: 0 6px;
   border: none;
-  border-radius: 10px;
+  border-radius: 5px;
   background: transparent;
   box-shadow: none;
   color: var(--text-primary);
@@ -527,7 +600,7 @@ async function deleteCharacter() {
   width: min(1200px, calc(100% - 32px));
   margin: 12px auto 0;
   padding: 12px 16px;
-  border-radius: 20px;
+  border-radius: 10px;
   background: var(--surface-gradient);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-lg);
@@ -623,7 +696,7 @@ async function deleteCharacter() {
   top: 108px;
   min-height: 320px;
   padding: 32px;
-  border-radius: 32px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -648,7 +721,7 @@ async function deleteCharacter() {
 .info-item {
   margin: 0;
   padding: 20px 22px;
-  border-radius: 24px;
+  border-radius: 12px;
 }
 
 .info-item label {
@@ -677,7 +750,7 @@ async function deleteCharacter() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   padding: 18px;
-  border-radius: 28px;
+  border-radius: 14px;
 }
 
 .primary-btn,
@@ -685,7 +758,7 @@ async function deleteCharacter() {
   width: 100%;
   min-height: 52px;
   padding: 0 18px;
-  border-radius: 18px;
+  border-radius: 9px;
   font-size: 16px;
   cursor: pointer;
   transition: transform var(--transition-base), box-shadow var(--transition-base),
@@ -720,7 +793,7 @@ async function deleteCharacter() {
   width: min(1200px, calc(100% - 32px));
   margin: 18px auto 0;
   min-height: 280px;
-  border-radius: 32px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -742,6 +815,110 @@ async function deleteCharacter() {
   }
 }
 
+/* ── 世界书 ── */
+.world-book-section {
+  .world-book-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    label {
+      margin: 0;
+    }
+  }
+
+  .world-book-empty {
+    padding: 16px 0;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 14px;
+  }
+
+  .world-book-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .world-book-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  .world-book-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .world-book-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .world-book-meta {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .add-world-book-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: none;
+    background: rgba(56, 189, 248, 0.12);
+    color: #7dd3fc;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover {
+      background: rgba(56, 189, 248, 0.2);
+    }
+  }
+
+  .remove-world-book-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: 1px solid var(--danger-border);
+    background: var(--danger-soft);
+    color: #ff9d9d;
+    font-size: 12px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+}
+
 @media (max-width: 720px) {
   .header {
     padding-left: 12px;
@@ -758,7 +935,7 @@ async function deleteCharacter() {
     width: calc(100% - 20px);
     margin-top: 10px;
     padding: 10px 12px;
-    border-radius: 16px;
+    border-radius: 8px;
   }
 }
 </style>

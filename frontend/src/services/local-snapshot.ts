@@ -1,9 +1,8 @@
 import type { APIConfig } from '@/types/api-config'
 import type { IChatSession, IMessage } from '@/types/chat'
 import type { ICharacter } from '@/types/character'
-import type { GameState } from '@/types/game'
 import type { UserInfo } from '@/types/user'
-import { getStorageDriver, type GameSettings } from './storage'
+import { getStorageDriver, type GameSettings, type StorageGameState } from './storage'
 
 export interface StandardSnapshot {
   version: string
@@ -15,7 +14,7 @@ export interface StandardSnapshot {
   messages: Record<string, IMessage[]>
   apiConfigs: APIConfig[]
   gameSettings: GameSettings
-  gameStates: GameState[]
+  gameStates: StorageGameState[]
 }
 
 export interface BackupSnapshot extends StandardSnapshot {

@@ -21,15 +21,33 @@
     </div>
     <div class="play-body">
       <PuzzleGame v-if="gameId === 'puzzle'" :standalone="true" @exit="router.back()" />
-      <iframe
-        v-else-if="h5Src"
-        ref="iframeRef"
-        :src="h5Src"
-        class="h5-iframe"
-        allow="autoplay; fullscreen"
-        sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
-        @load="onIframeLoad"
-      />
+      <template v-else-if="generatedGameHtml">
+        <iframe
+          ref="iframeRef"
+          :srcdoc="generatedGameHtml"
+          class="h5-iframe"
+          allow="autoplay; fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
+          @load="onIframeLoad"
+        />
+      </template>
+      <template v-else-if="h5Src">
+        <div v-if="isIframeLoading" class="loading-overlay">
+          <div class="loading-card">
+            <span class="loading-spinner" aria-hidden="true"></span>
+            <span>游戏资源加载中…</span>
+          </div>
+        </div>
+        <iframe
+          ref="iframeRef"
+          :src="h5Src"
+          class="h5-iframe"
+          :class="{ 'iframe-hidden': isIframeLoading }"
+          allow="autoplay; fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-modals allow-forms"
+          @load="onIframeLoad"
+        />
+      </template>
       <div v-else class="placeholder">
         <p>游戏加载中…</p>
       </div>
@@ -51,6 +69,7 @@ import { setLandscapeDisplayMode } from '@/services/native-display'
 import { GameSettingsService } from '@/services/game-settings'
 import { getStorageDriver } from '@/services/storage'
 import { useGameStore } from '@/stores/game'
+import { getGeneratedGame } from '@/services/generated-game-library'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,10 +80,21 @@ const gameStore = useGameStore()
 // 游戏设置服务（用于 iframe 通信桥）
 const settingsService = new GameSettingsService(getStorageDriver())
 
+// ── 资源加载优化 ──
+const isIframeLoading = ref(false)
+const iframeLoadTimer = ref<number | null>(null)
+const generatedGameHtml = computed(() => {
+  const id = gameId.value
+  if (id.startsWith('generated-')) {
+    return getGeneratedGame(id)?.html || ''
+  }
+  return ''
+})
+
 const gameTitles: Record<string, string> = {
   chess: '国际象棋',
   gomoku: '五子棋',
-  match3: '星糖消消乐',
+  match3: '糖果消消乐',
   'cut-rope': '糖果绳索',
   puzzle: '残缺的逻辑',
   xiuxian: '问道长生',
@@ -174,12 +204,29 @@ const saveBridgeConfigs: Record<string, BridgeConfig> = {
   'survivor-defense': { hostSource: 'survivor-defense-host', gameSource: 'survivor-defense-game' },
 }
 
-const hasOuterTabs = computed(() => Boolean(tabConfigs[gameId.value]))
-const hideTopBar = computed(() => isLandscapeH5Game.value)
+const hasOuterTabs = computed(() => Boolean(tabConfigs[gameId.value]) && !generatedGameHtml.value)
+const hideTopBar = computed(() => isLandscapeH5Game.value && !generatedGameHtml.value)
 const activeTabs = computed<NavTab[]>(() => tabConfigs[gameId.value]?.tabs ?? [])
 const activeScreen = ref<string>('')
 const iframeRef = ref<HTMLIFrameElement | null>(null)
 const isSavingBeforeLeave = ref(false)
+
+// ── 预加载资源到浏览器缓存 ──
+function preloadGameResources(gamePath: string) {
+  if (!gamePath || typeof document === 'undefined') return
+  // 预加载 Phaser 引擎
+  const phaserPath = '/games/_shared/phaser/phaser.min.js'
+  const link = document.createElement('link')
+  link.rel = 'preload'
+  link.as = 'script'
+  link.href = phaserPath
+  document.head.appendChild(link)
+  // 预加载游戏入口页
+  const entryLink = document.createElement('link')
+  entryLink.rel = 'prefetch'
+  entryLink.href = gamePath
+  document.head.appendChild(entryLink)
+}
 
 let pendingSaveRequest: {
   id: string
@@ -204,6 +251,12 @@ function switchGameScreen(screen: string) {
 }
 
 function onIframeLoad() {
+  if (iframeLoadTimer.value) {
+    window.clearTimeout(iframeLoadTimer.value)
+    iframeLoadTimer.value = null
+  }
+  isIframeLoading.value = false
+
   const cfg = tabConfigs[gameId.value]
   if (!cfg) return
   if (!activeScreen.value) activeScreen.value = cfg.defaultKey
@@ -327,6 +380,19 @@ onMounted(async () => {
   syncLandscapeDisplayMode()
   // 初始化设置服务
   await settingsService.initialize()
+
+  // 优化：当使用外部 H5 游戏时，预加载关键资源并显示 loading
+  const src = h5Src.value
+  if (src && !generatedGameHtml.value) {
+    isIframeLoading.value = true
+    preloadGameResources(src)
+    // 最小显示 loading 时间，避免闪烁
+    iframeLoadTimer.value = window.setTimeout(() => {
+      isIframeLoading.value = false
+      iframeLoadTimer.value = null
+    }, 3000)
+  }
+
   // 注册 iframe（延迟等待 iframe 加载）
   setTimeout(() => {
     registerIframeForSettings()
@@ -348,6 +414,10 @@ onBeforeUnmount(() => {
     window.clearTimeout(pendingSaveRequest.timer)
     pendingSaveRequest.resolve(false)
     pendingSaveRequest = null
+  }
+  if (iframeLoadTimer.value) {
+    window.clearTimeout(iframeLoadTimer.value)
+    iframeLoadTimer.value = null
   }
   window.removeEventListener('message', handleMessage)
 })
@@ -393,7 +463,7 @@ onBeforeRouteLeave(async () => {
   align-items: center;
   justify-content: center;
   width: 40px; height: 40px;
-  border: none; border-radius: 12px;
+  border: none; border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
@@ -440,7 +510,7 @@ onBeforeRouteLeave(async () => {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   font: inherit;
@@ -484,6 +554,47 @@ onBeforeRouteLeave(async () => {
   border: none;
   border-radius: 0;
   display: block;
+
+  &.iframe-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.44);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.loading-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid rgba(125, 211, 252, 0.26);
+  border-radius: 14px;
+  background: rgba(8, 13, 24, 0.90);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(125, 211, 252, 0.24);
+  border-top-color: #7dd3fc;
+  border-radius: 999px;
+  animation: saving-spin 0.75s linear infinite;
 }
 
 .saving-overlay {
@@ -505,7 +616,7 @@ onBeforeRouteLeave(async () => {
   min-height: 48px;
   padding: 0 18px;
   border: 1px solid rgba(125, 211, 252, 0.26);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(8, 13, 24, 0.90);
   color: #f8fafc;
   font-size: 14px;

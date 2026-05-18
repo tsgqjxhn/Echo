@@ -54,16 +54,6 @@
         />
       </label>
 
-      <label class="field">
-        <span>软件底层规范提示词</span>
-        <textarea
-          v-model="formData.corePrompt"
-          maxlength="3000"
-          rows="6"
-          placeholder="请输入软件底层规范提示词"
-        />
-      </label>
-
       <button type="button" class="primary-btn" :disabled="saving" @click="saveUserInfo">
         {{ saving ? '保存中...' : '保存资料' }}
       </button>
@@ -85,7 +75,6 @@ const formData = ref({
   name: '',
   avatar: '',
   globalPrompt: '',
-  corePrompt: ''
 })
 
 const saving = ref(false)
@@ -106,7 +95,6 @@ onMounted(async () => {
   formData.value.name = userStore.userInfo?.name || ''
   formData.value.avatar = userStore.userInfo?.avatar || ''
   formData.value.globalPrompt = userStore.userInfo?.globalPrompt || ''
-  formData.value.corePrompt = userStore.userInfo?.corePrompt || ''
 })
 
 function handleAvatarError() {
@@ -156,8 +144,7 @@ async function saveUserInfo() {
     await userStore.updateUserInfo({
       name: formData.value.name.trim(),
       avatar,
-      globalPrompt: formData.value.globalPrompt.trim(),
-      corePrompt: formData.value.corePrompt.trim()
+      globalPrompt: formData.value.globalPrompt.trim()
     })
 
     uni.showToast({ title: '资料已保存', icon: 'success' })
@@ -252,7 +239,7 @@ async function saveUserInfo() {
 .primary-btn {
   min-height: 44px;
   padding: 0 16px;
-  border-radius: 16px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -300,7 +287,7 @@ async function saveUserInfo() {
   width: min(960px, calc(100% - 32px));
   margin: 18px auto 0;
   padding: 28px;
-  border-radius: 30px;
+  border-radius: 15px;
 }
 
 .avatar-picker {
@@ -353,7 +340,7 @@ async function saveUserInfo() {
 .field textarea {
   padding: 0 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;

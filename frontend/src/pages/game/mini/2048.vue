@@ -209,7 +209,7 @@ restart()
 .restart-btn {
   padding: 6px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   font: inherit;
@@ -220,7 +220,7 @@ restart()
 
 .grid {
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
+  border-radius: 6px;
   padding: 8px;
   gap: 6px;
   display: flex;
@@ -238,7 +238,7 @@ restart()
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 4px;
   font-weight: 700;
   font-size: 18px;
   transition: background 0.1s;

@@ -1,4 +1,4 @@
-import type { APIConfig, APIProvider, TestResult } from '@/types/api-config'
+import type { APIConfig, APIProvider, BalanceInfo, TestResult } from '@/types/api-config'
 import type { ChatMessage, TokenUsage } from '@/types/chat'
 
 export interface ProviderCapabilities {
@@ -24,6 +24,13 @@ export interface AdapterChatRequest {
   messages: ChatMessage[]
   systemPrompt: string
   stream: boolean
+  temperature?: number
+  maxTokens?: number
+  topP?: number
+  topK?: number
+  presencePenalty?: number
+  frequencyPenalty?: number
+  repetitionPenalty?: number
 }
 
 export interface AdapterTTSRequest {
@@ -91,6 +98,8 @@ export interface ProviderAdapter {
 
   buildTestRequest(config: APIConfig): { url: string; headers: Record<string, string>; body?: unknown; method: string }
   parseTestResponse(status: number, data: unknown): TestResult
+
+  queryBalance?(config: APIConfig): Promise<BalanceInfo>
 
   parseErrorPayload(payload: unknown, status: number): string
 }

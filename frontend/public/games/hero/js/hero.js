@@ -94,6 +94,7 @@ const HeroPassives = {
 
 const HeroManager = {
   getHero(id) {
+    if (!gameState || !gameState.heroes) return null;
     return gameState.heroes.find(h => h.id === id);
   },
 
@@ -102,6 +103,7 @@ const HeroManager = {
   },
 
   hasHero(templateId) {
+    if (!gameState || !gameState.heroes) return false;
     return gameState.heroes.some(h => h.templateId === templateId);
   },
 
@@ -201,6 +203,7 @@ const HeroManager = {
   selectHeroForBattle(heroId) {
     const hero = this.getHero(heroId);
     if (!hero) return;
+    if (!gameState) return;
     gameState.selectedHero = heroId;
     saveGame();
   },
@@ -229,6 +232,7 @@ const HeroManager = {
   },
 
   getSortedHeroes(sortBy) {
+    if (!gameState || !gameState.heroes) return [];
     const heroes = [...gameState.heroes];
     switch (sortBy || 'rarity') {
       case 'rarity':
@@ -246,6 +250,7 @@ const HeroManager = {
   },
 
   renderHeroList() {
+    if (!gameState) return;
     const container = document.getElementById('hero-list');
     if (!container) return;
 
@@ -281,6 +286,7 @@ const HeroManager = {
   },
 
   renderHeroDetail(heroId) {
+    if (!gameState) return;
     const hero = this.getHero(heroId);
     if (!hero) return;
 

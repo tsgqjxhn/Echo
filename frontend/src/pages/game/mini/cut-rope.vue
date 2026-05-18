@@ -1102,7 +1102,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
 .rope-btn {
   min-height: 38px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   font: inherit;
@@ -1136,7 +1136,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
   min-width: 0;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.05);
 
   span {
@@ -1168,7 +1168,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
   display: block;
   width: 100%;
   aspect-ratio: 360 / 520;
-  border-radius: 24px;
+  border-radius: 12px;
   box-shadow: var(--shadow-lg);
   touch-action: none;
 }
@@ -1300,7 +1300,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 24px;
+  border-radius: 12px;
   background: rgba(2, 6, 23, 0.66);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -1310,7 +1310,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
   width: min(320px, calc(100% - 32px));
   padding: 22px;
   border: 1px solid rgba(125, 211, 252, 0.18);
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(15, 23, 42, 0.95);
   text-align: center;
   box-shadow: var(--shadow-xl);
@@ -1335,7 +1335,7 @@ function reflectVelocity(nx: number, ny: number, bounce: number) {
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
 

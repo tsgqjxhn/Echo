@@ -1,10 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { ChatContext } from '@/types/chat'
+import type { AbortableChatStream } from '@/services/llm-api'
 import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
-import { notifyApp } from '@/services/notification'
 import { getPromptById } from '@/services/system-prompt'
+import { emitAppNotification } from '@/services/notification'
 import { generateUUID } from '@/utils/uuid'
 
 export type GameGenerationMode = 'create' | 'import'
@@ -14,6 +15,12 @@ export type GameGenerationPhase =
   | 'generating-game'
   | 'done'
   | 'error'
+
+export interface ParsedGameFile {
+  path: string
+  content: string
+  language?: string
+}
 
 export interface GameGenerationTask {
   id: string
@@ -27,6 +34,7 @@ export interface GameGenerationTask {
   error: string
   createdAt: number
   updatedAt: number
+  parsedFiles: ParsedGameFile[]
 }
 
 interface StartOutlinePayload {
@@ -55,7 +63,44 @@ function createTask(mode: GameGenerationMode, title: string, sourceText: string,
     error: '',
     createdAt: now,
     updatedAt: now,
+    parsedFiles: [],
   }
+}
+
+export function parseGameFiles(output: string): ParsedGameFile[] {
+  const files: ParsedGameFile[] = []
+  // 匹配 ```<lang>:path 或 ```path 格式
+  const codeBlockRegex = /```(?:(\w+):)?([^\n]+)\n([\s\S]*?)```/g
+  let match: RegExpExecArray | null
+  while ((match = codeBlockRegex.exec(output)) !== null) {
+    const lang = match[1]
+    const path = match[2]?.trim()
+    const content = match[3] || ''
+    if (path) {
+      files.push({ path, content, language: lang })
+    }
+  }
+  // 回退：匹配 === path ===\ncontent 格式
+  const altRegex = /===\s*([^\n=]+)\s*===\n([\s\S]*?)(?=\n===\s*[^\n=]+\s*===|$)/g
+  while ((match = altRegex.exec(output)) !== null) {
+    const path = match[1]?.trim()
+    const content = match[2] || ''
+    if (path && !files.some(f => f.path === path)) {
+      files.push({ path, content })
+    }
+  }
+  return files
+}
+
+function guessLanguage(path: string): string | undefined {
+  const ext = path.split('.').pop()?.toLowerCase()
+  const map: Record<string, string> = {
+    html: 'html', htm: 'html', css: 'css', scss: 'scss',
+    js: 'javascript', ts: 'typescript', vue: 'vue',
+    json: 'json', yaml: 'yaml', yml: 'yaml', md: 'markdown',
+    py: 'python', java: 'java', xml: 'xml',
+  }
+  return ext ? map[ext] : undefined
 }
 
 function trimForPrompt(value: string): string {
@@ -87,7 +132,7 @@ function resolveGamePrompt(id: 'game-outline' | 'game-implementation' | 'game-im
     return ''
   }
   if (prompt.enabled) {
-    return prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+    return prompt.basicPrompt
   }
   // 用户禁用：仍取 basicPrompt 兜底，保证模型能正常工作
   return prompt.basicPrompt
@@ -97,6 +142,7 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
   const tasks = ref<Record<string, GameGenerationTask>>({})
   const activeTaskId = ref('')
   const runningTaskIds = ref<string[]>([])
+  const activeStreams = new Map<string, AbortableChatStream>()
 
   const taskList = computed(() =>
     Object.values(tasks.value).sort((left, right) => right.updatedAt - left.updatedAt)
@@ -148,18 +194,32 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     return new LLMAPIService(config)
   }
 
+  function cancelTask(taskId: string): void {
+    const stream = activeStreams.get(taskId)
+    if (stream) {
+      stream.abort()
+      activeStreams.delete(taskId)
+    }
+    setRunning(taskId, false)
+  }
+
   async function streamIntoTask(
     taskId: string,
     target: 'outline' | 'output',
     context: ChatContext,
     donePhase: GameGenerationPhase
   ) {
+    // 如果同一 taskId 已经在运行，先取消旧的流
+    cancelTask(taskId)
+
     setRunning(taskId, true)
     patchTask(taskId, { error: '' })
 
     try {
       const service = await createLLMService()
       const stream = service.chatStreamAbortable(context)
+      activeStreams.set(taskId, stream)
+
       let content = ''
 
       for await (const chunk of stream.stream) {
@@ -168,26 +228,35 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
         patchTask(taskId, { [target]: content } as Partial<GameGenerationTask>)
       }
 
-      patchTask(taskId, { [target]: content, phase: donePhase } as Partial<GameGenerationTask>)
-      const taskMode = tasks.value[taskId]?.mode || 'create'
-      await notifyApp({
+      const extra: Partial<GameGenerationTask> = { [target]: content, phase: donePhase }
+      if (donePhase === 'done' || donePhase === 'awaiting-outline-confirmation') {
+        const files = parseGameFiles(content)
+        files.forEach(f => {
+          if (!f.language) f.language = guessLanguage(f.path)
+        })
+        extra.parsedFiles = files
+      }
+      patchTask(taskId, extra)
+
+      const task = tasks.value[taskId]
+      emitAppNotification({
         title: target === 'outline' ? '游戏大纲已生成' : '游戏生成已完成',
-        body: tasks.value[taskId]?.title || '游戏生成任务已更新',
-        route: `/game/generate?mode=${taskMode}&task=${taskId}`,
-        kind: 'game',
+        body: task?.title || '游戏生成任务已更新',
+        route: `/game/generate?mode=${task?.mode || 'create'}&task=${taskId}`,
       })
     } catch (error) {
+      const task = tasks.value[taskId]
       patchTask(taskId, {
         phase: 'error',
         error: (error as Error).message || '游戏生成失败',
       })
-      await notifyApp({
+      emitAppNotification({
         title: '游戏生成失败',
         body: (error as Error).message || '请检查大模型配置后重试',
-        route: `/game/generate?mode=${tasks.value[taskId]?.mode || 'create'}&task=${taskId}`,
-        kind: 'game',
+        route: `/game/generate?mode=${task?.mode || 'create'}&task=${taskId}`,
       })
     } finally {
+      activeStreams.delete(taskId)
       setRunning(taskId, false)
     }
   }
@@ -263,6 +332,79 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     return task.id
   }
 
+  function regenerateOutline(taskId: string, feedback: string): void {
+    const task = tasks.value[taskId]
+    if (!task || runningTaskIds.value.includes(taskId)) return
+
+    patchTask(taskId, {
+      phase: 'drafting-outline',
+      error: '',
+    })
+
+    const context: ChatContext = {
+      systemPrompt: resolveGamePrompt('game-outline'),
+      messages: [
+        {
+          role: 'user',
+          content: `请根据以下规则或玩法设想生成游戏大纲：\n\n${trimForPrompt(task.sourceText)}`,
+        },
+        {
+          role: 'assistant',
+          content: task.outline,
+        },
+        {
+          role: 'user',
+          content: feedback.trim().length > 0
+            ? `请根据以下反馈重新优化大纲：\n${feedback.trim()}`
+            : '请重新优化并生成更好的游戏大纲。',
+        },
+      ],
+    }
+
+    void streamIntoTask(taskId, 'outline', context, 'awaiting-outline-confirmation')
+  }
+
+  function regenerateGame(taskId: string, feedback: string): void {
+    const task = tasks.value[taskId]
+    if (!task || runningTaskIds.value.includes(taskId)) return
+
+    patchTask(taskId, {
+      phase: 'generating-game',
+      output: '',
+      error: '',
+    })
+
+    const context: ChatContext = {
+      systemPrompt: resolveGamePrompt('game-implementation'),
+      messages: [
+        {
+          role: 'user',
+          content: [
+            '原始玩家输入：',
+            trimForPrompt(task.sourceText),
+            '',
+            '已确认游戏大纲：',
+            task.outline,
+            '',
+            '请基于 Phaser 4 生成完整可运行游戏（单文件 index.html，本地引用 /games/_shared/phaser/phaser.min.js）。',
+          ].join('\n'),
+        },
+        {
+          role: 'assistant',
+          content: task.output,
+        },
+        {
+          role: 'user',
+          content: feedback.trim().length > 0
+            ? `请根据以下反馈重新优化游戏实现：\n${feedback.trim()}`
+            : '请重新优化并生成更好的游戏实现。',
+        },
+      ],
+    }
+
+    void streamIntoTask(taskId, 'output', context, 'done')
+  }
+
   function setActiveTask(taskId: string) {
     if (tasks.value[taskId]) {
       activeTaskId.value = taskId
@@ -285,10 +427,14 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     taskList,
     runningTaskIds,
     isActiveTaskRunning,
+    cancelTask,
     startOutline,
     confirmOutline,
+    regenerateOutline,
+    regenerateGame,
     startImport,
     setActiveTask,
     clearTask,
+    patchTask,
   }
 })

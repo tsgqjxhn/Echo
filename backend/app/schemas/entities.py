@@ -149,7 +149,6 @@ class UserInfo(BaseModel):
     name: str | None = None
     avatar: str | None = None
     globalPrompt: str | None = None
-    corePrompt: str | None = None
 
 
 class UserSetting(BaseModel):

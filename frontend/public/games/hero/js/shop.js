@@ -4,6 +4,7 @@
 
 const ShopManager = {
   buyItem(itemId) {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return { ok: false, msg: '物品不存在' };
 
@@ -48,6 +49,7 @@ const ShopManager = {
   },
 
   rollSummonRarity() {
+    if (!gameState) return 'normal';
     gameState.roguelike.summonPity = (gameState.roguelike.summonPity || 0) + 1;
     gameState.roguelike.legendPity = (gameState.roguelike.legendPity || 0) + 1;
 
@@ -76,6 +78,7 @@ const ShopManager = {
   },
 
   createSummonResult(rarity) {
+    if (!gameState) return { template: null, hero: null, isNew: false, rarity };
     const template = this.pickSummonTemplate(rarity);
     const hero = HeroManager.addHero(template.id);
     const existingHero = hero || gameState.heroes.find(h => h.templateId === template.id) || null;
@@ -97,6 +100,7 @@ const ShopManager = {
   },
 
   summonHero() {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     if (gameState.player.gems < SUMMON_COST.gems) return { ok: false, msg: '钻石不足' };
     gameState.player.gems -= SUMMON_COST.gems;
 
@@ -111,6 +115,7 @@ const ShopManager = {
   },
 
   summonTen() {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     if (gameState.player.gems < SUMMON_COST.tenGems) return { ok: false, msg: '钻石不足' };
     gameState.player.gems -= SUMMON_COST.tenGems;
 
@@ -207,6 +212,7 @@ const ShopManager = {
   },
 
   renderSummonHistory() {
+    if (!gameState) return '';
     const history = gameState.summonHistory || [];
     if (history.length === 0) return '';
     const recent = history.slice(0, 10);
@@ -225,6 +231,7 @@ const ShopManager = {
   },
 
   renderSummonShop(container) {
+    if (!gameState) return;
     const historyHtml = this.renderSummonHistory();
     let html = `
       <div class="summon-info">

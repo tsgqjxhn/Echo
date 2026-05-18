@@ -5,13 +5,41 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, nextTick } from 'vue'
-import type { IMessage, IChatSession } from '@/types/chat'
+import type { IMessage, IChatSession, TokenUsage } from '@/types/chat'
 import { Message } from '@/entity/message'
 import { getStorageDriver } from '@/services/storage'
 import { createLLMAPI } from '@/services/llm-api'
 import { createChatService, type ChatService } from '@/services/chat'
 import { apiConfigService } from '@/services/api-config'
-import { notifyApp } from '@/services/notification'
+import { isGroupChatStyle, isMultiplayerStyle } from '@/data/taxonomy'
+import { estimateTokens } from '@/services/token-counter'
+import { emitAppNotification } from '@/services/notification'
+
+/**
+ * 拆分群聊/多人模式的多成员回复
+ * 格式：成员名：消息内容
+ * 返回 [{ memberName, content }] 数组；如果无法拆分则返回 null
+ */
+function splitMultiMemberReply(text: string): Array<{ memberName: string; content: string }> | null {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const results: Array<{ memberName: string; content: string }> = []
+
+  for (const line of lines) {
+    // 匹配 "成员名：消息内容" 或 "成员名:消息内容"
+    const match = line.match(/^([^：:\n]{1,20})[：:](.+)$/)
+    if (!match) {
+      // 如果某一行不符合格式，整体回退为单条消息
+      return null
+    }
+    const memberName = match[1].trim()
+    const content = match[2].trim()
+    if (memberName && content) {
+      results.push({ memberName, content })
+    }
+  }
+
+  return results.length > 0 ? results : null
+}
 
 export interface ChatState {
   currentSessionId: string | null
@@ -58,6 +86,62 @@ function sanitizeAssistantOutput(content: string): string {
     .replace(/^\s+/, '')
 }
 
+function extractThinkingText(content: string): string {
+  const parts: string[] = []
+  content.replace(/<(?:think|thinking)\b[^>]*>([\s\S]*?)(?:<\/(?:think|thinking)>|$)/gi, (_match, body: string) => {
+    if (body?.trim()) {
+      parts.push(body.trim())
+    }
+    return ''
+  })
+  return parts.join('\n')
+}
+
+function estimateReplyTokenUsage(
+  promptText: string,
+  visibleText: string,
+  rawText: string,
+  includePrompt = true,
+  includeThinking = true,
+): TokenUsage {
+  const promptTokens = includePrompt ? estimateTokens(promptText) : 0
+  const completionTokens = estimateTokens(visibleText)
+  const thinkingTokens = includeThinking ? estimateTokens(extractThinkingText(rawText)) : 0
+
+  return {
+    promptTokens,
+    completionTokens,
+    thinkingTokens,
+    totalTokens: promptTokens + completionTokens + thinkingTokens,
+  }
+}
+
+function extractMessageEstimateText(message: IMessage): string {
+  if (message.contentType === 'text') {
+    return message.content || ''
+  }
+
+  try {
+    const parsed = JSON.parse(message.content) as Record<string, unknown>
+    return String(parsed.text || parsed.description || parsed.caption || message.content || '')
+  } catch {
+    return message.content || ''
+  }
+}
+
+async function emitAssistantReplyNotification(sessionId: string, content: string) {
+  const storage = getStorageDriver()
+  const session = await storage.getSession(sessionId)
+  const character = session ? await storage.getCharacter(session.characterId) : null
+  const body = content.replace(/\s+/g, ' ').trim().slice(0, 90)
+
+  emitAppNotification({
+    title: character?.name ? `${character.name} 回复了你` : '收到新回复',
+    body,
+    route: session ? `/chat/${session.characterId}?sessionId=${sessionId}` : undefined,
+  })
+}
+
 export const useChatStore = defineStore('chat', () => {
   const currentSessionId = ref<string | null>(null)
   const currentCharacterId = ref<string | null>(null)
@@ -93,6 +177,20 @@ export const useChatStore = defineStore('chat', () => {
 
   function getLocalChatService(): ChatService {
     return createChatService(getStorageDriver())
+  }
+
+  /**
+   * 取消指定会话的流式生成（可选操作，不会自动触发）
+   * @param sessionId 可选，不传则取消所有
+   */
+  function cancelSessionGeneration(sessionId?: string) {
+    const chatService = getLocalChatService()
+    chatService.cancelActiveGeneration(sessionId)
+    if (sessionId) {
+      setSessionGenerating(sessionId, false)
+    } else {
+      generatingSessionIds.value = []
+    }
   }
 
   async function getRemoteChatService(): Promise<ChatService> {
@@ -195,6 +293,10 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     try {
+      const storage = getStorageDriver()
+      const existingMessages = await storage.getMessages(sessionId)
+      const latestUserMessage = [...existingMessages].reverse().find(message => message.role === 'user')
+      const latestUserText = latestUserMessage ? extractMessageEstimateText(latestUserMessage) : ''
       const stream = await streamFactory()
       let rawText = ''
       let visibleText = ''
@@ -209,10 +311,42 @@ export const useChatStore = defineStore('chat', () => {
       await updateVisibleDraft(visibleText)
 
       if (visibleText.trim()) {
-        const savedReply = await chatService.saveAssistantReply(sessionId, visibleText)
-        await replaceVisibleDraft(savedReply)
-        await notifyAssistantReply(sessionId, visibleText)
-        queueProactiveFollowUp(sessionId)
+        // 判断是否为群聊/多人模式，尝试拆分多成员消息
+        const session = await storage.getSession(sessionId)
+        const character = session ? await storage.getCharacter(session.characterId) : null
+        const isMultiplayerMode = character && (
+          isGroupChatStyle(character.subCategory) || isMultiplayerStyle(character.subCategory)
+        )
+
+        const memberMessages = isMultiplayerMode ? splitMultiMemberReply(visibleText) : null
+
+        if (memberMessages && memberMessages.length > 0) {
+          // 多条独立消息：移除草稿，逐条保存并插入
+          removeVisibleDraft()
+          for (const [index, { memberName, content }] of memberMessages.entries()) {
+            const tokenUsage = estimateReplyTokenUsage(
+              latestUserText,
+              content,
+              rawText,
+              index === 0,
+              index === 0,
+            )
+            const msg = await chatService.saveAssistantReply(sessionId, content, memberName, tokenUsage)
+            if (currentSessionId.value === sessionId) {
+              messages.value.push(msg)
+            }
+          }
+          await nextTick()
+          queueProactiveFollowUp(sessionId)
+          await emitAssistantReplyNotification(sessionId, memberMessages.map(item => `${item.memberName}: ${item.content}`).join(' '))
+        } else {
+          // 单条消息（非多人模式或拆分失败）
+          const tokenUsage = estimateReplyTokenUsage(latestUserText, visibleText, rawText)
+          const savedReply = await chatService.saveAssistantReply(sessionId, visibleText, undefined, tokenUsage)
+          await replaceVisibleDraft(savedReply)
+          queueProactiveFollowUp(sessionId)
+          await emitAssistantReplyNotification(sessionId, visibleText)
+        }
       } else {
         removeVisibleDraft()
       }
@@ -231,26 +365,11 @@ export const useChatStore = defineStore('chat', () => {
   ) {
     void streamAssistantReply(sessionId, streamFactory).catch(async error => {
       const session = await getStorageDriver().getSession(sessionId)
-      void notifyApp({
+      emitAppNotification({
         title: '回复生成失败',
         body: (error as Error).message || '请检查大模型配置后重试',
         route: session ? `/chat/${session.characterId}?sessionId=${sessionId}` : undefined,
-        kind: 'message',
       })
-    })
-  }
-
-  async function notifyAssistantReply(sessionId: string, content: string) {
-    const storage = getStorageDriver()
-    const session = await storage.getSession(sessionId)
-    const character = session ? await storage.getCharacter(session.characterId) : null
-    const route = session ? `/chat/${session.characterId}?sessionId=${sessionId}` : undefined
-
-    await notifyApp({
-      title: character?.name ? `${character.name} 回复了你` : '收到新回复',
-      body: content.replace(/\s+/g, ' ').slice(0, 90),
-      route,
-      kind: 'message',
     })
   }
 
@@ -490,6 +609,7 @@ export const useChatStore = defineStore('chat', () => {
       if (currentSessionId.value === sessionId) {
         messages.value = [...messages.value, savedReply]
       }
+      await emitAssistantReplyNotification(sessionId, followUp.trim())
       await loadSessions()
     } catch {
       // Ignore background follow-up failures.
@@ -506,6 +626,7 @@ export const useChatStore = defineStore('chat', () => {
     sessions,
     currentSession,
     hasMessages,
+    cancelSessionGeneration,
     initChat,
     loadMessages,
     sendMessage,

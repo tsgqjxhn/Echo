@@ -60,7 +60,13 @@ export const azureAdapter: ProviderAdapter = {
     ) {
       messages.unshift({ role: 'system', content: request.systemPrompt.trim() })
     }
-    return { messages, stream: request.stream }
+    const body: Record<string, unknown> = { messages, stream: request.stream }
+    if (request.temperature !== undefined) body.temperature = request.temperature
+    if (request.maxTokens !== undefined) body.max_tokens = request.maxTokens
+    if (request.topP !== undefined) body.top_p = request.topP
+    if (request.presencePenalty !== undefined) body.presence_penalty = request.presencePenalty
+    if (request.frequencyPenalty !== undefined) body.frequency_penalty = request.frequencyPenalty
+    return body
   },
 
   parseChatResponse(raw: unknown): ChatCompletionResult {

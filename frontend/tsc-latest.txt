@@ -1,0 +1,16 @@
+src/entity/character.ts(5,51): error TS2305: Module '"@/types/character"' has no exported member 'CharacterValidationResult'.
+src/pages/character/create.vue(470,66): error TS2339: Property 'uploadVideoBackground' does not exist on type 'CreateComponentPublicInstanceWithMixins<ToResolvedProps<{}, {}>, { MultimediaSettings: DefineComponent<Props, {}, {}, {}, {}, ComponentOptionsMixin, ComponentOptionsMixin, ... 12 more ..., any>; ... 78 more ...; submit: () => Promise<...>; }, ... 23 more ..., {}>'.
+src/pages/character/create.vue(1185,33): error TS2339: Property 'chatBackground' does not exist on type '{ globalBackground: string; globalVideoBackground: string; switchAnimation: string; }'.
+src/pages/character/create.vue(1227,13): error TS2339: Property 'chatBackground' does not exist on type '{ globalBackground: string; globalVideoBackground: string; switchAnimation: string; }'.
+src/pages/character/detail.vue(128,39): error TS18047: '__VLS_ctx.character' is possibly 'null'.
+src/pages/character/detail.vue(132,39): error TS18047: '__VLS_ctx.character' is possibly 'null'.
+src/pages/character/detail.vue(136,17): error TS18047: '__VLS_ctx.character' is possibly 'null'.
+src/services/game.ts(54,38): error TS2345: Argument of type 'Game' is not assignable to parameter of type 'GameState'.
+  Type 'Game' is missing the following properties from type 'GameState': gameId, state
+src/services/game.ts(77,46): error TS2339: Property 'gameType' does not exist on type 'GameState'.
+src/services/game.ts(80,58): error TS2339: Property 'stateData' does not exist on type 'GameState'.
+src/services/game.ts(83,15): error TS2339: Property 'stateData' does not exist on type 'GameState'.
+src/services/game.ts(109,5): error TS2322: Type 'import("c:/Users/EricWeston/Desktop/Echo/frontend/src/services/storage").GameState | null' is not assignable to type 'import("c:/Users/EricWeston/Desktop/Echo/frontend/src/types/game").GameState | null'.
+  Type 'GameState' is missing the following properties from type 'GameState': gameType, stateData
+src/services/game.ts(117,5): error TS2322: Type 'import("c:/Users/EricWeston/Desktop/Echo/frontend/src/services/storage").GameState[]' is not assignable to type 'import("c:/Users/EricWeston/Desktop/Echo/frontend/src/types/game").GameState[]'.
+  Type 'GameState' is missing the following properties from type 'GameState': gameType, stateData

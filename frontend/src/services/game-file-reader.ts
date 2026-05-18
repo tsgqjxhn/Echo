@@ -15,7 +15,8 @@ export interface GameInputBundle {
 
 const MAX_TOTAL_BYTES = 100 * 1024 * 1024
 const MAX_TEXT_CHARS_PER_FILE = 180_000
-const MAX_BINARY_BASE64_CHARS = 120_000
+const MAX_FILES_TO_READ = 260
+const CONCURRENT_READS = 8
 
 const TEXT_EXTENSIONS = new Set([
   'txt',
@@ -32,6 +33,30 @@ const TEXT_EXTENSIONS = new Set([
   'svg',
 ])
 
+const BINARY_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+  'mp3',
+  'wav',
+  'ogg',
+  'mp4',
+  'webm',
+  'zip',
+])
+
+const SKIP_PATH_PARTS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.vite',
+  '.cache',
+])
+
 function getFilePath(file: File): string {
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name
 }
@@ -45,23 +70,21 @@ function isTextFile(file: File): boolean {
   return TEXT_EXTENSIONS.has(ext) || file.type.startsWith('text/')
 }
 
+function shouldSkipPath(path: string): boolean {
+  return path
+    .split(/[\\/]/)
+    .some(part => SKIP_PATH_PARTS.has(part))
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function readAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-    reader.onerror = () => reject(reader.error || new Error('读取文件失败'))
-    reader.readAsDataURL(file)
-  })
-}
-
 async function readOneFile(file: File): Promise<GameInputFile> {
   const path = getFilePath(file)
+  const ext = getExtension(path)
   let text = ''
 
   if (isTextFile(file)) {
@@ -69,8 +92,8 @@ async function readOneFile(file: File): Promise<GameInputFile> {
     text = raw.length > MAX_TEXT_CHARS_PER_FILE
       ? `${raw.slice(0, MAX_TEXT_CHARS_PER_FILE)}\n\n[文件内容过长，已截断：${raw.length} 字符]`
       : raw
-  } else if (file.size <= MAX_BINARY_BASE64_CHARS) {
-    text = await readAsDataURL(file)
+  } else if (BINARY_EXTENSIONS.has(ext)) {
+    text = `[resource file: ${file.name}, size=${formatFileSize(file.size)}, type=${file.type || ext || 'binary'}]`
   } else {
     text = `[binary file: ${file.name}, size=${formatFileSize(file.size)}, type=${file.type || 'application/octet-stream'}]`
   }
@@ -84,15 +107,28 @@ async function readOneFile(file: File): Promise<GameInputFile> {
   }
 }
 
+async function readInBatches(files: File[]): Promise<GameInputFile[]> {
+  const results: GameInputFile[] = []
+  for (let index = 0; index < files.length; index += CONCURRENT_READS) {
+    const batch = files.slice(index, index + CONCURRENT_READS)
+    results.push(...await Promise.all(batch.map(readOneFile)))
+  }
+  return results
+}
+
 export async function readGameInputFiles(inputFiles: FileList | File[]): Promise<GameInputBundle> {
-  const files = Array.from(inputFiles)
+  const allFiles = Array.from(inputFiles)
+  const files = allFiles
+    .filter(file => !shouldSkipPath(getFilePath(file)))
+    .slice(0, MAX_FILES_TO_READ)
   const totalSize = files.reduce((sum, file) => sum + file.size, 0)
 
   if (totalSize > MAX_TOTAL_BYTES) {
     throw new Error('总大小超过100MB限制')
   }
 
-  const items = await Promise.all(files.map(readOneFile))
+  const items = await readInBatches(files)
+  const skippedCount = allFiles.length - files.length
   const text = items
     .map(file => [
       `=== ${file.path} ===`,
@@ -102,12 +138,15 @@ export async function readGameInputFiles(inputFiles: FileList | File[]): Promise
       file.text,
     ].join('\n'))
     .join('\n\n')
+  const skippedText = skippedCount > 0
+    ? `\n\n[已跳过 ${skippedCount} 个低优先级或超出数量限制的资源文件，以加快读取速度]`
+    : ''
 
   return {
     files: items,
     fileNames: items.map(file => file.path),
     totalSize,
-    text,
+    text: `${text}${skippedText}`,
   }
 }
 

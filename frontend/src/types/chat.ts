@@ -24,6 +24,8 @@ export interface TokenUsage {
   promptTokens: number
   /** 完成 Token 数 */
   completionTokens: number
+  /** thinking / reasoning Token 估算或服务商返回值 */
+  thinkingTokens?: number
   /** 总 Token 数 */
   totalTokens: number
 }
@@ -50,6 +52,8 @@ export interface IMessage {
   tokenUsage?: TokenUsage
   /** 关联资源 ID */
   assetId?: string
+  /** 发言成员名称（群聊/多人模式时用于标识具体角色） */
+  memberName?: string
 }
 
 /**
@@ -84,6 +88,18 @@ export interface ChatContext {
   postHistoryPrompt?: string
   /** 角色信息 */
   character?: ICharacter
+  /** LLM 推理参数 */
+  temperature?: number
+  maxTokens?: number
+  topP?: number
+  topK?: number
+  presencePenalty?: number
+  frequencyPenalty?: number
+  repetitionPenalty?: number
+  /** 角色卡 system prompt 覆盖值（存在时替换角色卡的 system prompt） */
+  systemPromptOverride?: string
+  /** 并发请求数（默认 1，不拆分） */
+  concurrentRequests?: number
 }
 
 /**

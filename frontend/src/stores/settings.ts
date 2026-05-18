@@ -11,8 +11,6 @@ import { storageDriver } from '@/services/storage'
 import {
   loadSystemPrompts,
   setAllEnabled,
-  setAllAdvanced,
-  setCategoryAdvanced,
   resetToDefaults,
   getActivePrompts,
   getPromptsByCategory,
@@ -186,7 +184,7 @@ export const useSettingsStore = defineStore('settings', () => {
   /**
    * 更新单个提示词
    */
-  function updatePrompt(id: string, updates: Partial<Pick<SystemPrompt, 'enabled' | 'useAdvanced' | 'basicPrompt' | 'advancedPrompt'>>) {
+  function updatePrompt(id: string, updates: Partial<Pick<SystemPrompt, 'enabled' | 'basicPrompt'>>) {
     systemPrompts.value = updateSystemPrompt(id, updates)
   }
 
@@ -214,20 +212,6 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   function toggleAllEnabled(enabled: boolean) {
     systemPrompts.value = setAllEnabled(enabled)
-  }
-
-  /**
-   * 一键切换全部高级模式
-   */
-  function toggleAllAdvanced(useAdvanced: boolean) {
-    systemPrompts.value = setAllAdvanced(useAdvanced)
-  }
-
-  /**
-   * 一键切换指定分类的高级模式
-   */
-  function toggleCategoryAdvanced(category: PromptCategory, useAdvanced: boolean) {
-    systemPrompts.value = setCategoryAdvanced(category, useAdvanced)
   }
 
   /**
@@ -272,8 +256,6 @@ export const useSettingsStore = defineStore('settings', () => {
     reloadSystemPrompts,
     updatePrompt,
     toggleAllEnabled,
-    toggleAllAdvanced,
-    toggleCategoryAdvanced,
     resetSystemPrompts,
     getPromptsByCat,
     getActivePromptText,

@@ -56,10 +56,13 @@ $shadow-lg: 0 28px 72px rgba(0, 0, 0, 0.44);
 $shadow-xl: 0 44px 110px rgba(0, 0, 0, 0.56);
 
 // ── Radii ────────────────────────────────────────────
-$radius-sm: 8px;
-$radius-md: 12px;
-$radius-lg: 20px;
-$radius-xl: 24px;
+$radius-xs: 2px;
+$radius-sm: 4px;
+$radius-md: 6px;
+$radius-lg: 10px;
+$radius-xl: 12px;
+$radius-2xl: 16px;
+$radius-dialog: 20px;
 $radius-full: 9999px;
 
 // ── Spacing ──────────────────────────────────────────
@@ -123,10 +126,16 @@ $transition-slow: 0.3s ease;
   --shadow-lg: #{$shadow-lg};
   --shadow-xl: #{$shadow-xl};
 
+  --radius-xs: #{$radius-xs};
   --radius-sm: #{$radius-sm};
   --radius-md: #{$radius-md};
   --radius-lg: #{$radius-lg};
   --radius-xl: #{$radius-xl};
+  --radius-2xl: #{$radius-2xl};
+  --radius-control: #{$radius-md};
+  --radius-card: #{$radius-lg};
+  --radius-panel: #{$radius-xl};
+  --radius-dialog: #{$radius-dialog};
   --radius-full: #{$radius-full};
 
   --spacing-xs: #{$spacing-xs};

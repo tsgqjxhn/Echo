@@ -111,7 +111,7 @@ onMounted(() => {
   min-height: 42px;
   padding: 0 10px;
   border: none;
-  border-radius: 14px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-primary);
   box-shadow: none;
@@ -163,7 +163,7 @@ onMounted(() => {
   margin: 18px auto 0;
   padding: 28px;
   border: 1px solid var(--border-color);
-  border-radius: 30px;
+  border-radius: 15px;
   background: var(--surface-gradient);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(var(--backdrop-blur));

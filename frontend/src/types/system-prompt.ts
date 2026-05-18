@@ -46,8 +46,6 @@ export interface SystemPrompt {
   description: string;
   /** 是否启用 */
   enabled: boolean;
-  /** 是否使用高级版 */
-  useAdvanced: boolean;
   /** 优先级 1-10，数值越大越靠近 system prompt 顶部 */
   priority: number;
   /** 注入位置 */
@@ -56,8 +54,6 @@ export interface SystemPrompt {
   triggerTiming: TriggerTiming;
   /** 基础版提示词模板 */
   basicPrompt: string;
-  /** 增强版提示词模板 */
-  advancedPrompt: string;
   /** 使用的变量列表 */
   variables: string[];
   /** 代码是否可替代 */

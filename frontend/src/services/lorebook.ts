@@ -4,12 +4,16 @@ import type { ChatMessage } from '@/types/chat'
 const DEFAULT_SCAN_RANGE = 10
 
 /**
- * 匹配 lorebook 条目: 扫描最近 N 条消息, 返回被激活的条目 (按 order 降序)
+ * 匹配 lorebook 条目: 扫描最近 N 条消息, 返回被激活的条目
+ * - 按 type 优先级排序: profile → world_info → dialogue → style（未知 type 排最后）
+ * - 同一 type 内按 order 升序排列
+ * - 支持按 characterId 过滤
  */
 export function matchLorebookEntries(
   lorebook: Lorebook,
   recentMessages: ChatMessage[],
-  characterName?: string
+  characterName?: string,
+  characterId?: string
 ): LorebookEntry[] {
   const scanRange = lorebook.scanRange || DEFAULT_SCAN_RANGE
   const messages = recentMessages.slice(-scanRange)
@@ -22,8 +26,24 @@ export function matchLorebookEntries(
     .filter(entry => entry.enabled)
     .filter(entry => !entry.characterName || entry.characterName === characterName)
     .filter(entry => entry.keywords.some(kw => textToScan.includes(kw.toLowerCase())))
+    .filter(entry => {
+      if (characterId === undefined) return true
+      return !entry.characterId || entry.characterId === characterId
+    })
 
-  return matched.sort((a, b) => b.order - a.order)
+  const typePriority: Record<string, number> = {
+    profile: 0,
+    world_info: 1,
+    dialogue: 2,
+    style: 3,
+  }
+
+  return matched.sort((a, b) => {
+    const aPriority = typePriority[a.type ?? ''] ?? 999
+    const bPriority = typePriority[b.type ?? ''] ?? 999
+    if (aPriority !== bPriority) return aPriority - bPriority
+    return a.order - b.order
+  })
 }
 
 /**

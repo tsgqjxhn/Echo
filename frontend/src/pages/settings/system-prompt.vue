@@ -15,9 +15,9 @@
         </svg>
       </button>
       <h1 class="page-title">系统提示词管理</h1>
-      <span class="save-status" :class="{ saving: isSaving, saved: justSaved }">
-        {{ saveStatusText }}
-      </span>
+      <button type="button" class="reset-icon-btn" aria-label="重置默认" @click="handleReset">
+        <svg t="1779006172664" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6116" width="200" height="200"><path d="M512 112.64c-80.349867 0-160.5632 26.8288-228.5568 73.3184l-0.682667-0.682667c-4.5056 3.413333-8.874667 7.031467-13.380266 10.581334-4.437333 3.2768-8.738133 6.826667-13.038934 10.24-14.9504 12.834133-37.4784 1.6384-37.205333-18.363734l0.8192-81.1008A38.229333 38.229333 0 0 0 182.135467 68.266667a37.6832 37.6832 0 0 0-38.775467 36.932266l-2.730667 236.544a38.229333 38.229333 0 0 0 35.498667 38.229334l2.389333 0.136533 0.750934-0.068267c0.4096 0 0.750933 0.2048 1.2288 0.2048h0.341333l210.397867-0.682666a40.004267 40.004267 0 0 0 39.662933-32.836267 40.5504 40.5504 0 0 0-8.3968-31.9488 38.5024 38.5024 0 0 0-29.0816-14.062933h-0.4096l-65.3312 0.273066c-20.821333 0-30.5152-26.8288-14.813867-40.482133 58.094933-43.690667 128.6144-69.085867 199.133867-69.085867 183.637333 0 333.0048 153.8048 333.0048 342.698667 0 189.098667-149.367467 342.8352-333.0048 342.8352s-333.0048-153.736533-333.0048-342.766933c0-10.513067-4.096-20.48-11.264-27.921067a37.751467 37.751467 0 0 0-54.135467 0A40.004267 40.004267 0 0 0 102.4 534.186667C102.4 766.634667 286.1056 955.733333 512 955.733333s409.6-189.098667 409.6-421.546666-183.7056-421.614933-409.6-421.614934" fill="#999999" p-id="6117"></path></svg>
+      </button>
     </header>
 
     <!-- 顶部操作栏 -->
@@ -27,15 +27,6 @@
       </button>
       <button type="button" class="action-btn" @click="handleEnableAll(false)">
         弃用全部
-      </button>
-      <button type="button" class="action-btn secondary" @click="handleAdvancedAll(true)">
-        高级模式
-      </button>
-      <button type="button" class="action-btn" @click="handleAdvancedAll(false)">
-        普通模式
-      </button>
-      <button type="button" class="action-btn danger" @click="handleReset">
-        重置默认
       </button>
       <button type="button" class="action-btn" @click="handleExport">
         导出配置
@@ -97,31 +88,25 @@
               </label>
             </div>
 
-            <!-- 基础/高级模式切换 -->
-            <div class="prompt-tabs">
+            <!-- 快捷插入按钮 -->
+            <div class="macro-bar">
               <button
+                v-for="macro in macroButtons"
+                :key="macro"
                 type="button"
-                class="prompt-tab"
-                :class="{ active: !prompt.useAdvanced }"
-                @click="handleToggleMode(prompt.id, false)"
+                class="macro-btn"
+                @click="insertMacro(prompt.id, macro)"
               >
-                基础
-              </button>
-              <button
-                type="button"
-                class="prompt-tab"
-                :class="{ active: prompt.useAdvanced }"
-                @click="handleToggleMode(prompt.id, true)"
-              >
-                高级
+                {{ macro }}
               </button>
             </div>
 
             <!-- 可编辑文本区 -->
             <div class="prompt-editor">
               <textarea
+                :ref="(el) => setTextareaRef(prompt.id, el)"
                 :value="promptEdits[prompt.id]"
-                :placeholder="prompt.useAdvanced ? '请输入高级版提示词...' : '请输入基础版提示词...'"
+                placeholder="请输入系统提示词..."
                 rows="6"
                 @input="(e) => onTextInput(prompt.id, e)"
               />
@@ -146,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import type { SystemPrompt } from '@/types/system-prompt'
@@ -158,13 +143,12 @@ const settingsStore = useSettingsStore()
 // ============ 状态 ============
 const promptEdits = ref<Record<string, string>>({})
 const expandedCategories = ref<Set<string>>(new Set())
-const isSaving = ref(false)
-const justSaved = ref(false)
-const saveStatusText = ref('')
 const importInputRef = ref<HTMLInputElement | null>(null)
+const textareaRefs = ref<Record<string, HTMLTextAreaElement>>({})
+
+const macroButtons = ['{{char}}', '{{user}}', '{{time}}', '{{date}}', '{{idle_duration}}', '{{original}}']
 
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
-const statusTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 // 分类序号映射
 const categoryOrder = [
@@ -178,7 +162,7 @@ const categoryOrder = [
   'character-creation',
   'game',
 ]
-const numeralNames = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九']
+const numeralNames = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
 
 // ============ 计算属性 ============
 const groupedPrompts = computed(() => {
@@ -222,16 +206,13 @@ onUnmounted(() => {
     clearTimeout(timer)
   }
   saveTimers.clear()
-  if (statusTimer.value) {
-    clearTimeout(statusTimer.value)
-  }
 })
 
 // ============ 方法 ============
 function syncEdits(preserveEditing = true) {
   for (const p of settingsStore.systemPrompts) {
     if (preserveEditing && saveTimers.has(p.id)) continue
-    promptEdits.value[p.id] = p.useAdvanced ? p.advancedPrompt : p.basicPrompt
+    promptEdits.value[p.id] = p.basicPrompt
   }
 }
 
@@ -248,14 +229,32 @@ function handleToggleEnabled(id: string, currentEnabled: boolean) {
   showSaveStatus('已保存', false)
 }
 
-function handleToggleMode(id: string, useAdvanced: boolean) {
-  settingsStore.updatePrompt(id, { useAdvanced })
-  // 同步对应版本的文本
-  const p = settingsStore.systemPrompts.find((sp) => sp.id === id)
-  if (p) {
-    promptEdits.value[id] = useAdvanced ? p.advancedPrompt : p.basicPrompt
+function setTextareaRef(id: string, el: unknown) {
+  if (el) {
+    textareaRefs.value[id] = el as HTMLTextAreaElement
   }
-  showSaveStatus('已保存', false)
+}
+
+function insertMacro(id: string, macro: string) {
+  const textarea = textareaRefs.value[id]
+  if (!textarea) return
+
+  const value = promptEdits.value[id] ?? ''
+  const isFocused = document.activeElement === textarea
+  const start = isFocused ? textarea.selectionStart ?? value.length : value.length
+  const end = isFocused ? textarea.selectionEnd ?? value.length : value.length
+
+  const newValue = value.slice(0, start) + macro + value.slice(end)
+  textarea.value = newValue
+
+  nextTick(() => {
+    const cursor = start + macro.length
+    textarea.selectionStart = cursor
+    textarea.selectionEnd = cursor
+    textarea.focus()
+  })
+
+  onTextInput(id, { target: textarea } as unknown as Event)
 }
 
 function onTextInput(id: string, event: Event) {
@@ -271,32 +270,17 @@ function onTextInput(id: string, event: Event) {
   const timer = setTimeout(() => {
     const p = settingsStore.systemPrompts.find((sp) => sp.id === id)
     if (!p) return
-    const field = p.useAdvanced ? 'advancedPrompt' : 'basicPrompt'
-    settingsStore.updatePrompt(id, { [field]: value } as Partial<
-      Pick<SystemPrompt, 'enabled' | 'useAdvanced' | 'basicPrompt' | 'advancedPrompt'>
-    >)
+    settingsStore.updatePrompt(id, { basicPrompt: value } as Partial<Pick<SystemPrompt, 'enabled' | 'basicPrompt'>>)
     saveTimers.delete(id)
     showSaveStatus('已保存', false)
-    uni.showToast({ title: '已保存', icon: 'success', duration: 1200 })
   }, 1000)
 
   saveTimers.set(id, timer)
 }
 
-function showSaveStatus(text: string, saving: boolean) {
-  isSaving.value = saving
-  justSaved.value = !saving
-  saveStatusText.value = text
-
-  if (statusTimer.value) {
-    clearTimeout(statusTimer.value)
-  }
-
-  if (!saving) {
-    statusTimer.value = setTimeout(() => {
-      saveStatusText.value = ''
-      justSaved.value = false
-    }, 2000)
+function showSaveStatus(text: string, _saving: boolean) {
+  if (!_saving && text) {
+    uni.showToast({ title: text, icon: 'success', duration: 900 })
   }
 }
 
@@ -304,12 +288,6 @@ function handleEnableAll(enabled: boolean) {
   settingsStore.toggleAllEnabled(enabled)
   syncEdits(true)
   uni.showToast({ title: enabled ? '已全部启用' : '已全部弃用', icon: 'success' })
-}
-
-function handleAdvancedAll(useAdvanced: boolean) {
-  settingsStore.toggleAllAdvanced(useAdvanced)
-  syncEdits(false)
-  uni.showToast({ title: useAdvanced ? '已切换为高级模式' : '已切换为普通模式', icon: 'success' })
 }
 
 function handleReset() {
@@ -384,7 +362,7 @@ function handleImport(event: Event) {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
   gap: 10px;
   min-height: calc(env(safe-area-inset-top, 0px) + 44px);
@@ -396,17 +374,6 @@ function handleImport(event: Event) {
   -webkit-backdrop-filter: blur(28px) saturate(1.45);
 }
 
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--top-bar-highlight);
-  pointer-events: none;
-}
-
 .back-btn {
   display: inline-flex;
   align-items: center;
@@ -415,7 +382,7 @@ function handleImport(event: Event) {
   height: 40px;
   padding: 0;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
@@ -441,25 +408,36 @@ function handleImport(event: Event) {
   text-align: center;
 }
 
-.save-status {
-  padding: 4px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-tertiary);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition: color var(--transition-base), background var(--transition-base);
+.reset-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition:
+    background var(--transition-base),
+    color var(--transition-base),
+    transform var(--transition-base);
 }
 
-.save-status.saving {
-  color: var(--primary-color);
-  background: rgba(56, 189, 248, 0.1);
+.reset-icon-btn svg {
+  width: 22px;
+  height: 22px;
 }
 
-.save-status.saved {
-  color: var(--secondary-color);
-  background: rgba(52, 211, 153, 0.1);
+.reset-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.reset-icon-btn:active {
+  transform: rotate(-18deg);
 }
 
 // ==================== 操作栏 ====================
@@ -474,7 +452,7 @@ function handleImport(event: Event) {
 .action-btn {
   padding: 7px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   font-size: 13px;
@@ -537,7 +515,7 @@ function handleImport(event: Event) {
 
 .category-section {
   border: 1px solid rgba(52, 211, 153, 0.1);
-  border-radius: 16px;
+  border-radius: 8px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
   backdrop-filter: blur(16px);
   overflow: hidden;
@@ -606,7 +584,7 @@ function handleImport(event: Event) {
 .prompt-card {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
   backdrop-filter: blur(12px);
   transition:
@@ -661,7 +639,7 @@ function handleImport(event: Event) {
   position: relative;
   width: 42px;
   height: 24px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.12);
   transition: background var(--transition-base);
   flex-shrink: 0;
@@ -687,37 +665,33 @@ function handleImport(event: Event) {
   transform: translateX(18px);
 }
 
-// ---------- Tabs ----------
-.prompt-tabs {
+// ---------- Macro Bar ----------
+.macro-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-.prompt-tab {
-  padding: 5px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-tertiary);
-  font-size: 13px;
+.macro-btn {
+  padding: 4px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--primary-light);
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:
     background var(--transition-base),
     border-color var(--transition-base),
-    color var(--transition-base);
+    transform var(--transition-base);
 }
 
-.prompt-tab:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary);
-}
-
-.prompt-tab.active {
+.macro-btn:hover {
+  background: rgba(56, 189, 248, 0.16);
   border-color: rgba(56, 189, 248, 0.35);
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--primary-light);
+  transform: translateY(-1px);
 }
 
 // ---------- Textarea ----------
@@ -726,7 +700,7 @@ function handleImport(event: Event) {
   min-height: 120px;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(0, 0, 0, 0.2);
   color: var(--text-secondary);
   font-size: 13px;
@@ -784,11 +758,6 @@ function handleImport(event: Event) {
 
   .page-title {
     font-size: 15px;
-  }
-
-  .save-status {
-    padding: 3px 8px;
-    font-size: 11px;
   }
 
   .action-bar {

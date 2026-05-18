@@ -1,8 +1,64 @@
-import { Character } from '@/entity/character'
-import type { CharacterFilter, CharacterValidationResult, ICharacter } from '@/types/character'
+import type { ICharacter } from '@/types/character'
 import { NotFoundError, ValidationError } from './errors'
 import { getStorageDriver, type StorageDriver } from './storage'
 import { deleteCharacterProfileJSON, saveCharacterProfileJSON } from './character-profile-json'
+import { deleteCompressedCharacterPrompts } from './character-prompt-compression'
+import { isRemoteAssetURL, uploadAsset } from './files'
+
+/**
+ * 上传角色媒体资产（头像、封面、语音样本）
+ * 如果是本地临时路径或 base64，则上传到服务器并返回相对路径
+ * 如果已经是远程 URL 或相对路径，则原样返回
+ */
+async function uploadCharacterMedia(character: Partial<ICharacter>): Promise<void> {
+  const fields: Array<{ key: 'avatar' | 'coverImage' | 'voiceSample'; type: 'avatar' | 'cover' | 'voice' }> = [
+    { key: 'avatar', type: 'avatar' },
+    { key: 'coverImage', type: 'cover' },
+    { key: 'voiceSample', type: 'voice' },
+  ]
+
+  for (const { key, type } of fields) {
+    const value = character[key]
+    if (!value) continue
+    // 已经是相对路径或远程 URL，跳过
+    if (!isRemoteAssetURL(value)) continue
+    // data URL 或 blob URL 需要上传
+    try {
+      const relativePath = await uploadAsset(value, type)
+      ;(character as Record<string, string>)[key] = relativePath
+    } catch (err) {
+      console.warn(`Failed to upload ${key}:`, err)
+      // 上传失败时保留原值，避免阻断保存流程
+    }
+  }
+}
+
+export interface CharacterFilter {
+  favorite?: boolean
+  keyword?: string
+  sortBy?: keyof ICharacter
+  sortOrder?: 'asc' | 'desc'
+  page?: number
+  pageSize?: number
+}
+
+export interface CharacterValidationResult {
+  valid: boolean
+  errors: string[]
+}
+
+function createEmptyCharacter(): ICharacter {
+  const now = Date.now()
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `${now}_${Math.random().toString(36).slice(2)}`,
+    name: '',
+    description: '',
+    settings: '',
+    isFavorite: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
 
 export interface EventBus {
   emit(event: string, data?: any): void
@@ -50,11 +106,12 @@ export class CharacterService {
       throw new ValidationError('角色数据校验失败', validation.errors)
     }
 
-    const nextCharacter = Character.createEmpty()
+    const nextCharacter = createEmptyCharacter()
     Object.assign(nextCharacter, character)
     nextCharacter.createdAt = Date.now()
     nextCharacter.updatedAt = Date.now()
 
+    await uploadCharacterMedia(nextCharacter)
     await this.storage.saveCharacter(nextCharacter)
     saveCharacterProfileJSON(nextCharacter)
     this.eventBus.emit('character:created', { id: nextCharacter.id })
@@ -73,8 +130,10 @@ export class CharacterService {
     }
 
     character.updatedAt = Date.now()
+    await uploadCharacterMedia(character)
     await this.storage.saveCharacter(character)
     saveCharacterProfileJSON(character)
+    void deleteCompressedCharacterPrompts(character.id).catch(() => undefined)
     this.eventBus.emit('character:updated', { id: character.id })
     return true
   }
@@ -87,6 +146,7 @@ export class CharacterService {
 
     await this.storage.deleteCharacter(id)
     deleteCharacterProfileJSON(id)
+    void deleteCompressedCharacterPrompts(id).catch(() => undefined)
     this.eventBus.emit('character:deleted', { id })
     return true
   }
@@ -113,8 +173,9 @@ export class CharacterService {
     if (filter?.sortBy) {
       const { sortBy, sortOrder } = filter
       characters.sort((left, right) => {
-        const leftValue = left[sortBy] || 0
-        const rightValue = right[sortBy] || 0
+        const key = sortBy as keyof ICharacter
+        const leftValue = (left[key] as unknown as number | string) || 0
+        const rightValue = (right[key] as unknown as number | string) || 0
         const result = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0
         return sortOrder === 'desc' ? -result : result
       })
@@ -169,6 +230,7 @@ export class CharacterService {
 
     await this.storage.saveCharacter(character)
     saveCharacterProfileJSON(character)
+    void deleteCompressedCharacterPrompts(character.id).catch(() => undefined)
     return character
   }
 

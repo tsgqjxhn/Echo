@@ -1,4 +1,4 @@
-import type { APIConfig } from '@/types/api-config'
+import { type APIConfig } from '@/types/api-config'
 import { getAdapterOrDefault } from './providers/registry'
 
 export const DEFAULT_PROVIDER_BASE_URL = 'https://api.openai.com/v1'
@@ -6,6 +6,10 @@ export const DEFAULT_PROVIDER_MODEL = 'gpt-4o-mini'
 export const DEFAULT_SPEECH_MODEL = 'gpt-4o-mini-tts'
 export const DEFAULT_SPEECH_VOICE = 'alloy'
 export const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-mini-transcribe'
+export const DEFAULT_ZHIPU_TRANSCRIPTION_MODEL = 'glm-asr-2512'
+
+const TRANSCRIPTION_MODEL_PATTERN = /(transcrib|whisper|\basr\b|glm-asr|sensevoice|paraformer|stt)/i
+const OPTIONAL_API_KEY_PROVIDERS = new Set<string>()
 
 export function resolveProviderBaseURL(baseURL?: string): string {
   const candidate = (baseURL || DEFAULT_PROVIDER_BASE_URL).trim()
@@ -47,18 +51,29 @@ export function resolveSpeechVoice(
 }
 
 export function resolveTranscriptionModel(
-  config?: Pick<APIConfig, 'model' | 'transcriptionModel'> | null
+  config?: Pick<APIConfig, 'model' | 'provider' | 'transcriptionModel' | 'configType'> | null
 ): string {
   const transModel = config?.transcriptionModel?.trim()
   if (transModel) return transModel
   const model = config?.model?.trim() || ''
-  if (/transcribe|whisper/i.test(model)) return model
+  if (model && config?.configType === 'stt') return model
+  if (TRANSCRIPTION_MODEL_PATTERN.test(model)) return model
+  if (config?.provider === 'zhipu') return DEFAULT_ZHIPU_TRANSCRIPTION_MODEL
   return DEFAULT_TRANSCRIPTION_MODEL
 }
 
-export function requireAPIKey(config?: Pick<APIConfig, 'apiKey'> | null): string {
+export function providerRequiresAPIKey(provider?: string): boolean {
+  return !OPTIONAL_API_KEY_PROVIDERS.has((provider || '').trim())
+}
+
+export function requireAPIKey(config?: Pick<APIConfig, 'apiKey' | 'provider'> | null): string {
   const apiKey = config?.apiKey?.trim()
-  if (!apiKey) throw new Error('请先在设置中配置 API Key')
+  if (!apiKey) {
+    if (!providerRequiresAPIKey(config?.provider)) {
+      return ''
+    }
+    throw new Error('请先在设置中配置 API Key')
+  }
   return apiKey
 }
 

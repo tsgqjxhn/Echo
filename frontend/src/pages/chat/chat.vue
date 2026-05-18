@@ -1,5 +1,24 @@
 <template>
-  <div class="chat-page" :style="chatPageStyle">
+  <div class="chat-page" :class="{ 'has-media-bg': hasBackgroundMedia }">
+    <!-- 全局动态视频背景 -->
+    <div class="chat-bg-layer">
+      <video
+        v-if="backgroundVideoUrl"
+        :src="backgroundVideoUrl"
+        class="chat-bg-video"
+        muted
+        loop
+        playsinline
+        autoplay
+        @error="onVideoError"
+      />
+      <div
+        v-else-if="backgroundImageUrl"
+        class="chat-bg-image"
+        :style="{ backgroundImage: `url(${backgroundImageUrl})` }"
+      />
+    </div>
+
     <header class="chat-header">
       <button v-if="showBackButton" type="button" class="btn-back" @click="router.back()">
         <svg viewBox="0 0 1024 1024" width="20" height="20">
@@ -9,7 +28,7 @@
       <ConversationSwitchButton
         v-else-if="showRandomSwitchButton"
         class="header-switch"
-        :disabled="switchingCharacter || isCurrentChatGenerating"
+        :disabled="switchingCharacter"
         @click="switchToRandomCharacter"
       />
 
@@ -36,8 +55,8 @@
       </button>
     </header>
 
-    <!-- 群聊/多人顶部成员头像栏 -->
-    <div v-if="isMultiplayerChat && groupMembers.length > 0" class="member-avatar-bar">
+    <!-- 群聊/多人顶部成员头像栏（多人模式已隐藏） -->
+    <div v-if="false && isMultiplayerChat && groupMembers.length > 0" class="member-avatar-bar">
       <div class="member-avatar-list">
         <div
           v-for="member in groupMembers"
@@ -47,8 +66,8 @@
           @click="showMemberDetail(member)"
         >
           <img
-            v-if="member.avatar"
-            :src="member.avatar"
+            v-if="member.multimedia?.image?.avatar || member.avatar"
+            :src="member.multimedia?.image?.avatar || member.avatar"
             :alt="member.name"
             class="member-avatar-img"
           />
@@ -59,7 +78,7 @@
     </div>
 
     <main class="message-list">
-      <section v-if="showQuickPrompts" class="hero-card">
+      <section v-if="hasValidCharacter && showQuickPrompts" class="hero-card">
         <p class="hero-eyebrow">开始对话</p>
         <h1>{{ character?.name || '角色' }} 正在线</h1>
         <p class="hero-copy">
@@ -79,7 +98,12 @@
         </div>
       </section>
 
-      <div v-if="messages.length === 0 && !showQuickPrompts" class="empty-state">
+      <div v-if="!hasValidCharacter" class="empty-state">
+        <strong>暂无角色</strong>
+        <p>当前没有可用角色，快去创建一个吧。</p>
+      </div>
+
+      <div v-else-if="messages.length === 0 && !showQuickPrompts" class="empty-state">
         <strong>还没有消息</strong>
         <p>发送第一句话，或从上方推荐提示开始。</p>
       </div>
@@ -97,10 +121,15 @@
           :user-avatar="playerAvatar"
           :sender-name="getMessageSenderName(message)"
           :message-type="getMessageType(message)"
+          :has-media-bg="hasBackgroundMedia"
+          :is-group-chat="isGroupChat"
           @retry="retryGeneration(message.id)"
           @avatar-click="openCharacterSheet"
           @image-click="onImageClick"
         />
+        <div v-if="chatSettings.showTokenCount && message.content" class="message-token-hint">
+          ~{{ estimateTokens(typeof message.content === 'string' ? message.content : JSON.stringify(message.content)) }} tokens
+        </div>
       </div>
     </main>
 
@@ -126,7 +155,7 @@
               ref="inputRef"
               v-model="inputText"
               class="message-input"
-              :disabled="isCurrentChatGenerating || recordingState === RecordingState.PROCESSING"
+              :disabled="recordingState === RecordingState.PROCESSING"
               placeholder="输入消息…"
               rows="1"
               @keydown.enter.exact.prevent="sendMessage"
@@ -152,6 +181,9 @@
             >
               {{ holdToTalkLabel }}
             </button>
+          </div>
+          <div v-if="chatSettings.showTokenCount && inputText" class="input-token-hint">
+            ~{{ estimateTokens(inputText) }} tokens
           </div>
 
           <button
@@ -235,12 +267,6 @@
     <Teleport to="body">
       <div v-if="showChatMore" class="chat-more-overlay" @click.self="showChatMore = false">
         <div class="chat-more-menu">
-          <button v-if="hasGalleryAction" type="button" class="chat-more-item" @click="openGallery">
-            <svg viewBox="0 0 24 24" width="20" height="20">
-              <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z" fill="currentColor"/>
-            </svg>
-            <span>图鉴</span>
-          </button>
           <button v-if="hasChatSettingsAction" type="button" class="chat-more-item" @click="openChatSettings">
             <svg viewBox="0 0 24 24" width="20" height="20">
               <path d="M19.14 12.94a7.957 7.957 0 0 0 .04-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.97 7.97 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.97 7.97 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.69 8.84a.5.5 0 0 0 .12.64l2.03 1.58a8 8 0 0 0 0 1.88L2.81 14.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.5.38 1.04.69 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54a7.97 7.97 0 0 0 1.62-.94l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z" fill="currentColor"/>
@@ -255,11 +281,10 @@
       :visible="showChatSettings"
       :character-id="characterId"
       :character-name="character?.name"
+      :mode="character?.mode || 'single'"
       @close="showChatSettings = false"
       @change="onChatSettingsChange"
     />
-
-    <StoryGallery :visible="showGallery" @close="showGallery = false" />
 
     <ImageViewer
       :visible="imageViewerVisible"
@@ -299,10 +324,10 @@
             <button type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetToggleLike">
               {{ character?.isLiked ? '取消点赞' : '点赞' }}
             </button>
-            <button v-if="isGroupCharacter" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetEnterGroup">
+            <button v-if="false && isGroupCharacter" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetEnterGroup">
               进入该群
             </button>
-            <button v-else-if="character?.isFriend" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetInviteToGroup">
+            <button v-else-if="false && character?.isFriend" type="button" class="char-popover-btn" :disabled="charPopoverBusy" @click="sheetInviteToGroup">
               邀请进入群聊
             </button>
           </div>
@@ -310,7 +335,8 @@
       </div>
     </Teleport>
 
-    <Teleport to="body">
+    <!-- 邀请进入群聊弹窗（多人模式已隐藏） -->
+    <Teleport v-if="false" to="body">
       <div v-if="showInviteModal" class="invite-overlay" @click.self="showInviteModal = false">
         <section class="invite-modal">
           <div class="invite-modal-head">
@@ -376,7 +402,7 @@
         </section>
 
         <section class="detail-actions">
-          <button type="button" class="ghost-btn" @click="openCharacterDetail">查看详情</button>
+          <button type="button" class="ghost-btn" @click="openCharacterEdit">编辑角色</button>
           <button type="button" class="ghost-btn" @click="confirmClearHistory">清空记录</button>
         </section>
       </section>
@@ -385,14 +411,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
+import { estimateTokens } from '@/services/token-counter'
 import { useRoute, useRouter } from 'vue-router'
 import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import { useChatStore } from '@/stores/chat'
 import { useCharacterStore } from '@/stores/character'
 import type { ICharacter, GroupMember } from '@/types/character'
 import { useUserStore } from '@/stores/user'
-import { isMultiplayerCategory } from '@/data/taxonomy'
+import { isMultiplayerCategory, isGroupChatStyle } from '@/data/taxonomy'
 import { uni } from '@/utils/uni-polyfill'
 import MessageBubble from '@/components/MessageBubble/index.vue'
 import { TTSService } from '@/services/tts'
@@ -402,16 +429,17 @@ import { loadCharacterMemory } from '@/services/chat-memory'
 import { requestPermission } from '@/services/permissions'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { getStorageDriver } from '@/services/storage'
-import { ECHO_STORY_CHARACTER_ID } from '@/services/story-conversations'
-import StoryGallery from '@/components/StoryGallery/index.vue'
 import type { IMessage } from '@/types/chat'
 import ImageViewer from '@/components/ImageViewer/index.vue'
 import ChatSettingsSheet from '@/components/ChatSettingsSheet/index.vue'
+import { markSessionsRead } from '@/services/history-unread'
 import {
   loadChatSettings,
   DEFAULT_CHAT_SETTINGS,
   type ChatSettings,
 } from '@/services/chat-settings'
+import { loadGlobalChatDefaults } from '@/services/chat-defaults'
+import { ensureCompressedCharacterPrompts } from '@/services/character-prompt-compression'
 
 const AUTO_VOICE_KEY = 'chat_auto_tts'
 
@@ -444,7 +472,6 @@ const switchingCharacter = ref(false)
 const showChatMore = ref(false)
 const showChatSettings = ref(false)
 const chatSettings = ref<ChatSettings>({ ...DEFAULT_CHAT_SETTINGS })
-const showGallery = ref(false)
 const imageViewerVisible = ref(false)
 const imageViewerSrc = ref('')
 const imageViewerCaption = ref('')
@@ -467,16 +494,10 @@ const hasSendableContent = computed(() => inputText.value.trim().length > 0)
 const showBracketButton = computed(() => !voiceMode.value && (hasComposerContent.value || isInputFocused.value))
 const showVoiceToggle = computed(() => !hasComposerContent.value && showVoiceInputToggle.value)
 const showSendButton = computed(() => hasComposerContent.value)
-const hasGalleryAction = computed(() =>
-  characterId.value === ECHO_STORY_CHARACTER_ID || character.value?.sourceType === 'builtin-story'
-)
-const isStarCharacter = computed(() =>
-  characterId.value === ECHO_STORY_CHARACTER_ID || character.value?.sourceType === 'builtin-story'
-)
-const hasChatSettingsAction = computed(() => !isStarCharacter.value && Boolean(characterId.value))
-const hasChatMoreActions = computed(() => hasGalleryAction.value || hasChatSettingsAction.value)
-const showHeaderTTS = computed(() => isStarCharacter.value || chatSettings.value.enableTTS)
-const showVoiceInputToggle = computed(() => isStarCharacter.value || chatSettings.value.enableVoiceInput)
+const hasChatSettingsAction = computed(() => Boolean(characterId.value))
+const hasChatMoreActions = computed(() => hasChatSettingsAction.value)
+const showHeaderTTS = computed(() => false)
+const showVoiceInputToggle = computed(() => chatSettings.value.enableVoiceInput)
 const showBackButton = computed(() => isHistoryEntry.value)
 const showRandomSwitchButton = computed(() => !isHistoryEntry.value)
 const isCurrentChatGenerating = computed(() => chatStore.isCurrentSessionGenerating)
@@ -486,17 +507,32 @@ const characterMeta = computed(() =>
   [character.value?.category, character.value?.subCategory].filter(Boolean).join(' / ') || '角色设定'
 )
 
-const chatPageStyle = computed(() => {
-  const bg = character.value?.chatBackground || character.value?.globalBackground
-  if (!bg) return undefined
-  return {
-    backgroundImage: `url(${bg})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    backgroundAttachment: 'fixed',
-  }
+// 角色背景优先于全局背景；未配置角色背景时才使用全局视频。
+const roleBackgroundUrl = computed(() =>
+  character.value?.multimedia?.image?.chatBackground || character.value?.chatBackground || ''
+)
+
+const backgroundVideoUrl = computed(() => {
+  if (roleBackgroundUrl.value) return ''
+  const vid = character.value?.multimedia?.video?.globalBackgroundVideo || character.value?.globalVideoBackground
+  if (!vid) return ''
+  return vid
 })
-const showQuickPrompts = computed(() => messages.value.length <= 1 && !isCurrentChatGenerating.value)
+
+const backgroundImageUrl = computed(() => {
+  const img = roleBackgroundUrl.value || character.value?.globalBackground
+  if (!img) return ''
+  return img
+})
+
+const hasBackgroundMedia = computed(() => Boolean(backgroundVideoUrl.value || backgroundImageUrl.value))
+
+function onVideoError() {
+  console.warn('[Chat] Background video failed to load, falling back to image or default.')
+}
+const showQuickPrompts = computed(() => hasValidCharacter.value && messages.value.length <= 1 && !isCurrentChatGenerating.value)
+
+const hasValidCharacter = computed(() => Boolean(characterId.value))
 const quickPrompts = computed(() => {
   const name = character.value?.name || 'TA'
   return [
@@ -525,6 +561,7 @@ const holdToTalkLabel = computed(() =>
 
 
 const isMultiplayerChat = computed(() => isMultiplayerCategory(character.value?.category))
+const isGroupChat = computed(() => isGroupChatStyle(character.value?.subCategory))
 const groupMembers = computed<GroupMember[]>(() => character.value?.structuredMembers || [])
 
 const groupCharacters = computed(() =>
@@ -562,26 +599,38 @@ const charPopoverStyle = computed(() => {
   }
 })
 
+onDeactivated(() => {
+  // keep-alive 失活时不做取消，保持流式生成在后台继续运行
+  // 仅记录日志以便调试
+  if (chatStore.generatingSessionIds.length > 0) {
+    console.log('[chat page] deactivated while streams active:', chatStore.generatingSessionIds)
+  }
+})
+
 onActivated(async () => {
   // Re-initialize if keep-alive reactivates this instance while chatStore holds a different character's data.
   if (chatStore.currentCharacterId && chatStore.currentCharacterId !== characterId.value) {
     await initChat()
     await loadCharacter()
   }
+  // 如果流仍在运行，确保 UI 正确显示加载状态（generatingSessionIds 已由 store 维护）
   scrollToBottom()
 })
 
 onMounted(async () => {
-  await Promise.all([
-    userStore.loadUserInfo().catch(() => null),
-    initChat()
-  ])
-
-  await loadCharacter()
-  if (character.value?.sourceType === 'builtin-story' || characterId.value === ECHO_STORY_CHARACTER_ID) {
-    router.replace('/dialogue')
+  if (!characterId.value) {
+    const target = await switchToRandomLocalCharacter(router)
+    if (!target) {
+      uni.showToast({ title: '暂无可用角色', icon: 'none' })
+    }
     return
   }
+
+  await Promise.all([
+    userStore.loadUserInfo().catch(() => null),
+    initChat(),
+    loadCharacter()
+  ])
 
   await loadAutoVoicePlayback()
   await refreshMemory()
@@ -619,6 +668,11 @@ function scrollToBottom() {
   })
 }
 
+function compactToastMessage(message: string, fallback: string): string {
+  const text = message.trim() || fallback
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text
+}
+
 async function initChat() {
   if (!characterId.value) {
     return
@@ -633,15 +687,25 @@ async function initChat() {
 
     await chatStore.initChat(characterId.value)
   }
+
+  const sid = chatStore.currentSessionId
+  if (sid) {
+    markSessionsRead([sid])
+  }
 }
 
 async function loadCharacter() {
   character.value = await characterStore.getCharacterById(characterId.value)
   await reloadChatSettings()
+
+  if (character.value) {
+    const defaults = await loadGlobalChatDefaults()
+    await ensureCompressedCharacterPrompts(character.value, defaults.speedMode === 'turbo')
+  }
 }
 
 async function switchToRandomCharacter() {
-  if (switchingCharacter.value || isCurrentChatGenerating.value || !showRandomSwitchButton.value) {
+  if (switchingCharacter.value || !showRandomSwitchButton.value) {
     return
   }
 
@@ -687,12 +751,9 @@ async function maybeAutoSpeak() {
     return
   }
 
-  // For non-star characters, respect the per-character chat settings: when
-  // either TTS or auto-TTS is disabled, skip auto playback entirely.
-  if (!isStarCharacter.value) {
-    if (!chatSettings.value.enableTTS || !chatSettings.value.autoTTS) {
-      return
-    }
+  // Respect the per-character chat settings: when either TTS or auto-TTS is disabled, skip auto playback entirely.
+  if (!chatSettings.value.enableTTS || !chatSettings.value.autoTTS) {
+    return
   }
 
   const lastMessage = [...messages.value].reverse().find(message => message.role === 'assistant')
@@ -702,9 +763,11 @@ async function maybeAutoSpeak() {
 
   const settings = await loadVoiceSettings()
   ttsService.value?.destroy()
+  const charVoice = character.value?.multimedia?.voice
   ttsService.value = new TTSService({
     ...settings.tts,
-    language: settings.tts.language || 'zh-CN'
+    language: settings.tts.language || 'zh-CN',
+    voice: charVoice?.enabled ? (charVoice.voiceId || charVoice.voiceName || settings.tts.voice) : settings.tts.voice,
   })
 
   lastAutoSpokenMessageId.value = lastMessage.id
@@ -727,12 +790,17 @@ async function toggleHeaderTTS() {
 
   const settings = await loadVoiceSettings()
   ttsService.value?.destroy()
+  const charVoice = character.value?.multimedia?.voice
   ttsService.value = new TTSService({
     ...settings.tts,
     language: settings.tts.language || 'zh-CN',
+    voice: charVoice?.enabled ? (charVoice.voiceId || charVoice.voiceName || settings.tts.voice) : settings.tts.voice,
   })
   ttsService.value.onEnd(() => { isHeaderTTSSpeaking.value = false })
-  ttsService.value.onError(() => { isHeaderTTSSpeaking.value = false })
+  ttsService.value.onError((error) => {
+    isHeaderTTSSpeaking.value = false
+    uni.showToast({ title: compactToastMessage(error.message, '朗读失败'), icon: 'none' })
+  })
 
   isHeaderTTSSpeaking.value = true
   try {
@@ -816,7 +884,7 @@ function onInputBlur() {
 }
 
 function insertParenthesesAtCursor() {
-  if (isCurrentChatGenerating.value || recordingState.value === RecordingState.PROCESSING) {
+  if (recordingState.value === RecordingState.PROCESSING) {
     return
   }
 
@@ -1044,21 +1112,11 @@ async function retryGeneration(messageId: string) {
   }
 }
 
-function openCharacterDetail() {
+function openCharacterEdit() {
   showDetailSheet.value = false
-  router.push(`/character/detail/${characterId.value}`)
+  router.push(`/character/edit?id=${characterId.value}`)
 }
 
-function openGallery() {
-  if (characterId.value !== ECHO_STORY_CHARACTER_ID && character.value?.sourceType !== 'builtin-story') {
-    uni.showToast({ title: '图鉴仅绑定星故事', icon: 'none' })
-    showChatMore.value = false
-    return
-  }
-  showChatMore.value = false
-  charPopoverVisible.value = false
-  showGallery.value = true
-}
 
 function openChatSettings() {
   showChatMore.value = false
@@ -1081,7 +1139,7 @@ function onChatSettingsChange(next: ChatSettings) {
 }
 
 async function reloadChatSettings() {
-  if (!characterId.value || isStarCharacter.value) {
+  if (!characterId.value) {
     chatSettings.value = { ...DEFAULT_CHAT_SETTINGS }
     return
   }
@@ -1145,12 +1203,15 @@ function setAffinity(charId: string, val: number) {
 function getMessageAvatar(message: IMessage): string {
   if (message.role === 'user') return playerAvatar.value
   if (!isMultiplayerChat.value) return characterAvatar.value
-  // Try to extract sender name from message content for multiplayer
-  const match = message.content.match(/^(.+?)[:：]/)
-  if (match) {
-    const senderName = match[1].trim()
+  // 优先使用 message.memberName（拆分后的独立消息），其次从 content 解析
+  const senderName = message.memberName || (() => {
+    const match = message.content.match(/^(.+?)[:：]/)
+    return match ? match[1].trim() : ''
+  })()
+  if (senderName) {
     const member = groupMembers.value.find(m => m.name === senderName)
-    if (member?.avatar) return member.avatar
+    const memberAvatar = member?.multimedia?.image?.avatar || member?.avatar
+    if (memberAvatar) return memberAvatar
     if (member?.isNarrator) return ''
   }
   return characterAvatar.value
@@ -1159,18 +1220,17 @@ function getMessageAvatar(message: IMessage): string {
 function getMessageSenderName(message: IMessage): string {
   if (message.role === 'user') return ''
   if (!isMultiplayerChat.value) return ''
+  // 优先使用 message.memberName（拆分后的独立消息）
+  if (message.memberName) return message.memberName
   const match = message.content.match(/^(.+?)[:：]/)
-  if (match) {
-    const senderName = match[1].trim()
-    const member = groupMembers.value.find(m => m.name === senderName)
-    if (member) return member.name
-  }
-  return ''
+  return match ? match[1].trim() : ''
 }
 
 function getMessageType(message: IMessage): 'normal' | 'narrator' | 'action' {
   if (message.role === 'user') return 'normal'
   if (!isMultiplayerChat.value) return 'normal'
+  // 群聊中不识别 action 类型（去除括号神态动作高亮）
+  if (isGroupChat.value) return 'normal'
   const match = message.content.match(/^(.+?)[:：]/)
   if (match) {
     const senderName = match[1].trim()
@@ -1194,7 +1254,6 @@ function showMemberDetail(member: GroupMember) {
 function openCharacterSheet(rect: DOMRect) {
   showChatMore.value = false
   showTools.value = false
-  showGallery.value = false
   charPopoverAnchor.value = { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
   charPopoverVisible.value = true
 }
@@ -1259,6 +1318,10 @@ function confirmInviteToGroup(group: ICharacter) {
 }
 
 onUnmounted(() => {
+  // 真正销毁时取消当前 session 的流
+  if (chatStore.currentSessionId) {
+    chatStore.cancelSessionGeneration(chatStore.currentSessionId)
+  }
   if (longPressTimer !== null) {
     clearTimeout(longPressTimer)
   }
@@ -1269,6 +1332,7 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .chat-page {
+  position: relative;
   box-sizing: border-box;
   min-height: 100vh;
   padding: 48px 16px 170px;
@@ -1276,6 +1340,53 @@ onUnmounted(() => {
     radial-gradient(ellipse at 20% 5%, rgba(52, 211, 153, 0.22) 0%, transparent 46%),
     radial-gradient(ellipse at 85% 88%, rgba(56, 189, 248, 0.18) 0%, transparent 40%),
     linear-gradient(180deg, #050d14 0%, #071520 50%, #0a1e2c 100%);
+}
+
+/* 全局动态视频/图片背景层 */
+.chat-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.chat-bg-video,
+.chat-bg-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.chat-bg-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 当有媒体背景时，降低默认渐变背景的权重 */
+.chat-page.has-media-bg {
+  background: transparent;
+}
+
+.chat-page.has-media-bg .chat-bg-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 13, 20, 0.35);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* 确保内容在背景层之上 */
+.chat-header,
+.member-avatar-bar,
+.message-list,
+.composer-shell {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-card,
@@ -1296,17 +1407,12 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 100;
-  display: grid;
-  grid-template-columns: 44px 1fr 44px 44px;
+  display: flex;
   align-items: center;
   padding: 2px 10px;
   background: rgba(5, 13, 20, 0.68);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-}
-
-.header-switch {
-  justify-self: start;
 }
 
 .btn-back {
@@ -1329,6 +1435,7 @@ onUnmounted(() => {
 }
 
 .header-center {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1351,7 +1458,6 @@ onUnmounted(() => {
 }
 
 .btn-more {
-  justify-self: end;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
@@ -1371,7 +1477,6 @@ onUnmounted(() => {
 }
 
 .btn-tts {
-  justify-self: end;
   width: 40px;
   height: 40px;
   flex-shrink: 0;
@@ -1405,7 +1510,7 @@ onUnmounted(() => {
 .hero-card,
 .empty-state {
   padding: 18px;
-  border-radius: 18px;
+  border-radius: 9px;
   border-color: rgba(52, 211, 153, 0.14);
 }
 
@@ -1578,7 +1683,7 @@ onUnmounted(() => {
 .recording-card,
 .composer {
   padding: 12px 14px;
-  border-radius: 18px;
+  border-radius: 9px;
 }
 
 .recording-card {
@@ -1892,7 +1997,7 @@ onUnmounted(() => {
 .icon-close {
   min-height: 42px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   font: inherit;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.06);
@@ -2096,7 +2201,7 @@ onUnmounted(() => {
   min-width: 140px;
   padding: 6px;
   border: 1px solid rgba(56, 189, 248, 0.16);
-  border-radius: 16px;
+  border-radius: 8px;
   background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
@@ -2108,7 +2213,7 @@ onUnmounted(() => {
   gap: 10px;
   padding: 12px 14px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -2119,5 +2224,22 @@ onUnmounted(() => {
   &:hover {
     background: rgba(56, 189, 248, 0.08);
   }
+}
+
+/* Token 计数提示 */
+.message-token-hint {
+  padding: 2px 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: right;
+  opacity: 0.7;
+}
+
+.input-token-hint {
+  padding: 2px 10px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: left;
+  opacity: 0.7;
 }
 </style>

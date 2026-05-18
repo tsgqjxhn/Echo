@@ -6,7 +6,8 @@
 import { createLLMAPI } from './llm-api'
 import type { ICharacter, DepthPrompt } from '@/types/character'
 import type { APIConfig } from '@/types/api-config'
-import { getCategoryGroups, getFirstSubCategory } from '@/data/taxonomy'
+import { apiConfigService } from './api-config'
+import { getFirstSubCategory, getVisibleCategoryGroups } from '@/data/taxonomy'
 import { inferCharacterMode } from '@/data/taxonomy'
 import { generateUUID } from '@/utils/uuid'
 import { getPromptById } from './system-prompt'
@@ -51,7 +52,7 @@ function buildSystemPrompt(opts: AIGenerateOptions): string {
   // 尝试使用系统提示词中的 AI 角色卡生成器模板
   const aiPrompt = getPromptById('char-creation-ai-card')
   if (aiPrompt && aiPrompt.enabled) {
-    const template = aiPrompt.useAdvanced ? aiPrompt.advancedPrompt : aiPrompt.basicPrompt
+    const template = aiPrompt.basicPrompt
     return template
       .replace(/\{\{user\.inputDescription\}\}/g, opts.description)
       .replace(/\{\{user\.preferredCategory\}\}/g, opts.styleTags.join('、') || '未指定')
@@ -85,7 +86,7 @@ function buildSystemPrompt(opts: AIGenerateOptions): string {
   "exampleDialogue": "示例对话（可选）",
   "alternateGreetings": ["备选开场白1", "备选开场白2"],
   "tags": ["标签1", "标签2"],
-  "category": "分类（自由对话/剧情/剧情&游戏/多人/工具）",
+  "category": "分类（自由对话/剧情/剧情&游戏/工具）",
   "subCategory": "子分类",
   "depthPrompt": {
     "depth": 4,
@@ -103,7 +104,24 @@ function buildSystemPrompt(opts: AIGenerateOptions): string {
 }
 
 function normalizeCategory(cat: string): { category: string; subCategory: string } {
-  const groups = getCategoryGroups()
+  const freeChatMergedLabels = [
+    '自由对话',
+    '温柔陪伴',
+    '恋爱暧昧',
+    '挚友日常',
+    '角色扮演',
+    '树洞倾诉',
+    '同人衍生',
+    '脑洞',
+    '养成',
+    '创意',
+    '知心',
+  ]
+  if (freeChatMergedLabels.some(label => cat.includes(label))) {
+    return { category: '自由对话', subCategory: '' }
+  }
+
+  const groups = getVisibleCategoryGroups()
   const found = groups.find(g => g.label === cat || cat.includes(g.label))
   if (found) {
     return { category: found.label, subCategory: found.items[0] || getFirstSubCategory(found.label) }
@@ -137,7 +155,11 @@ export async function generateCharacterByAI(
   opts: AIGenerateOptions,
   apiConfig?: APIConfig,
 ): Promise<Partial<ICharacter>> {
-  const llm = apiConfig ? createLLMAPI(apiConfig) : createLLMAPI()
+  const config = apiConfig || await apiConfigService.getDefaultConfig('text')
+  if (!config) {
+    throw new Error('请先在设置中配置大模型 API')
+  }
+  const llm = createLLMAPI(config)
 
   const systemPrompt = buildSystemPrompt(opts)
   const context = {
@@ -201,7 +223,11 @@ export async function generateCharacterByAI(
  */
 export async function generateCharacterAvatar(name: string, _category?: string): Promise<string> {
   try {
-    const llm = createLLMAPI()
+    const config = await apiConfigService.getDefaultConfig('text')
+    if (!config) {
+      throw new Error('请先在设置中配置大模型 API')
+    }
+    const llm = createLLMAPI(config)
     const context = {
       systemPrompt: '你是一个SVG设计师。只输出SVG代码，不输出任何解释文字。',
       messages: [{ role: 'user' as const, content: `为角色"${name}"生成一个圆形简约风格头像SVG，直径128px，配色和谐，只返回<svg>...</svg>代码。` }],

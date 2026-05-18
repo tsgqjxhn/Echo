@@ -217,7 +217,7 @@ function handlePress(tab: TabItem) {
   justify-content: center;
   width: 42px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 5px;
   transition:
     background 0.2s ease,
     box-shadow 0.2s ease,

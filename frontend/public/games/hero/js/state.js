@@ -152,6 +152,7 @@ function resetGameAndReload() {
 
 // Resource helpers
 function canAfford(costs) {
+  if (!gameState || !gameState.player) return false;
   const p = gameState.player;
   if (costs.wood && p.wood < costs.wood) return false;
   if (costs.food && p.food < costs.food) return false;
@@ -162,6 +163,7 @@ function canAfford(costs) {
 }
 
 function spendResources(costs) {
+  if (!gameState || !gameState.player) return false;
   const p = gameState.player;
   if (!canAfford(costs)) return false;
   if (costs.wood)  p.wood  -= costs.wood;
@@ -175,6 +177,7 @@ function spendResources(costs) {
 
 function addResources(rewards, skipMult) {
   if (!rewards) return;
+  if (!gameState || !gameState.player) return;
   const p = gameState.player;
   const gemsBuff = getCityBuffValue('gemsMult');
   const resDouble = getCityBuffValue('resDouble').double;
@@ -190,6 +193,7 @@ function addResources(rewards, skipMult) {
 }
 
 function ensureInventory() {
+  if (!gameState) return {};
   if (!gameState.inventory) gameState.inventory = {};
   if (!gameState.inventory.battleItems) gameState.inventory.battleItems = {};
   return gameState.inventory.battleItems;
@@ -219,6 +223,7 @@ function consumeInventoryItem(itemId, qty = 1) {
 const SALARY_CLAIM_COOLDOWN = 24 * 60 * 60 * 1000;
 
 function getSalaryStatus() {
+  if (!gameState) return { completed: 0, rank: { level: 0, name: '无', title: '' }, nextRank: null, canClaim: false, upgraded: false, remainingMs: 0 };
   if (!gameState.salary) gameState.salary = { lastClaimAt: 0, lastClaimRank: 0 };
   const completed = getCompletedMajorCities();
   const rank = getNobilityRank(completed);
@@ -242,6 +247,7 @@ function getSalaryStatus() {
 
 function getSalaryRewardWithBonuses(rank) {
   const reward = {};
+  if (!gameState?.player?.civilization) return reward;
   const civBonus = CIVILIZATIONS[gameState.player.civilization]?.bonus || {};
   for (const [key, value] of Object.entries(rank.salary || {})) {
     if (!value) {
@@ -261,6 +267,7 @@ function getSalaryRewardWithBonuses(rank) {
 }
 
 function claimSalary() {
+  if (!gameState) return { ok: false, msg: '游戏未初始化' };
   const status = getSalaryStatus();
   if (status.rank.level <= 0) return { ok: false, msg: '先通关一座主城才能领取俸禄' };
   if (!status.canClaim) return { ok: false, msg: '俸禄尚未刷新' };
@@ -335,6 +342,7 @@ function refillEnergy() {
 }
 
 function consumeEnergy(amount) {
+  if (!gameState || !gameState.player) return false;
   const p = gameState.player;
   if (p.energy < amount) return false;
   // If this drop takes us below max for the first time, start the regen clock.
@@ -348,6 +356,7 @@ function consumeEnergy(amount) {
 
 // Offline resource production
 function calcOfflineProduction() {
+  if (!gameState || !gameState.player) return null;
   const p = gameState.player;
   const now = Date.now();
   const elapsed = (now - p.lastLogin) / 1000; // seconds
@@ -379,6 +388,7 @@ function calcOfflineProduction() {
 
 // Process build queue on load
 function processBuildQueue() {
+  if (!gameState) return [];
   const queue = gameState.buildQueue || [];
   const now = Date.now();
   const completed = [];
@@ -407,6 +417,7 @@ function processBuildQueue() {
 
 // Daily tasks reset
 function checkDailyReset() {
+  if (!gameState) return;
   const today = new Date().toDateString();
   if (gameState.dailyTasks.date !== today) {
     gameState.dailyTasks = { date: today, progress: {} };

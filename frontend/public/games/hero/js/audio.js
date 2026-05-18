@@ -296,6 +296,15 @@ const HeroAudio = {
     this._stopBGM();
   },
 
+  /** Close AudioContext and release all audio resources. */
+  destroy() {
+    this._stopBGM();
+    if (this.ctx) {
+      try { this.ctx.close(); } catch (_) {}
+      this.ctx = null;
+    }
+  },
+
   playCityBGM() {
     if (!this.bgmEnabled) return;
     this._stopBGM();

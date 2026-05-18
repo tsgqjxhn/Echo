@@ -1,5 +1,5 @@
 <template>
-  <article class="message-bubble" :class="{ user: isUser, narrator: messageType === 'narrator', action: messageType === 'action' }">
+  <article class="message-bubble" :class="{ user: isUser, narrator: messageType === 'narrator', action: messageType === 'action', 'media-bg': hasMediaBg }">
     <img
       v-if="!isUser && messageType !== 'narrator'"
       :src="avatarUrl"
@@ -114,6 +114,8 @@ const props = defineProps<{
   assistantAvatar?: string
   senderName?: string
   messageType?: 'normal' | 'narrator' | 'action'
+  hasMediaBg?: boolean
+  isGroupChat?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -169,7 +171,10 @@ const renderedContent = computed(() => {
     .replace(/\s*\n+\s*(（)/g, '$1')
     .replace(/(）)\s*\n+\s*/g, '$1')
   const escaped = escapeHTML(compacted)
-  const highlighted = escaped.replace(/（[^（）\n]+）/g, match => `<span class="action-text">${match}</span>`)
+  // 群聊消息不高亮括号内的动作/神态文本
+  const highlighted = props.isGroupChat
+    ? escaped
+    : escaped.replace(/（[^（）\n]+）/g, match => `<span class="action-text">${match}</span>`)
 
   return highlighted.replace(/\n/g, '<br>')
 })
@@ -198,6 +203,11 @@ const voiceText = computed(() => voiceData.value?.text || '语音消息')
 const voiceDuration = computed(() => voiceData.value?.duration)
 const imagePath = computed(() => imageData.value?.imagePath || props.message.content)
 const imageDescription = computed(() => imageData.value?.description || '')
+
+function compactToastMessage(message: string, fallback: string): string {
+  const text = message.trim() || fallback
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text
+}
 
 function onPointerDown() {
   longPressTimer = setTimeout(openMenu, 500)
@@ -305,8 +315,9 @@ async function toggleTTS() {
   ttsService.value.onEnd(() => {
     isTTSSpeaking.value = false
   })
-  ttsService.value.onError(() => {
+  ttsService.value.onError((error) => {
     isTTSSpeaking.value = false
+    uni.showToast({ title: compactToastMessage(error.message, '朗读失败'), icon: 'none' })
   })
 
   isTTSSpeaking.value = true
@@ -417,7 +428,7 @@ onUnmounted(() => {
 .bubble-card {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 4px;
+  border-radius: 2px;
   background: rgba(220, 230, 240, 0.20);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -436,6 +447,31 @@ onUnmounted(() => {
 
 .bubble-card.is-action {
   background: rgba(120, 113, 108, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 当有全局媒体背景时，气泡改为半透明暗色 + 更强毛玻璃 */
+.message-bubble.media-bg .bubble-card {
+  background: rgba(0, 0, 0, 0.50);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.message-bubble.media-bg.user .bubble-card {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.message-bubble.media-bg .bubble-card.is-narrator {
+  background: rgba(0, 0, 0, 0.30);
+  border: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.message-bubble.media-bg .bubble-card.is-action {
+  background: rgba(0, 0, 0, 0.35);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -516,7 +552,7 @@ onUnmounted(() => {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.12);
   font-size: 11px;
 }
@@ -542,7 +578,7 @@ onUnmounted(() => {
   width: min(320px, 100%);
   max-height: 360px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   object-fit: cover;
 }
 
@@ -582,7 +618,7 @@ onUnmounted(() => {
   gap: 4px;
   background: rgba(18, 24, 32, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 22px;
+  border-radius: 11px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
@@ -595,7 +631,7 @@ onUnmounted(() => {
   gap: 7px;
   padding: 14px 8px 12px;
   border: none;
-  border-radius: 16px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;

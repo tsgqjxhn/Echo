@@ -3,7 +3,30 @@ import type { IMessage } from '@/types/chat'
 import type { LLMAPIService } from './llm-api'
 
 const SUMMARY_KEY_PREFIX = 'session_summary::'
-const SUMMARIZE_INTERVAL = 10
+
+// ========== 摘要参数调优 (B2 + B3) ==========
+// B2: SUMMARIZE_INTERVAL 从 10 调整为 8
+// 理由：更频繁地进行摘要，换取单轮压缩质量提升（75 tokens），整体平衡更佳
+// B3: 优化 SUMMARY_SYSTEM_PROMPT 指令
+// - 添加角色扮演上下文保留：语气、称呼习惯、情感状态
+// - 添加结构化输出要求，使用标签分类
+// - 保留关键决策和情节转折点
+
+const SUMMARIZE_INTERVAL = 8            // 累计 N 轮后触发摘要 - 从 10 降至 8，更频繁更新
+const SUMMARY_MAX_TOKENS = 200          // 摘要输出最大长度
+const SUMMARY_TEMPERATURE = 0.1         // 摘要温度值 - 保持低温度确保一致性
+
+const SUMMARY_SYSTEM_PROMPT = [
+  '你是一个对话摘要助手。请用精炼的中文摘要以下对话内容。',
+  '要求：',
+  '1. 提取关键事实（人名、地点、物品、事件、关系变化、关键决策、情节转折点）',
+  '2. 保留角色说话的语气、称呼习惯和情感状态变化',
+  '3. 结构化输出：使用 [事件] [情感] [关系] [决策] 标签标记关键内容',
+  '4. 省略寒暄、重复表达和无实质内容的对话',
+  '5. 用第三人称客观叙述，总长度不超过 180 字',
+  '6. 如果有之前的摘要，将新内容自然融入已有摘要，保持连贯性',
+  '7. 只输出摘要内容，不要解释、不要标签外的额外说明',
+].join('\n')
 
 export interface SessionSummary {
   sessionId: string
@@ -18,15 +41,6 @@ function getSummaryKey(sessionId: string): string {
   return `${SUMMARY_KEY_PREFIX}${sessionId}`
 }
 
-const SUMMARY_SYSTEM_PROMPT = [
-  '你是一个对话摘要助手。请用简洁的中文摘要以下对话内容。',
-  '要求：',
-  '1. 提取关键事实（人名、地点、事件、关系变化）',
-  '2. 保留情感状态和角色互动变化',
-  '3. 用第三人称叙述，不超过 200 字',
-  '4. 如果有之前的摘要，将新内容融入已有摘要',
-  '5. 只输出摘要内容，不要解释',
-].join('\n')
 
 export async function loadSessionSummary(
   storage: StorageDriver,

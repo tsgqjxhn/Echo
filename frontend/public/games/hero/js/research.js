@@ -4,6 +4,7 @@
 
 const ResearchManager = {
   ensureState() {
+    if (!gameState) { gameState = {}; }
     if (!gameState.researchLevels || Array.isArray(gameState.researchLevels)) {
       gameState.researchLevels = {};
     }
@@ -60,6 +61,7 @@ const ResearchManager = {
   },
 
   calcPower() {
+    if (!gameState) return 0;
     let power = 0;
     power += getCompletedMajorCities() * 500;
     for (const h of gameState.heroes || []) power += h.level * 50 + h.stars * 100;

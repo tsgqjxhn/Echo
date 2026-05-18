@@ -32,6 +32,18 @@ function inferImageMimeType(path: string): string {
 
 function isChatStreamEnabled(): boolean {
   try {
+    const settingsRaw = localStorage.getItem('xiang_user_settings')
+    if (settingsRaw) {
+      const settings = JSON.parse(settingsRaw) as Record<string, unknown>
+      const v2Raw = settings.echo_chat_defaults_v2
+      const v2 = typeof v2Raw === 'string'
+        ? JSON.parse(v2Raw) as { streamOutput?: boolean }
+        : v2Raw as { streamOutput?: boolean } | undefined
+      if (v2 && typeof v2.streamOutput === 'boolean') {
+        return v2.streamOutput
+      }
+    }
+
     const raw = localStorage.getItem('echo_chat_defaults')
     if (!raw) return true
     const parsed = JSON.parse(raw) as { streamEnabled?: boolean }
@@ -153,6 +165,13 @@ export class LLMAPIService {
         messages: await this.buildMessages(context),
         systemPrompt: context.systemPrompt.trim(),
         stream,
+        temperature: context.temperature,
+        maxTokens: context.maxTokens,
+        topP: context.topP,
+        topK: context.topK,
+        presencePenalty: context.presencePenalty,
+        frequencyPenalty: context.frequencyPenalty,
+        repetitionPenalty: context.repetitionPenalty,
       }),
     }
   }
@@ -239,6 +258,12 @@ export class LLMAPIService {
     }
   }
 
+  private async requestChatText(context: ChatContext, signal?: AbortSignal): Promise<string> {
+    const data = await this.requestChatPayload(context, signal)
+    const result = this.adapter.parseChatResponse(data)
+    return result.content
+  }
+
   private async readStreamChunk(
     reader: ReadableStreamDefaultReader<Uint8Array>,
     onTimeout: () => void
@@ -273,7 +298,7 @@ export class LLMAPIService {
 
     const stream = (async function* (): AsyncGenerator<ChatChunk, void, unknown> {
       if (!isChatStreamEnabled() || !service.adapter.capabilities.chatStream) {
-        const content = await service.chat(context)
+        const content = await service['requestChatText'](context, controller.signal)
         if (content) yield { content, isFirst: true }
         return
       }
@@ -383,10 +408,221 @@ export class LLMAPIService {
     for await (const chunk of abortable.stream) yield chunk
   }
 
+  /**
+   * 将单次聊天请求拆分为 N 个子问题并发处理，按顺序组合结果流式返回。
+   *
+   * 拆分策略（基于最后一条用户消息）：
+   * 1. 优先按段落（\n\n）拆分
+   * 2. 段落不足时按句子拆分
+   * 3. 仍不足则不拆分，直接返回单请求
+   *
+   * 并发执行 N 个流式请求，按子问题索引顺序依次 yield 各子请求的结果。
+   * 前面的子请求未 yield 完之前，后面的子请求结果缓冲等待。
+   */
+  chatStreamConcurrent(context: ChatContext, concurrentCount: number): AbortableChatStream {
+    // 限制最大并发数为 3，避免过度消耗 API 额度和触发速率限制
+    const clampedCount = Math.max(1, Math.min(3, concurrentCount))
+    if (clampedCount <= 1) {
+      return this.chatStreamAbortable(context)
+    }
+
+    const subContexts = this.splitContext(context, clampedCount)
+    if (subContexts.length <= 1) {
+      return this.chatStreamAbortable(context)
+    }
+
+    const masterController = new AbortController()
+    const subControllers: AbortController[] = []
+    const subStreams: AbortableChatStream[] = []
+
+    for (const subCtx of subContexts) {
+      const ctrl = new AbortController()
+      subControllers.push(ctrl)
+      subStreams.push(this.chatStreamAbortable(subCtx))
+    }
+
+    // 外层 signal 取消时级联取消所有子请求
+    if (masterController.signal.aborted) {
+      subControllers.forEach(c => c.abort())
+    }
+    masterController.signal.addEventListener('abort', () => {
+      subControllers.forEach(c => c.abort())
+    })
+
+    const buffers: string[] = subContexts.map(() => '')
+    const doneFlags: boolean[] = subContexts.map(() => false)
+    const errorFlags: (Error | null)[] = subContexts.map(() => null)
+    let yieldIndex = 0
+    let masterFinished = false
+
+    const stream = (async function* (): AsyncGenerator<ChatChunk, void, unknown> {
+      // 启动所有子请求的并发消费（后台缓冲）
+      const consumePromises = subStreams.map(async (abortable, idx) => {
+        try {
+          for await (const chunk of abortable.stream) {
+            if (masterController.signal.aborted) return
+            if (chunk.content) {
+              buffers[idx] += chunk.content
+            }
+          }
+          doneFlags[idx] = true
+        } catch (err) {
+          errorFlags[idx] = err instanceof Error ? err : new Error(String(err))
+          doneFlags[idx] = true
+        }
+      })
+
+      // 主循环：按索引顺序 yield 各子请求结果
+      while (yieldIndex < subContexts.length) {
+        if (masterController.signal.aborted) return
+
+        // 等待当前 yieldIndex 的子请求至少有一些内容或已完成
+        while (
+          buffers[yieldIndex].length === 0 &&
+          !doneFlags[yieldIndex] &&
+          !errorFlags[yieldIndex]
+        ) {
+          if (masterController.signal.aborted) return
+          await new Promise(r => setTimeout(r, 30))
+        }
+
+        if (masterController.signal.aborted) return
+
+        // 如果当前子请求出错，直接向上抛出（中断整个流程）
+        if (errorFlags[yieldIndex]) {
+          throw errorFlags[yieldIndex]
+        }
+
+        let lastYieldedLength = 0
+
+        // 流式 yield 当前子请求的新增内容
+        while (yieldIndex < subContexts.length) {
+          if (masterController.signal.aborted) return
+
+          const buf = buffers[yieldIndex]
+          if (buf.length > lastYieldedLength) {
+            const delta = buf.slice(lastYieldedLength)
+            lastYieldedLength = buf.length
+            yield { content: delta, isFirst: lastYieldedLength === delta.length && yieldIndex === 0 }
+          }
+
+          if (doneFlags[yieldIndex]) {
+            // 当前子请求已完成，推进到下一个
+            yieldIndex++
+            lastYieldedLength = 0
+            // 如果下一个已经有内容或已完成，继续内层循环
+            if (
+              yieldIndex < subContexts.length &&
+              (buffers[yieldIndex].length > 0 || doneFlags[yieldIndex] || errorFlags[yieldIndex])
+            ) {
+              if (errorFlags[yieldIndex]) {
+                throw errorFlags[yieldIndex]
+              }
+              continue
+            }
+          }
+
+          break
+        }
+
+        // 如果当前（新的 yieldIndex）还没数据且未完成，等待一下
+        if (
+          yieldIndex < subContexts.length &&
+          buffers[yieldIndex].length === 0 &&
+          !doneFlags[yieldIndex] &&
+          !errorFlags[yieldIndex]
+        ) {
+          await new Promise(r => setTimeout(r, 30))
+        }
+      }
+
+      masterFinished = true
+      // 等待所有后台消费完成（清理）
+      await Promise.allSettled(consumePromises)
+    })()
+
+    const abort = () => {
+      if (!masterController.signal.aborted) {
+        masterController.abort()
+      }
+      subControllers.forEach(c => {
+        if (!c.signal.aborted) c.abort()
+      })
+      subStreams.forEach(s => s.abort())
+    }
+
+    return { stream, abort, signal: masterController.signal }
+  }
+
+  /**
+   * 将 ChatContext 拆分为 N 个子 Context。
+   * 仅拆分最后一条用户消息的文本内容，其余消息复制到每个子 Context。
+   */
+  private splitContext(context: ChatContext, count: number): ChatContext[] {
+    if (count <= 1) return [context]
+
+    const lastUserIndex = [...context.messages].reverse().findIndex(m => m.role === 'user')
+    if (lastUserIndex < 0) return [context]
+    const actualIndex = context.messages.length - 1 - lastUserIndex
+    const lastMsg = context.messages[actualIndex]
+
+    const content = typeof lastMsg.content === 'string' ? lastMsg.content : ''
+    if (!content.trim()) return [context]
+
+    // 优先按段落拆分
+    let segments = this.splitByParagraphs(content, count)
+    // 段落不足则按句子拆分
+    if (segments.length < count) {
+      segments = this.splitBySentences(content, count)
+    }
+    // 仍不足则不拆分
+    if (segments.length < count) {
+      return [context]
+    }
+
+    return segments.map(seg => ({
+      ...context,
+      messages: context.messages.map((m, idx) =>
+        idx === actualIndex ? { ...m, content: seg } : { ...m }
+      ),
+    }))
+  }
+
+  private splitByParagraphs(text: string, count: number): string[] {
+    const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
+    if (paragraphs.length < count) return []
+    return this.groupIntoN(paragraphs, count)
+  }
+
+  private splitBySentences(text: string, count: number): string[] {
+    // 匹配中文和英文句子
+    const sentences = text.match(/[^。！？.!?]+[。！？.!?]*/g) || [text]
+    const trimmed = sentences.map(s => s.trim()).filter(Boolean)
+    if (trimmed.length < count) return []
+    return this.groupIntoN(trimmed, count)
+  }
+
+  private groupIntoN(items: string[], count: number): string[] {
+    const result: string[] = []
+    const base = Math.floor(items.length / count)
+    const rem = items.length % count
+    let offset = 0
+    for (let i = 0; i < count; i++) {
+      const size = base + (i < rem ? 1 : 0)
+      if (size === 0) continue
+      result.push(items.slice(offset, offset + size).join(''))
+      offset += size
+    }
+    return result
+  }
+
   async chat(context: ChatContext): Promise<string> {
-    const data = await this.requestChatPayload(context)
-    const result = this.adapter.parseChatResponse(data)
-    return result.content
+    const abortable = this.chatStreamAbortable(context)
+    let content = ''
+    for await (const chunk of abortable.stream) {
+      if (chunk.content) content += chunk.content
+    }
+    return content
   }
 
   async testConnection(): Promise<TestResult> {

@@ -93,7 +93,6 @@ export interface TemplateVariableContext {
   'summary'?: string
   'lorebook'?: string
   'user.name'?: string
-  'user.corePrompt'?: string
   'content_rules'?: string
   [key: string]: string | undefined
 }

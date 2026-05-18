@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
 .restart-btn {
   padding: 6px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   font: inherit;
@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
 }
 
 .canvas {
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   max-width: 100%;
 }
@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
   width: 52px;
   height: 52px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   display: flex;

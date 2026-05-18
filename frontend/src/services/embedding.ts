@@ -3,7 +3,14 @@
  * 支持两种模式:
  * 1. API embedding (OpenAI / DashScope 兼容接口)
  * 2. 本地 hash-based fallback (无需网络, 精度较低但可用)
+ *
+ * 性能优化:
+ * - 本地 embedding 计算已移至 Web Worker 线程
+ * - 使用 tokenizerWorker.localEmbed() 避免阻塞主线程
+ * - 保留同步版本作为回退方案
  */
+
+import { tokenizerWorker } from './token-counter'
 
 const VECTOR_DIMENSION = 128
 
@@ -85,10 +92,12 @@ function localEmbed(text: string): number[] {
 export class LocalHashEmbeddingProvider implements EmbeddingProvider {
   name = 'local-hash'
   async embed(text: string): Promise<number[]> {
-    return localEmbed(text)
+    // 使用 Worker 异步计算，避免阻塞主线程
+    return tokenizerWorker.localEmbed(text)
   }
   async embedBatch(texts: string[]): Promise<number[][]> {
-    return texts.map(t => localEmbed(t))
+    // 批量计算减少 Worker 消息往返
+    return tokenizerWorker.batchLocalEmbed(texts)
   }
 }
 

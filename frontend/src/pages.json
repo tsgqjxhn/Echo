@@ -26,6 +26,31 @@
       }
     },
     {
+      "path": "pages/character/create",
+      "style": {
+        "navigationBarTitleText": "创建角色",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/character/preview",
+      "style": {
+        "navigationBarTitleText": "预览对话",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/dialogue/feed",
+      "style": {
+        "navigationBarTitleText": "回声",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
       "path": "pages/chat/chat",
       "style": {
         "navigationBarTitleText": "聊天",
@@ -51,9 +76,27 @@
       }
     },
     {
+      "path": "pages/game/generate",
+      "style": {
+        "navigationBarTitleText": "生成游戏",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
       "path": "pages/game/mini/escape",
       "style": {
         "navigationBarTitleText": "逃跑游戏",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/game/play",
+      "style": {
+        "navigationBarTitleText": "游戏",
         "navigationBarBackgroundColor": "#0f1113",
         "navigationBarTextStyle": "white",
         "disableScroll": true
@@ -110,7 +153,7 @@
     {
       "path": "pages/settings/api-config",
       "style": {
-        "navigationBarTitleText": "API 配置",
+        "navigationBarTitleText": "大模型配置",
         "navigationBarBackgroundColor": "#0f1113",
         "navigationBarTextStyle": "white"
       }
@@ -124,9 +167,33 @@
       }
     },
     {
-      "path": "pages/settings/voice",
+      "path": "pages/settings/chat-defaults",
       "style": {
-        "navigationBarTitleText": "语音设置",
+        "navigationBarTitleText": "聊天默认设置",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/storage",
+      "style": {
+        "navigationBarTitleText": "存储管理",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/network",
+      "style": {
+        "navigationBarTitleText": "网络与连接",
+        "navigationBarBackgroundColor": "#0f1113",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/settings/about",
+      "style": {
+        "navigationBarTitleText": "关于与帮助",
         "navigationBarBackgroundColor": "#0f1113",
         "navigationBarTextStyle": "white"
       }
@@ -170,13 +237,13 @@
       }
     ]
   },
-	"condition" : { //模式配置，仅开发期间生效
-		"current": 0, //当前激活的模式(list 的索引项)
+	"condition" : {
+		"current": 0,
 		"list": [
 			{
-				"name": "", //模式名称
-				"path": "", //启动页面，必选
-				"query": "" //启动参数，在页面的onLoad函数里面得到
+				"name": "",
+				"path": "",
+				"query": ""
 			}
 		]
 	}

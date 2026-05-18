@@ -193,7 +193,7 @@ function buildSystemPrompt(char: ICharacter): string {
     for (const prompt of activePrompts) {
       const pos = prompt.injectionPosition
       if (pos === 'system-top' || pos === 'system-middle' || pos === 'system-bottom') {
-        const text = prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+        const text = prompt.basicPrompt
         const resolved = text
           .replace(/\{\{char\.name\}\}/g, char.name || '')
           .replace(/\{\{char\.desc\}\}/g, char.description || '')
@@ -449,7 +449,7 @@ async function sendMessage() {
 .preview-bubble {
   max-width: min(72%, 520px);
   padding: 10px 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
@@ -512,7 +512,7 @@ async function sendMessage() {
   max-height: 120px;
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 20px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   font: inherit;

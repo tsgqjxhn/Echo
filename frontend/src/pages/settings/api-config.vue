@@ -13,8 +13,7 @@
           />
         </svg>
       </button>
-      <h1 class="page-title">配置全局大模型</h1>
-      <span class="header-placeholder" aria-hidden="true"></span>
+      <h1 class="page-title">大模型配置</h1>
     </header>
 
     <div class="type-tabs">
@@ -38,6 +37,19 @@
         class="type-tab"
         :class="{ active: voiceSubType === sub.value }"
         @click="switchVoiceSub(sub.value)"
+      >
+        {{ sub.label }}
+      </button>
+    </div>
+
+    <div v-if="activeType === 'image'" class="type-tabs image-sub-tabs">
+      <button
+        v-for="sub in imageSubTabs"
+        :key="sub.value"
+        type="button"
+        class="type-tab"
+        :class="{ active: imageSubType === sub.value }"
+        @click="switchImageSub(sub.value)"
       >
         {{ sub.label }}
       </button>
@@ -70,46 +82,24 @@
             </option>
           </select>
         </label>
-        <template v-if="!isLocalProvider(form.provider)">
-          <label class="field">
-            <span>Base URL</span>
-            <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
-          </label>
-          <label class="field">
-            <span>API Key</span>
-            <input
-              v-model="form.apiKey"
-              :type="showKey ? 'text' : 'password'"
-              :placeholder="selectedConfigId ? '留空保留原密钥' : '请输入 API Key'"
-            />
-            <button type="button" class="key-toggle" @click="showKey = !showKey">
-              {{ showKey ? '隐藏' : '显示' }}
-            </button>
-          </label>
-        </template>
-        <div v-else class="local-info">
-          <div class="local-info-item">
-            <span class="local-info-label">引擎</span>
-            <span class="local-info-value">{{ localEngineLabel }}</span>
-          </div>
-          <div class="local-info-item">
-            <span class="local-info-label">费用</span>
-            <span class="local-info-value">免费</span>
-          </div>
-          <div class="local-info-item">
-            <span class="local-info-label">网络</span>
-            <span class="local-info-value">{{ localNetworkLabel }}</span>
-          </div>
-          <p class="hint">{{ localEngineHint }}</p>
-          <button
-            type="button"
-            class="default-btn"
-            :disabled="!selectedConfigId"
-            @click="setAsDefault"
-          >
-            {{ isCurrentDefault ? '当前默认' : '设为此类型默认配置' }}
+        <label class="field">
+          <span>Base URL</span>
+          <input v-model="form.baseURL" type="text" :placeholder="baseURLPlaceholder" />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input
+            :value="apiKeyInputValue"
+            :type="showKey ? 'text' : 'password'"
+            :placeholder="apiKeyPlaceholder"
+            @input="onApiKeyInput"
+            @focus="apiKeyFocused = true"
+            @blur="apiKeyFocused = false"
+          />
+          <button type="button" class="key-toggle" @click="showKey = !showKey">
+            {{ showKey ? '隐藏' : '显示' }}
           </button>
-        </div>
+        </label>
         <p v-if="capabilityWarning" class="hint warning">{{ capabilityWarning }}</p>
       </div>
 
@@ -128,12 +118,27 @@
       </div>
     </section>
 
-    <section v-if="!isLocalProvider(form.provider)" ref="modelSectionRef" class="model-section card">
+    <section ref="modelSectionRef" class="model-section card">
       <div class="section-head">
         <span class="section-label">模型</span>
-        <button type="button" class="connect-btn" :disabled="connecting || !canConnect" @click="connectModels">
-          {{ connecting ? '连接中…' : '连接' }}
-        </button>
+        <div class="model-actions">
+          <button
+            type="button"
+            class="status-check-btn"
+            :disabled="checkingStatus"
+            @click="checkAllStatus"
+          >
+            {{ checkingStatus ? '检测中…' : '服务商状态检测' }}
+          </button>
+          <button
+            type="button"
+            class="connect-btn"
+            :disabled="connecting || !canConnect"
+            @click="connectModels"
+          >
+            {{ connecting ? '连接中…' : '连接' }}
+          </button>
+        </div>
       </div>
 
       <select
@@ -190,6 +195,26 @@
       >
         设为此类型默认配置
       </button>
+    </section>
+
+    <!-- 连通性检测结果 -->
+    <section v-if="statusResults.length > 0" class="status-section card">
+      <div class="section-head">
+        <span class="section-label">连通性检测结果</span>
+        <button type="button" class="mini-btn" @click="statusResults = []">清除</button>
+      </div>
+      <div class="status-list">
+        <div
+          v-for="r in statusResults"
+          :key="r.configName + r.baseURL"
+          class="status-item"
+        >
+          <span class="status-name">{{ r.configName }}</span>
+          <span class="status-provider">{{ PROVIDER_DISPLAY_NAMES[r.provider as APIProvider] || r.provider }}</span>
+          <span class="status-latency">{{ r.latency }}ms</span>
+          <span class="status-badge" :class="r.status">{{ statusLabel(r.status) }}</span>
+        </div>
+      </div>
     </section>
 
     <!-- TTS 设置 -->
@@ -249,6 +274,7 @@
         </label>
       </article>
     </section>
+
   </div>
 </template>
 
@@ -256,9 +282,10 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { APIConfig, APIConfigType, APIProvider } from '@/types/api-config'
-import { PROVIDER_DISPLAY_NAMES, isLocalProvider } from '@/types/api-config'
-import { apiConfigService } from '@/services/api-config'
+import { PROVIDER_DISPLAY_NAMES } from '@/types/api-config'
+import { apiConfigService, type ProviderStatusResult } from '@/services/api-config'
 import { getAdapterOrDefault, adapters } from '@/services/providers/registry'
+import { providerRequiresAPIKey } from '@/services/provider-http'
 import { generateUUID } from '@/utils/uuid'
 import { uni } from '@/utils/uni-polyfill'
 import { TTSService, type TTSConfig } from '@/services/tts'
@@ -275,8 +302,7 @@ const router = useRouter()
 const typeTabs: { label: string; value: APIConfigType }[] = [
   { label: '文本', value: 'text' },
   { label: '语音', value: 'voice' },
-  { label: '图片识别', value: 'image-understanding' },
-  { label: '图片生成', value: 'image-gen' },
+  { label: '图片', value: 'image' },
   { label: '动图', value: 'video' }
 ]
 
@@ -285,9 +311,15 @@ const voiceSubTabs: { label: string; value: 'stt' | 'tts' }[] = [
   { label: 'TTS', value: 'tts' }
 ]
 
+const imageSubTabs: { label: string; value: 'image-understanding' | 'image-gen' }[] = [
+  { label: '图片识别', value: 'image-understanding' },
+  { label: '图片生成', value: 'image-gen' }
+]
+
 const allConfigs = ref<APIConfig[]>([])
 const activeType = ref<APIConfigType>('text')
 const voiceSubType = ref<'stt' | 'tts'>('stt')
+const imageSubType = ref<'image-understanding' | 'image-gen'>('image-understanding')
 const selectedConfigId = ref('')
 const availableModels = ref<string[]>([])
 const selectedModel = ref('')
@@ -300,21 +332,29 @@ const modelSectionRef = ref<HTMLElement | null>(null)
 
 const form = ref({ name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' as APIProvider })
 
-const isLocalType = computed(() => {
-  const t = effectiveConfigType.value
-  return t === 'stt' || t === 'tts'
+/* ---- API Key 脱敏显示 ---- */
+const apiKeyFocused = ref(false)
+const currentApiKey = ref('') // 当前配置的实际明文 key
+
+const apiKeyInputValue = computed(() => {
+  const key = currentApiKey.value
+  if (!key) return ''
+  if (showKey.value || apiKeyFocused.value) return key
+  if (key.length <= 8) return '********'
+  return key.slice(0, 4) + '...' + key.slice(-4)
 })
 
-const localEngineLabel = computed(() => {
-  if (voiceSubType.value === 'tts') return '系统语音合成 (TTS)'
-  return '系统语音识别'
-})
+function onApiKeyInput(e: Event) {
+  const val = (e.target as HTMLInputElement).value
+  form.value.apiKey = val
+  currentApiKey.value = val
+}
 
-const localNetworkLabel = computed(() => '离线可用')
-
-const localEngineHint = computed(() => {
-  if (voiceSubType.value === 'tts') return '使用设备内置语音引擎，无需 API Key。音色和语速可在下方调整。'
-  return '使用设备内置语音引擎，无需 API Key。识别参数可在下方调整。'
+/* ---- 图片模态合并：effectiveConfigType ---- */
+const effectiveConfigType = computed<APIConfigType>(() => {
+  if (activeType.value === 'voice') return voiceSubType.value
+  if (activeType.value === 'image') return imageSubType.value
+  return activeType.value
 })
 
 const providerOptions = computed(() => {
@@ -338,8 +378,6 @@ const providerOptions = computed(() => {
 })
 
 function modelDisplayName(model: string): string {
-  // Provider name already follows the "Provider/Brand" pattern (e.g. "OpenAI/ChatGPT").
-  // Avoid duplicating that prefix here so the model dropdown stays compact.
   return model
 }
 
@@ -356,7 +394,6 @@ const DEFAULT_URLS: Record<string, string> = {
   baidu: 'https://qianfan.baidubce.com/v2',
   bedrock: 'https://bedrock-runtime.us-east-1.amazonaws.com',
   azure: '',
-  ollama: 'http://localhost:11434/v1',
 }
 
 const baseURLPlaceholder = computed(() => {
@@ -383,26 +420,22 @@ const capabilityWarning = computed(() => {
   return warnings.join('；')
 })
 
-const effectiveConfigType = computed<APIConfigType>(() =>
-  activeType.value === 'voice' ? voiceSubType.value : activeType.value
-)
-
 const configsForType = computed(() =>
   allConfigs.value.filter(c => (c.configType || 'text') === effectiveConfigType.value)
 )
 
-const isCurrentDefault = computed(() =>
-  !!selectedConfigId.value
-  && configsForType.value.find(c => c.id === selectedConfigId.value)?.isDefault === true
-)
 
-const canConnect = computed(() => !!form.value.apiKey.trim() || !!selectedConfigId.value)
+const apiKeyRequired = computed(() => providerRequiresAPIKey(form.value.provider))
+const apiKeyPlaceholder = computed(() => {
+  return selectedConfigId.value ? '留空保留原密钥' : '请输入 API Key'
+})
+
+const canConnect = computed(() => !apiKeyRequired.value || !!form.value.apiKey.trim() || !!selectedConfigId.value)
 
 const sectionLabel = computed(() => {
   if (activeType.value === 'text') return '配置聊天文本补全模型'
   if (activeType.value === 'voice') return voiceSubType.value === 'stt' ? '配置语音转文本模型' : '配置文本转语音模型'
-  if (activeType.value === 'image-understanding') return '配置图片识别模型（Vision）'
-  if (activeType.value === 'image-gen') return '配置图片生成模型'
+  if (activeType.value === 'image') return imageSubType.value === 'image-understanding' ? '配置图片识别模型（Vision）' : '配置图片生成模型'
   return '配置动图/视频生成模型'
 })
 
@@ -432,15 +465,14 @@ function normalizeModelList(models: Array<string | undefined | null>): string[] 
 function switchType(type: APIConfigType) {
   activeType.value = type
   voiceSubType.value = 'stt'
+  imageSubType.value = 'image-understanding'
   selectedConfigId.value = ''
   availableModels.value = []
   selectedModel.value = ''
   modelList.value = []
   noModelsAfterConnect.value = false
+  statusResults.value = []
   clearForm()
-  if (type === 'voice') {
-    form.value.provider = 'local'
-  }
 }
 
 function switchVoiceSub(sub: 'stt' | 'tts') {
@@ -451,9 +483,16 @@ function switchVoiceSub(sub: 'stt' | 'tts') {
   modelList.value = []
   noModelsAfterConnect.value = false
   clearForm()
-  if (isLocalType.value) {
-    form.value.provider = 'local'
-  }
+}
+
+function switchImageSub(sub: 'image-understanding' | 'image-gen') {
+  imageSubType.value = sub
+  selectedConfigId.value = ''
+  availableModels.value = []
+  selectedModel.value = ''
+  modelList.value = []
+  noModelsAfterConnect.value = false
+  clearForm()
 }
 
 function ensureValidProvider() {
@@ -469,6 +508,8 @@ function ensureValidProvider() {
 function clearForm() {
   form.value = { name: '', baseURL: '', apiKey: '', provider: 'openai-compatible' }
   showKey.value = false
+  apiKeyFocused.value = false
+  currentApiKey.value = ''
   ensureValidProvider()
 }
 
@@ -501,6 +542,7 @@ function onConfigSelect() {
     form.value.baseURL = config.baseURL ?? ''
     form.value.apiKey = ''
     form.value.provider = config.provider || 'openai-compatible'
+    currentApiKey.value = config.apiKey || ''
     modelList.value = normalizeModelList([...(config.models || []), config.model])
     selectedModel.value = config.model || modelList.value[0] || ''
   } else {
@@ -537,13 +579,32 @@ function removeModel(model: string) {
   }
 }
 
+function chooseModelFromSheet(models: string[], title: string): Promise<string | null> {
+  return new Promise(resolve => {
+    if (models.length === 0) {
+      resolve(null)
+      return
+    }
+
+    uni.showActionSheet({
+      title,
+      itemList: models,
+      success: res => {
+        const picked = models[res.tapIndex]
+        resolve(picked || null)
+      },
+      fail: () => resolve(null)
+    })
+  })
+}
+
 async function saveConfig() {
   if (!form.value.name.trim()) {
     uni.showToast({ title: '请输入配置名称', icon: 'none' })
     return
   }
 
-  if (!isLocalProvider(form.value.provider) && !form.value.apiKey.trim() && !selectedConfigId.value) {
+  if (apiKeyRequired.value && !form.value.apiKey.trim() && !selectedConfigId.value) {
     uni.showToast({ title: '请输入 API Key', icon: 'none' })
     return
   }
@@ -578,6 +639,11 @@ async function saveConfig() {
     await apiConfigService.save(payload)
     selectedConfigId.value = payload.id
     await loadAll()
+    // 重新加载当前配置的 key（现在已加密存储，但 getAll 会自动解密）
+    const refreshed = allConfigs.value.find(c => c.id === payload.id)
+    if (refreshed) {
+      currentApiKey.value = refreshed.apiKey || ''
+    }
     uni.showToast({ title: '配置已保存', icon: 'success' })
   } catch (e) {
     uni.showToast({ title: (e as Error).message || '保存失败', icon: 'none' })
@@ -609,7 +675,7 @@ async function connectModels() {
   const existing = allConfigs.value.find(c => c.id === selectedConfigId.value)
   const apiKey = form.value.apiKey.trim() || existing?.apiKey || ''
 
-  if (!apiKey) {
+  if (providerRequiresAPIKey(form.value.provider || existing?.provider) && !apiKey) {
     uni.showToast({ title: '请先输入 API Key', icon: 'none' })
     return
   }
@@ -618,10 +684,12 @@ async function connectModels() {
   noModelsAfterConnect.value = false
   try {
     const baseURL = form.value.baseURL.trim() || existing?.baseURL
+    const provider = form.value.provider || existing?.provider || 'openai-compatible'
+    const configType = effectiveConfigType.value
     const draftConfig: APIConfig = {
       id: existing?.id ?? generateUUID(),
       name: form.value.name.trim() || existing?.name || 'Temp Config',
-      provider: form.value.provider || existing?.provider || 'openai-compatible',
+      provider,
       apiKey,
       baseURL,
       model: selectedModel.value.trim() || existing?.model || '',
@@ -630,31 +698,52 @@ async function connectModels() {
       transcriptionModel: existing?.transcriptionModel,
       isDefault: existing?.isDefault ?? false,
       source: existing?.source || 'storage',
-      configType: effectiveConfigType.value
+      configType
     }
 
-    const result = await apiConfigService.testConnection(draftConfig)
-    if (!result.success) {
-      throw new Error(result.message || '连接失败')
+    let resultMessage = '连接成功'
+    let connectionError: Error | null = null
+    try {
+      const result = await apiConfigService.testConnection(draftConfig)
+      if (!result.success) {
+        throw new Error(result.message || '连接失败')
+      }
+      resultMessage = result.message || resultMessage
+      selectedModel.value = selectedModel.value.trim() || result.model || ''
+    } catch (error) {
+      connectionError = error as Error
     }
-
-    selectedModel.value = selectedModel.value.trim() || result.model || ''
 
     let models: string[] = []
     try {
-      models = await apiConfigService.fetchModels(baseURL, apiKey, effectiveConfigType.value, form.value.provider || existing?.provider)
+      models = await apiConfigService.fetchModels(baseURL, apiKey, configType, provider)
     } catch {
       models = []
+    }
+
+    if (connectionError && models.length === 0) {
+      throw connectionError
     }
 
     availableModels.value = models
     if (models.length === 0) {
       noModelsAfterConnect.value = true
-    } else if (!selectedModel.value) {
-      selectedModel.value = models[0]
+    } else {
+      if (!selectedModel.value) {
+        selectedModel.value = models[0]
+      }
+      if (configType === 'stt') {
+        const picked = await chooseModelFromSheet(models, '选择 STT 转文字模型')
+        if (picked) {
+          selectedModel.value = picked
+        }
+      }
     }
 
-    uni.showToast({ title: result.message || '连接成功', icon: 'success' })
+    uni.showToast({
+      title: connectionError ? '已显示预设模型，请确认 Key' : resultMessage,
+      icon: connectionError ? 'none' : 'success'
+    })
     await nextTick()
     modelSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   } catch (e) {
@@ -666,19 +755,17 @@ async function connectModels() {
 
 async function setAsDefault() {
   if (!selectedConfigId.value) return
-  if (!isLocalProvider(form.value.provider) && !selectedModel.value) return
+  if (!selectedModel.value) return
 
   saving.value = true
   try {
-    const isLocal = isLocalProvider(form.value.provider)
-    // Update all configs of this type: clear isDefault
     for (const c of configsForType.value) {
       if (c.isDefault || c.id === selectedConfigId.value) {
         await apiConfigService.save({
           ...c,
           isDefault: c.id === selectedConfigId.value,
-          model: c.id === selectedConfigId.value && !isLocal ? selectedModel.value : c.model,
-          models: c.id === selectedConfigId.value && !isLocal
+          model: c.id === selectedConfigId.value ? selectedModel.value : c.model,
+          models: c.id === selectedConfigId.value
             ? normalizeModelList([...modelList.value, selectedModel.value])
             : c.models
         })
@@ -693,13 +780,50 @@ async function setAsDefault() {
   }
 }
 
-/* ---- Voice preferences (merged from voice.vue) ---- */
+/* ---- 服务商状态检测 ---- */
+const statusResults = ref<ProviderStatusResult[]>([])
+const checkingStatus = ref(false)
+
+async function checkAllStatus() {
+  const configs = configsForType.value
+  if (configs.length === 0) {
+    uni.showToast({ title: '当前类型下无已保存配置', icon: 'none' })
+    return
+  }
+  checkingStatus.value = true
+  try {
+    const results = await apiConfigService.checkProviderStatus(configs)
+    statusResults.value = results
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message || '检测失败', icon: 'none' })
+  } finally {
+    checkingStatus.value = false
+  }
+}
+
+function statusLabel(status: ProviderStatusResult['status']) {
+  switch (status) {
+    case 'success': return '可用'
+    case 'fail': return '失败'
+    case 'timeout': return '超时'
+  }
+}
+
+
+/* ---- Voice preferences ---- */
 const languageOptions = [
+  { value: 'auto', label: '自动检测' },
   { value: 'zh-CN', label: '简体中文' },
   { value: 'zh-TW', label: '繁体中文' },
   { value: 'en-US', label: 'English (US)' },
-  { value: 'ja-JP', label: '日本语' },
-  { value: 'ko-KR', label: '한국어' }
+  { value: 'en-GB', label: 'English (UK)' },
+  { value: 'ja-JP', label: '日本語' },
+  { value: 'ko-KR', label: '한국어' },
+  { value: 'fr-FR', label: 'Français' },
+  { value: 'de-DE', label: 'Deutsch' },
+  { value: 'es-ES', label: 'Español' },
+  { value: 'ru-RU', label: 'Русский' },
+  { value: 'it-IT', label: 'Italiano' },
 ]
 
 const qualityOptions = [
@@ -712,6 +836,11 @@ const ttsConfig = ref<TTSConfig>({ ...DEFAULT_TTS_CONFIG })
 const sttConfig = ref({ ...DEFAULT_STT_CONFIG })
 const isTesting = ref(false)
 const ttsService = ref<TTSService | null>(null)
+
+function compactToastMessage(message: string, fallback: string): string {
+  const text = message.trim() || fallback
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text
+}
 
 onUnmounted(() => {
   ttsService.value?.destroy()
@@ -741,12 +870,12 @@ async function testTTS() {
   ttsService.value?.destroy()
   ttsService.value = new TTSService(ttsConfig.value)
   ttsService.value.onEnd(() => { isTesting.value = false })
-  ttsService.value.onError(() => {
+  ttsService.value.onError((error) => {
     isTesting.value = false
-    uni.showToast({ title: '试听失败', icon: 'none' })
+    uni.showToast({ title: compactToastMessage(error.message, '试听失败'), icon: 'none' })
   })
   try {
-    await ttsService.value.speak('您好，这是语音设置的试听文本。')
+    await ttsService.value.speak('您好，这是文本转语音的试听文本。')
   } catch {
     isTesting.value = false
   }
@@ -800,17 +929,6 @@ $mint-light: #6ee7b7;
   overflow: hidden;
 }
 
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--top-bar-highlight);
-  pointer-events: none;
-}
-
 .page-title {
   min-width: 0;
   margin: 0;
@@ -821,22 +939,16 @@ $mint-light: #6ee7b7;
   text-align: center;
 }
 
-.header-placeholder {
-  display: block;
-  width: 48px;
-  height: 48px;
-}
-
 .back-btn {
   align-self: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   font: inherit;
@@ -862,12 +974,13 @@ $mint-light: #6ee7b7;
 .type-tabs {
   width: min(960px, calc(100% - 32px));
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 16px auto 0;
 }
 
-.voice-sub-tabs {
+.voice-sub-tabs,
+.image-sub-tabs {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 10px;
 }
@@ -875,7 +988,7 @@ $mint-light: #6ee7b7;
 .type-tab {
   min-height: 48px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(52, 211, 153, 0.06);
   color: var(--text-secondary);
   font: inherit;
@@ -901,7 +1014,7 @@ $mint-light: #6ee7b7;
   width: min(960px, calc(100% - 32px));
   margin: 16px auto 0;
   padding: 22px;
-  border-radius: 22px;
+  border-radius: 11px;
   border: 1px solid rgba(52, 211, 153, 0.12);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
   backdrop-filter: blur(20px);
@@ -926,7 +1039,7 @@ $mint-light: #6ee7b7;
   min-height: 32px;
   padding: 0 12px;
   border: 1px solid rgba(52, 211, 153, 0.18);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(52, 211, 153, 0.08);
   color: $mint-light;
   font: inherit;
@@ -938,11 +1051,17 @@ $mint-light: #6ee7b7;
   }
 }
 
+.model-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .connect-btn {
   min-height: 36px;
   padding: 0 18px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: linear-gradient(135deg, $sky-light, $sky, #0284c7);
   color: #fff;
   font: inherit;
@@ -963,12 +1082,36 @@ $mint-light: #6ee7b7;
   }
 }
 
+.status-check-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(125, 211, 252, 0.30);
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.10);
+  color: #7dd3fc;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base), opacity var(--transition-base);
+
+  &:hover:not(:disabled) {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(125, 211, 252, 0.50);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
 .field-select {
   width: 100%;
   height: 46px;
   padding: 0 14px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(52, 211, 153, 0.06);
   color: var(--text-primary);
   font: inherit;
@@ -1008,7 +1151,7 @@ $mint-light: #6ee7b7;
     height: 46px;
     padding: 0 14px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    border-radius: 7px;
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-primary);
     font: inherit;
@@ -1026,7 +1169,7 @@ $mint-light: #6ee7b7;
   bottom: 12px;
   padding: 2px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-tertiary);
   font: inherit;
@@ -1044,7 +1187,7 @@ $mint-light: #6ee7b7;
   flex: 1;
   min-height: 44px;
   border: none;
-  border-radius: 14px;
+  border-radius: 7px;
   background: linear-gradient(135deg, $sky-light, $sky, #0284c7);
   color: #fff;
   font: inherit;
@@ -1068,7 +1211,7 @@ $mint-light: #6ee7b7;
   min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgba(251, 113, 133, 0.24);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(251, 113, 133, 0.07);
   color: #fda4af;
   font: inherit;
@@ -1101,7 +1244,7 @@ $mint-light: #6ee7b7;
   height: 46px;
   padding: 0 14px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(52, 211, 153, 0.06);
   color: var(--text-primary);
   font: inherit;
@@ -1120,7 +1263,7 @@ $mint-light: #6ee7b7;
   min-height: 44px;
   margin-top: 14px;
   border: 1px solid rgba(52, 211, 153, 0.20);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(52, 211, 153, 0.08);
   color: $mint-light;
   font: inherit;
@@ -1144,7 +1287,7 @@ $mint-light: #6ee7b7;
   min-height: 42px;
   margin-top: 12px;
   border: 1px dashed rgba(125, 211, 252, 0.38);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(56, 189, 248, 0.08);
   color: #7dd3fc;
   font: inherit;
@@ -1176,7 +1319,7 @@ $mint-light: #6ee7b7;
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   cursor: pointer;
   transition: border-color var(--transition-base), background var(--transition-base);
@@ -1214,7 +1357,7 @@ $mint-light: #6ee7b7;
     min-height: 30px;
     padding: 0 10px;
     border: 1px solid rgba(125, 211, 252, 0.20);
-    border-radius: 10px;
+    border-radius: 5px;
     background: rgba(125, 211, 252, 0.08);
     color: #7dd3fc;
     font: inherit;
@@ -1236,32 +1379,72 @@ $mint-light: #6ee7b7;
   text-align: center;
 }
 
-.local-info {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid rgba(52, 211, 153, 0.10);
-  border-radius: 14px;
-  background: rgba(52, 211, 153, 0.04);
+/* 状态检测结果 */
+.status-section {
+  .status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .status-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .status-name {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-provider {
+    color: var(--text-secondary);
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-latency {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .status-badge {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &.success {
+      background: rgba(52, 211, 153, 0.16);
+      color: #6ee7b7;
+    }
+
+    &.fail {
+      background: rgba(251, 113, 133, 0.16);
+      color: #fda4af;
+    }
+
+    &.timeout {
+      background: rgba(251, 191, 36, 0.16);
+      color: #fcd34d;
+    }
+  }
 }
 
-.local-info-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.local-info-label {
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.local-info-value {
-  color: $mint-light;
-  font-size: 14px;
-  font-weight: 500;
-}
 
 @media (max-width: 720px) {
   .page-header {
@@ -1272,6 +1455,15 @@ $mint-light: #6ee7b7;
   .type-tabs,
   .card {
     width: calc(100% - 20px);
+  }
+
+  .status-section .status-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+
+    .status-name {
+      grid-column: 1 / -1;
+    }
   }
 }
 
@@ -1288,7 +1480,7 @@ $mint-light: #6ee7b7;
   gap: 14px;
   padding: 18px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 18px;
+  border-radius: 9px;
   background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
 }
 

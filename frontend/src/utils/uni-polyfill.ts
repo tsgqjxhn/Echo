@@ -427,6 +427,43 @@ export function getStorageSync(key: string): any {
   return null
 }
 
+/**
+ * 删除存储
+ */
+export function removeStorageSync(key: string): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(key)
+  }
+}
+
+/**
+ * 获取系统信息
+ */
+export function getSystemInfoSync(): { language?: string; platform?: string; windowWidth?: number; windowHeight?: number } {
+  if (typeof window === 'undefined') {
+    return {}
+  }
+
+  return {
+    language: window.navigator?.language,
+    platform: window.navigator?.platform,
+    windowWidth: window.innerWidth,
+    windowHeight: window.innerHeight,
+  }
+}
+
+/**
+ * 退出应用（仅原生端生效）
+ */
+export function exitApp(): void {
+  if (typeof window !== 'undefined') {
+    const cap = (window as any).Capacitor
+    if (cap?.Plugins?.App?.exitApp) {
+      cap.Plugins.App.exitApp()
+    }
+  }
+}
+
 // 导出 uni 对象
 export const uni = {
   showToast,
@@ -436,7 +473,10 @@ export const uni = {
   navigateBack,
   chooseImage,
   setStorageSync,
-  getStorageSync
+  getStorageSync,
+  removeStorageSync,
+  getSystemInfoSync,
+  exitApp
 }
 
 // 全局注册

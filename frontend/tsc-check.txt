@@ -1,0 +1,7 @@
+src/entity/character.ts(5,51): error TS2305: Module '"@/types/character"' has no exported member 'CharacterValidationResult'.
+src/pages/character/create.vue(470,66): error TS2339: Property 'uploadVideoBackground' does not exist on type 'CreateComponentPublicInstanceWithMixins<ToResolvedProps<{}, {}>, { MultimediaSettings: DefineComponent<Props, {}, {}, {}, {}, ComponentOptionsMixin, ComponentOptionsMixin, ... 12 more ..., any>; ... 78 more ...; submit: () => Promise<...>; }, ... 23 more ..., {}>'.
+src/pages/character/create.vue(1185,33): error TS2339: Property 'chatBackground' does not exist on type '{ globalBackground: string; globalVideoBackground: string; switchAnimation: string; }'.
+src/pages/character/create.vue(1227,13): error TS2339: Property 'chatBackground' does not exist on type '{ globalBackground: string; globalVideoBackground: string; switchAnimation: string; }'.
+src/pages/character/detail.vue(128,39): error TS18047: '__VLS_ctx.character' is possibly 'null'.
+src/pages/character/detail.vue(132,39): error TS18047: '__VLS_ctx.character' is possibly 'null'.
+src/pages/character/detail.vue(136,17): error TS18047: '__VLS_ctx.character' is possibly 'null'.

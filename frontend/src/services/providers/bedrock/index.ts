@@ -58,9 +58,12 @@ export const bedrockAdapter: ProviderAdapter = {
       content: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }],
     }))
     const system = request.systemPrompt.trim() ? [{ text: request.systemPrompt.trim() }] : undefined
+    const inferenceConfig: Record<string, unknown> = { maxTokens: request.maxTokens ?? 1024 }
+    if (request.temperature !== undefined) inferenceConfig.temperature = request.temperature
+    if (request.topP !== undefined) inferenceConfig.topP = request.topP
     const body: Record<string, unknown> = { modelId: request.model, messages }
     if (system) body.system = system
-    if (request.stream) body.inferenceConfig = { maxTokens: 1024 }
+    if (request.stream) body.inferenceConfig = inferenceConfig
     return body
   },
 

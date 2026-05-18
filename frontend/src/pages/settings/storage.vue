@@ -75,13 +75,6 @@
           </div>
           <span class="breakdown-value">{{ formatSize(categorySize.other) }}</span>
         </div>
-        <div class="breakdown-item">
-          <div class="breakdown-info">
-            <span class="breakdown-label">应用本体</span>
-            <span class="breakdown-desc">应用代码、内置游戏资源、素材文件、语音识别模型等</span>
-          </div>
-          <span class="breakdown-value">{{ appSize > 0 ? formatBytes(appSize) : '无法估算' }}</span>
-        </div>
       </div>
 
       <div class="storage-actions">
@@ -352,7 +345,7 @@ onMounted(measureStorage)
 
 .back-btn {
   display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border: none; border-radius: 12px;
+  width: 40px; height: 40px; border: none; border-radius: 6px;
   background: transparent; color: var(--text-primary); cursor: pointer;
 }
 
@@ -385,7 +378,7 @@ onMounted(measureStorage)
 .storage-breakdown {
   display: flex; flex-direction: column; gap: 0;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+  border-radius: 6px; overflow: hidden; margin-bottom: 24px;
 }
 
 .breakdown-header {
@@ -417,7 +410,7 @@ onMounted(measureStorage)
 
 .action-btn {
   flex: 1; padding: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px; background: rgba(255, 255, 255, 0.04);
+  border-radius: 5px; background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary); font: inherit; font-size: 14px;
   cursor: pointer; transition: background 0.2s;
   &:hover { background: rgba(255, 255, 255, 0.08); }

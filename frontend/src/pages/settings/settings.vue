@@ -39,67 +39,88 @@
       <button type="button" class="hero-clear-btn" @click="confirmClearData">
         <svg class="hero-action-icon" viewBox="0 0 1024 1024" aria-hidden="true">
           <path
-            d="M189.124926 206.817739 834.875074 206.817739C824.056355 206.817739 815.037987 197.278738 815.718488 186.375821L766.845228 969.422054C767.420593 960.203599 774.673955 953.37931 784.03501 953.37931L239.96499 953.37931C249.232543 953.37931 256.586205 960.312638 257.154772 969.422054L208.281512 186.375821C208.961624 197.272664 199.982115 206.817739 189.124926 206.817739ZM186.671228 973.821228C188.422497 1001.879852 211.883661 1024 239.96499 1024L784.03501 1024C811.990051 1024 835.582287 1001.80337 837.328772 973.821228L886.202033 190.774996C888.065218 160.922854 864.68894 136.197049 834.875074 136.197049L189.124926 136.197049C159.269853 136.197049 135.939407 160.996952 137.797967 190.774996L186.671228 973.821228ZM971.034483 206.817739C990.535839 206.817739 1006.344828 191.00875 1006.344828 171.507394 1006.344828 152.00602 990.535839 136.197049 971.034483 136.197049L52.965517 136.197049C33.464161 136.197049 17.655172 152.00602 17.655172 171.507394 17.655172 191.00875 33.464161 206.817739 52.965517 206.817739L971.034483 206.817739ZM358.849148 206.817739 665.150852 206.817739C694.015417 206.817739 717.323123 183.246901 717.323123 154.533323L717.323123 52.284416C717.323123 23.465207 693.830144 0 665.150852 0L358.849148 0C329.984583 0 306.676877 23.570838 306.676877 52.284416L306.676877 154.533323C306.676877 183.352514 330.169856 206.817739 358.849148 206.817739ZM377.297567 52.284416C377.297567 62.397193 369.165877 70.62069 358.849148 70.62069L665.150852 70.62069C654.846093 70.62069 646.702433 62.486652 646.702433 52.284416L646.702433 154.533323C646.702433 144.420529 654.834123 136.197049 665.150852 136.197049L358.849148 136.197049C369.153907 136.197049 377.297567 144.331087 377.297567 154.533323L377.297567 52.284416ZM595.6986 835.467988C595.6986 854.969344 611.507571 870.778333 631.008945 870.778333 650.510301 870.778333 666.319289 854.969344 666.319289 835.467988L666.319289 324.729062C666.319289 305.227705 650.510301 289.418717 631.008945 289.418717 611.507571 289.418717 595.6986 305.227705 595.6986 324.729062L595.6986 835.467988ZM428.3014 324.729062C428.3014 305.227705 412.492429 289.418717 392.991055 289.418717 373.489699 289.418717 357.680711 305.227705 357.680711 324.729062L357.680711 835.467988C357.680711 854.969344 373.489699 870.778333 392.991055 870.778333 412.492429 870.778333 428.3014 854.969344 428.3014 835.467988L428.3014 324.729062Z"
+            d="M189.124926 206.817739 834.875074 206.817739C824.056355 206.817739 815.037987 197.278738 815.718488 186.375821L766.845228 969.422054C767.420593 960.203599 774.673955 953.37931 784.03501 953.37931L239.96499 953.37931C249.232543 953.37931 256.586205 960.312638 257.154772 969.422054L208.281512 186.375821C208.961624 197.272664 199.982115 206.817739 189.124926 206.817739ZM186.671228 973.821228C188.422497 1001.879852 211.883661 1024 239.96499 1024L784.03501 1024C811.990051 1024 835.582287 1001.80337 837.328772 973.821228L886.202033 190.774996C888.065218 160.922854 864.68894 136.197049 834.875074 136.197049L189.124926 136.197049C159.269853 136.197049 135.939407 160.996952 137.797967 190.774996L186.671228 973.821228ZM971.034483 206.817739C990.535839 206.817739 1006.344828 191.00875 1006.344828 171.507394 1006.344828 152.00602 990.535839 136.197049 971.034483 136.197049L52.965517 136.197049C33.464161 136.197049 17.655172 152.00602 17.655172 171.507394 17.655172 191.00875 33.464161 206.817739 52.965517 206.817739L971.034483 206.817739ZM358.849148 206.817739 665.150852 206.817739C694.015417 206.817739 717.323123 183.246901 717.323123 154.533323L717.323123 52.284416C717.323123 23.465207 693.830144 0 665.150852 0L358.849148 0C329.984583 0 306.676877 23.570838 306.676877 52.284416L306.676877 154.533323C306.676877 183.352514 330.169856 206.817739 358.849148 206.817739ZM377.297567 52.284416C377.297567 62.397193 369.165877 70.62069 358.849148 70.62069L665.150852 70.62069C654.846093 70.62069 646.702433 62.486652 646.702433 52.284416L646.702433 154.533323C646.702433 144.420529 654.834123 136.197049 665.150852 136.197049L358.849148 136.197049C369.153907 136.197049 377.297567 144.331087 377.297567 154.533323L377.297567 52.284416ZM595.6986 835.467988C595.6986 854.969344 611.507571 870.778333 631.008945 870.778333 650.510301 870.778333 666.319289 854.969344 666.319289 835.467988L666.319289 324.729062C666.319289 305.227705 650.510301 289.418717 631.008945 289.418717 611.5..."
             fill="currentColor"
           />
         </svg>
       </button>
     </section>
 
-    <div class="settings-stack">
-      <section class="more-settings-card" :class="{ expanded: moreSettingsExpanded }">
+    <!-- 语言选择 -->
+    <section class="language-section" :class="{ expanded: languagePickerExpanded }">
+      <button
+        type="button"
+        class="more-settings-trigger language-trigger"
+        :aria-expanded="languagePickerExpanded"
+        @click="toggleLanguagePicker"
+      >
+        <span class="more-settings-title">{{ $t('语言') }}</span>
+        <span class="lang-current">{{ currentLanguageNativeName }}</span>
+        <svg class="expand-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M7 10l5 5 5-5"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+          />
+        </svg>
+      </button>
+
+      <div v-if="languagePickerExpanded" class="language-picker-list">
         <button
+          v-for="lang in SUPPORTED_LANGUAGES"
+          :key="lang.code"
           type="button"
-          class="more-settings-trigger"
-          :aria-expanded="moreSettingsExpanded"
-          @click="toggleMoreSettings"
+          class="lang-option"
+          :class="{ active: lang.code === languageStore.currentLanguage }"
+          @click="selectLanguage(lang.code)"
         >
-          <span class="more-settings-title">通用设置</span>
-          <svg class="expand-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M7 10l5 5 5-5"
-              fill="none"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-            />
+          <span class="lang-native">{{ lang.nativeName }}</span>
+          <span class="lang-code">{{ lang.englishName }}</span>
+          <svg v-if="lang.code === languageStore.currentLanguage" class="lang-check" viewBox="0 0 24 24" width="16" height="16">
+            <path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
+      </div>
+    </section>
 
-        <div v-if="moreSettingsExpanded" class="more-settings-list">
-          <button type="button" class="setting-item" @click="router.push('/settings/notification')">
-            <span class="setting-item-title">通知/消息</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+    <div class="settings-stack">
+      <button type="button" class="setting-item" @click="router.push('/settings/chat-defaults')">
+        <span class="setting-item-title">{{ $t('聊天默认设置') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/chat-defaults')">
-            <span class="setting-item-title">聊天默认设置</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+      <button type="button" class="setting-item" @click="router.push('/settings/system-prompt')">
+        <span class="setting-item-title">{{ $t('系统提示词管理') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/system-prompt')">
-            <span class="setting-item-title">系统提示词管理</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+      <button type="button" class="setting-item" @click="router.push('/settings/api-config')">
+        <span class="setting-item-title">{{ $t('大模型配置') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/api-config')">
-            <span class="setting-item-title">LLM API</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+      <button type="button" class="setting-item" @click="goToDataManagement">
+        <span class="setting-item-title">{{ $t('数据导入导出') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-          <button type="button" class="setting-item" @click="goToDataManagement">
-            <span class="setting-item-title">数据导入导出</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+      <button type="button" class="setting-item" @click="router.push('/settings/storage')">
+        <span class="setting-item-title">{{ $t('存储管理') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-          <button type="button" class="setting-item" @click="router.push('/settings/storage')">
-            <span class="setting-item-title">存储管理</span>
-            <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
-          </button>
+      <button type="button" class="setting-item" @click="router.push('/settings/network')">
+        <span class="setting-item-title">{{ $t('网络与连接') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
 
-        </div>
-      </section>
+      <button type="button" class="setting-item" @click="router.push('/settings/about')">
+        <span class="setting-item-title">{{ $t('关于与帮助') }}</span>
+        <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+      </button>
     </div>
   </div>
 </template>
@@ -108,14 +129,19 @@
 import { computed, onActivated, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useLanguageStore } from '@/stores/language'
+import { SUPPORTED_LANGUAGES } from '@/services/i18n'
+import { useI18n } from '@/composables/useI18n'
 import { uni } from '@/utils/uni-polyfill'
 import defaultAvatarAsset from '@/static/images/tab-profile.svg'
 
 const router = useRouter()
 const userStore = useUserStore()
+const languageStore = useLanguageStore()
+const { t } = useI18n()
 
 const avatarLoadFailed = ref(false)
-const moreSettingsExpanded = ref(false)
+const languagePickerExpanded = ref(false)
 
 const usingDefaultAvatar = computed(() => avatarLoadFailed.value || !userStore.userAvatar)
 
@@ -125,6 +151,11 @@ const avatarUrl = computed(() => {
   }
 
   return userStore.userAvatar
+})
+
+const currentLanguageNativeName = computed(() => {
+  const lang = SUPPORTED_LANGUAGES.find(l => l.code === languageStore.currentLanguage)
+  return lang?.nativeName ?? languageStore.currentLanguage
 })
 
 async function refreshProfilePage() {
@@ -144,8 +175,13 @@ function handleAvatarError() {
   avatarLoadFailed.value = true
 }
 
-function toggleMoreSettings() {
-  moreSettingsExpanded.value = !moreSettingsExpanded.value
+function toggleLanguagePicker() {
+  languagePickerExpanded.value = !languagePickerExpanded.value
+}
+
+function selectLanguage(code: string) {
+  languageStore.setLanguage(code)
+  languagePickerExpanded.value = false
 }
 
 function goToDataManagement() {
@@ -154,7 +190,7 @@ function goToDataManagement() {
 
 function confirmClearData() {
   uni.showModal({
-    title: '确认清空本地数据',
+    title: t('确认清空本地数据'),
     content: '这会删除所有本地角色、会话、API 配置与游戏设置，且无法撤销。建议先到"数据导入导出"中完成备份后再继续。',
     success: async result => {
       if (!result.confirm) {
@@ -187,7 +223,8 @@ function confirmClearData() {
 }
 
 .hero-card,
-.more-settings-card {
+.language-section,
+.setting-item {
   border: 1px solid rgba(52, 211, 153, 0.12);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.44);
@@ -199,7 +236,7 @@ function confirmClearData() {
   position: relative;
   min-height: 156px;
   padding: 20px 132px 20px 20px;
-  border-radius: 30px;
+  border-radius: 15px;
   border-color: rgba(56, 189, 248, 0.16);
   background:
     radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.1) 0%, transparent 42%),
@@ -281,7 +318,7 @@ function confirmClearData() {
   min-height: 34px;
   width: 42px;
   padding: 0;
-  border-radius: 14px;
+  border-radius: 7px;
   font: inherit;
   cursor: pointer;
   transition:
@@ -332,21 +369,93 @@ function confirmClearData() {
 
 .settings-stack {
   display: grid;
-  gap: 16px;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ── 语言选择 ─────────────────────────────────────── */
+.language-section {
   margin-top: 16px;
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+  padding: 0;
+  transition: padding var(--transition-base), border-color var(--transition-base);
 }
 
-.more-settings-card {
-  padding: 12px;
-  border-radius: 28px;
-  transition:
-    border-color var(--transition-base),
-    box-shadow var(--transition-base);
-}
-
-.more-settings-card.expanded {
+.language-section.expanded {
+  padding: 6px;
   border-color: rgba(56, 189, 248, 0.18);
-  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.48);
+}
+
+.language-trigger {
+  padding: 18px 20px;
+  border-radius: var(--radius-panel);
+}
+
+.language-section.expanded .language-trigger {
+  border-radius: var(--radius-lg);
+}
+
+.language-picker-list {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 6px 0 0 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lang-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 12px 7px 18px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.lang-option:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lang-option.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(52, 211, 153, 0.08));
+  color: #fff;
+}
+
+.lang-native {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lang-code {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.lang-option.active .lang-code {
+  color: rgba(56, 189, 248, 0.7);
+}
+
+.lang-check {
+  flex-shrink: 0;
+  color: #34d399;
+}
+
+.lang-current {
+  flex: 1;
+  text-align: right;
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 0;
 }
 
 .more-settings-trigger,
@@ -356,14 +465,17 @@ function confirmClearData() {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 18px 20px;
-  border: none;
-  border-radius: 22px;
-  background: transparent;
+  padding: 14px 18px;
+  border-radius: var(--radius-panel);
   color: inherit;
   text-align: left;
   cursor: pointer;
   transition: background var(--transition-base), transform var(--transition-base);
+}
+
+.more-settings-trigger {
+  border: none;
+  background: transparent;
 }
 
 .more-settings-trigger:hover,
@@ -393,23 +505,9 @@ function confirmClearData() {
   transition: transform var(--transition-base), color var(--transition-base);
 }
 
-.more-settings-card.expanded .expand-icon {
+.language-section.expanded .expand-icon {
   transform: rotate(180deg);
   color: var(--text-primary);
-}
-
-.more-settings-list {
-  display: grid;
-  gap: 2px;
-  margin-top: 8px;
-  padding-top: 8px;
-  padding-left: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.setting-item {
-  padding: 14px 12px 14px 18px;
-  border-radius: 16px;
 }
 
 @media (max-width: 640px) {
@@ -441,21 +539,9 @@ function confirmClearData() {
     bottom: 16px;
   }
 
-  .more-settings-card {
-    padding: 10px;
-  }
-
   .more-settings-trigger,
   .setting-item {
     padding: 16px 18px;
-  }
-
-  .more-settings-list {
-    padding-left: 12px;
-  }
-
-  .setting-item {
-    padding: 14px 10px 14px 14px;
   }
 }
 </style>

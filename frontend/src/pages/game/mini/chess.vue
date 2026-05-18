@@ -757,7 +757,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
   font: inherit;
@@ -772,7 +772,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   width: 52px; height: 52px;
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(56, 189, 248, 0.1);
   color: rgba(56, 189, 248, 0.7);
   flex-shrink: 0;
@@ -813,7 +813,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
   font: inherit;
@@ -860,7 +860,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
   font: inherit;
@@ -878,7 +878,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 14px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--interactive-gradient);
   color: #fff;
   font: inherit;
@@ -891,7 +891,7 @@ onBeforeUnmount(() => {
 .back-btn-sm {
   padding: 6px 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -925,7 +925,7 @@ onBeforeUnmount(() => {
 
 .action-sm {
   padding: 4px 12px;
-  border-radius: 8px;
+  border-radius: 4px;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -969,7 +969,7 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(8, 1fr);
   width: min(380px, calc(100vw - 48px));
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -1011,7 +1011,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 2px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
   font-size: 16px;
 }
@@ -1024,7 +1024,7 @@ onBeforeUnmount(() => {
 .action-wide {
   flex: 1;
   min-height: 42px;
-  border-radius: 10px;
+  border-radius: 5px;
   border: 1px solid rgba(56, 189, 248, 0.18);
   background: rgba(56, 189, 248, 0.08);
   color: rgba(125, 211, 252, 0.86);
@@ -1041,7 +1041,7 @@ onBeforeUnmount(() => {
 .ai-waiting-card {
   padding: 10px 12px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(52, 211, 153, 0.08);
   color: rgba(110, 231, 183, 0.9);
   font-size: 13px;

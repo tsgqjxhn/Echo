@@ -68,31 +68,154 @@
           <span v-if="activeTask.fileNames.length > 5" class="file-pill">+{{ activeTask.fileNames.length - 5 }}</span>
         </div>
 
+        <!-- 游戏大纲 -->
         <section v-if="activeTask.mode === 'create'" class="stream-section">
           <div class="section-head">
             <h3>游戏大纲</h3>
             <span v-if="activeTask.phase === 'drafting-outline'" class="streaming-dot">生成中</span>
           </div>
-          <pre class="stream-output">{{ activeTask.outline || '正在生成…' }}</pre>
-          <button
-            v-if="activeTask.phase === 'awaiting-outline-confirmation'"
-            type="button"
-            class="primary-btn"
-            @click="gameGenerationStore.confirmOutline(activeTask.id)"
-          >
-            确认大纲并生成游戏
-          </button>
+
+          <!-- 生成中 -->
+          <pre v-if="activeTask.phase === 'drafting-outline'" class="stream-output">{{ activeTask.outline || '正在生成…' }}</pre>
+
+          <!-- 等待确认 -->
+          <template v-else-if="activeTask.phase === 'awaiting-outline-confirmation'">
+            <!-- 手动编辑模式 -->
+            <template v-if="editingOutline">
+              <textarea v-model="editableOutline" class="source-input edit-area" rows="12" />
+              <div class="action-row">
+                <button class="soft-btn" @click="cancelEditOutline">取消</button>
+                <button class="primary-btn small" @click="saveOutline">保存修改</button>
+              </div>
+            </template>
+
+            <!-- AI 反馈模式 -->
+            <template v-else-if="showAiFeedback === 'outline'">
+              <pre class="stream-output">{{ activeTask.outline }}</pre>
+              <textarea v-model="aiFeedback" class="source-input edit-area" rows="4" placeholder="请输入修改意见（可选）…" />
+              <div class="action-row">
+                <button class="soft-btn" @click="showAiFeedback = null">取消</button>
+                <button class="primary-btn small" :disabled="isActiveTaskRunning" @click="submitAiOutlineFeedback">AI 重新生成</button>
+              </div>
+            </template>
+
+            <!-- 默认：三按钮 -->
+            <template v-else>
+              <pre class="stream-output">{{ activeTask.outline }}</pre>
+              <div class="action-row three-btn-row">
+                <button class="soft-btn" @click="startEditOutline">手动修改</button>
+                <button class="soft-btn" @click="showAiFeedback = 'outline'">AI 修改</button>
+                <button class="primary-btn small" @click="gameGenerationStore.confirmOutline(activeTask.id)">继续创建游戏</button>
+              </div>
+            </template>
+          </template>
+
+          <!-- 后续阶段仅展示 -->
+          <pre v-else class="stream-output">{{ activeTask.outline }}</pre>
         </section>
 
+        <!-- 游戏实现 -->
         <section v-if="activeTask.output || activeTask.phase === 'generating-game' || activeTask.mode === 'import'" class="stream-section">
           <div class="section-head">
             <h3>游戏实现</h3>
             <span v-if="activeTask.phase === 'generating-game'" class="streaming-dot">生成中</span>
           </div>
-          <pre class="stream-output">{{ activeTask.output || '正在生成…' }}</pre>
+
+          <!-- 生成中 -->
+          <pre v-if="activeTask.phase === 'generating-game'" class="stream-output">{{ activeTask.output || '正在生成…' }}</pre>
+
+          <!-- 完成 -->
+          <template v-else-if="activeTask.phase === 'done'">
+            <!-- 文件详情 / 编辑视图 -->
+            <template v-if="selectedFile">
+              <div class="file-detail-header">
+                <button class="back-btn small" @click="selectedFile = null">
+                  <svg viewBox="0 0 24 24" width="18" height="18">
+                    <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
+                  </svg>
+                  返回目录
+                </button>
+                <span class="file-path">{{ selectedFile.path }}</span>
+              </div>
+              <template v-if="manualEditMode">
+                <textarea v-model="editableFileContent" class="source-input edit-area file-editor" rows="18" />
+                <div class="action-row">
+                  <button class="soft-btn" @click="cancelFileEdit">取消</button>
+                  <button class="primary-btn small" @click="saveFileEdit">保存</button>
+                </div>
+              </template>
+              <pre v-else class="stream-output file-content">{{ selectedFile.content }}</pre>
+            </template>
+
+            <!-- AI 反馈模式 -->
+            <template v-else-if="showAiFeedback === 'game'">
+              <div class="action-row" style="margin-bottom: 12px;">
+                <button class="soft-btn" @click="showAiFeedback = null">返回</button>
+              </div>
+              <pre class="stream-output">{{ activeTask.output }}</pre>
+              <textarea v-model="aiFeedback" class="source-input edit-area" rows="4" placeholder="请输入修改意见（可选）…" />
+              <div class="action-row">
+                <button class="soft-btn" @click="showAiFeedback = null">取消</button>
+                <button class="primary-btn small" :disabled="isActiveTaskRunning" @click="submitAiGameFeedback">AI 重新生成</button>
+              </div>
+            </template>
+
+            <!-- 最终预览模式 -->
+            <template v-else-if="finalPreview">
+              <div class="action-row" style="margin-bottom: 12px;">
+                <button class="soft-btn" @click="finalPreview = false">返回目录</button>
+              </div>
+              <iframe v-if="htmlPreview" class="game-preview" :srcdoc="htmlPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" />
+              <pre v-else class="stream-output">{{ activeTask.output }}</pre>
+              <button type="button" class="primary-btn import-btn" @click="importToLibrary">
+                导入游戏库
+              </button>
+            </template>
+
+            <!-- 默认：目录树 + 三按钮 -->
+            <template v-else>
+              <div class="action-row three-btn-row">
+                <button class="soft-btn" @click="enableManualEdit">手动修改</button>
+                <button class="soft-btn" @click="showAiFeedback = 'game'">AI 修改</button>
+                <button class="primary-btn small" @click="finalPreview = true">继续创建游戏</button>
+              </div>
+
+              <!-- 文件树 -->
+              <div v-if="fileTree.length" class="file-tree">
+                <template v-for="node in fileTree" :key="node.path">
+                  <div
+                    v-if="isNodeVisible(node)"
+                    class="tree-node"
+                    :style="{ paddingLeft: `${node.depth * 18}px` }"
+                  >
+                    <button v-if="node.type === 'directory'" class="tree-toggle" @click="toggleTreeNode(node.path)">
+                      <svg v-if="treeExpanded.has(node.path)" viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                      </svg>
+                      <svg v-else viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                      </svg>
+                      <span>{{ node.name }}</span>
+                    </button>
+                    <button v-else class="tree-file" @click="openFile(node.file!)">
+                      <svg viewBox="0 0 24 24" width="14" height="14">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      <span>{{ node.name }}</span>
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <pre v-else class="stream-output">{{ activeTask.output }}</pre>
+            </template>
+          </template>
+
+          <!-- 其他阶段 -->
+          <pre v-else class="stream-output">{{ activeTask.output }}</pre>
         </section>
 
-        <section v-if="htmlPreview" class="preview-section">
+        <section v-if="htmlPreview && activeTask.phase !== 'done'" class="preview-section">
           <div class="section-head">
             <h3>预览</h3>
             <button type="button" class="ghost-btn" @click="showPreview = !showPreview">
@@ -109,11 +232,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onDeactivated, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { readGameInputFiles } from '@/services/game-file-reader'
 import { useGameGenerationStore } from '@/stores/game-generation'
+import type { ParsedGameFile } from '@/stores/game-generation'
 import { uni } from '@/utils/uni-polyfill'
+import { saveGeneratedGame } from '@/services/generated-game-library'
 
 const route = useRoute()
 const router = useRouter()
@@ -126,8 +251,30 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const showPreview = ref(false)
 
+/* ── 大纲阶段状态 ── */
+const editingOutline = ref(false)
+const editableOutline = ref('')
+const showAiFeedback = ref<'outline' | 'game' | null>(null)
+const aiFeedback = ref('')
+
+/* ── 游戏实现阶段状态 ── */
+const finalPreview = ref(false)
+const manualEditMode = ref(false)
+const selectedFile = ref<ParsedGameFile | null>(null)
+const editableFileContent = ref('')
+const treeExpanded = ref<Set<string>>(new Set(['/']))
+
+interface TreeNode {
+  path: string
+  name: string
+  type: 'directory' | 'file'
+  depth: number
+  file?: ParsedGameFile
+}
+
 const mode = computed(() => route.query.mode === 'import' ? 'import' : 'create')
 const activeTask = computed(() => gameGenerationStore.activeTask)
+const isActiveTaskRunning = computed(() => gameGenerationStore.isActiveTaskRunning)
 const pageTitle = computed(() => activeTask.value?.title || (mode.value === 'create' ? '创建游戏' : '导入游戏'))
 
 const canStart = computed(() => sourceText.value.trim().length > 0 || fileText.value.trim().length > 0)
@@ -159,6 +306,128 @@ const htmlPreview = computed(() => {
   return fullHtml?.[0]?.trim() || ''
 })
 
+/* ── 文件树 ── */
+const fileTree = computed<TreeNode[]>(() => {
+  const files = activeTask.value?.parsedFiles || []
+  if (!files.length) return []
+
+  const nodes: TreeNode[] = []
+  const dirsAdded = new Set<string>()
+
+  files.forEach(file => {
+    const parts = file.path.split('/').filter(Boolean)
+    let currentPath = ''
+    parts.forEach((part, idx) => {
+      const isLast = idx === parts.length - 1
+      currentPath += '/' + part
+      if (!isLast) {
+        if (!dirsAdded.has(currentPath)) {
+          dirsAdded.add(currentPath)
+          nodes.push({ path: currentPath, name: part, type: 'directory', depth: idx })
+        }
+      } else {
+        nodes.push({ path: currentPath, name: part, type: 'file', depth: idx, file })
+      }
+    })
+  })
+
+  return nodes
+})
+
+function isNodeVisible(node: TreeNode): boolean {
+  if (node.depth === 0) return true
+  const parts = node.path.split('/').filter(Boolean)
+  let parentPath = ''
+  for (let i = 0; i < parts.length - 1; i++) {
+    parentPath += '/' + parts[i]
+    if (!treeExpanded.value.has(parentPath)) return false
+  }
+  return true
+}
+
+function toggleTreeNode(path: string) {
+  const next = new Set(treeExpanded.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  treeExpanded.value = next
+}
+
+function openFile(file: ParsedGameFile) {
+  selectedFile.value = file
+  editableFileContent.value = file.content
+}
+
+/* ── 大纲编辑 ── */
+function startEditOutline() {
+  editableOutline.value = activeTask.value?.outline || ''
+  editingOutline.value = true
+}
+function cancelEditOutline() {
+  editingOutline.value = false
+}
+function saveOutline() {
+  const task = activeTask.value
+  if (!task) return
+  gameGenerationStore.patchTask(task.id, { outline: editableOutline.value.trim() })
+  editingOutline.value = false
+  uni.showToast({ title: '已保存', icon: 'success' })
+}
+
+/* ── AI 反馈 ── */
+function submitAiOutlineFeedback() {
+  const task = activeTask.value
+  if (!task) return
+  showAiFeedback.value = null
+  gameGenerationStore.regenerateOutline(task.id, aiFeedback.value)
+  aiFeedback.value = ''
+}
+function submitAiGameFeedback() {
+  const task = activeTask.value
+  if (!task) return
+  showAiFeedback.value = null
+  gameGenerationStore.regenerateGame(task.id, aiFeedback.value)
+  aiFeedback.value = ''
+}
+
+/* ── 游戏实现阶段 ── */
+function enableManualEdit() {
+  manualEditMode.value = true
+  uni.showToast({ title: '点击文件即可编辑', icon: 'none' })
+}
+function cancelFileEdit() {
+  editableFileContent.value = selectedFile.value?.content || ''
+}
+function saveFileEdit() {
+  const task = activeTask.value
+  const file = selectedFile.value
+  if (!task || !file) return
+  const newFiles = task.parsedFiles.map(f =>
+    f.path === file.path ? { ...f, content: editableFileContent.value } : f
+  )
+  gameGenerationStore.patchTask(task.id, { parsedFiles: newFiles })
+  selectedFile.value = { ...file, content: editableFileContent.value }
+  uni.showToast({ title: '已保存', icon: 'success' })
+}
+
+/* ── 导入游戏库 ── */
+function importToLibrary() {
+  const task = activeTask.value
+  if (!task) return
+  const html = htmlPreview.value || task.output
+  if (!html.trim()) {
+    uni.showToast({ title: '无可导入内容', icon: 'none' })
+    return
+  }
+  saveGeneratedGame({
+    title: task.title,
+    html,
+    description: `由 AI 生成的游戏：${task.title}`,
+    sourceTaskId: task.id,
+  })
+  uni.showToast({ title: '已导入游戏库', icon: 'success' })
+}
+
+/* ── 路由监听 ── */
 watch(
   () => route.query.task,
   taskId => {
@@ -168,6 +437,17 @@ watch(
   },
   { immediate: true }
 )
+
+watch(activeTask, (task) => {
+  if (!task) {
+    editingOutline.value = false
+    showAiFeedback.value = null
+    finalPreview.value = false
+    manualEditMode.value = false
+    selectedFile.value = null
+    treeExpanded.value = new Set(['/'])
+  }
+})
 
 function openFilePicker() {
   fileInput.value?.click()
@@ -220,9 +500,28 @@ function startAnother() {
   fileText.value = ''
   fileNames.value = []
   showPreview.value = false
+  editingOutline.value = false
+  showAiFeedback.value = null
+  finalPreview.value = false
+  manualEditMode.value = false
+  selectedFile.value = null
   gameGenerationStore.activeTaskId = ''
   router.replace(`/game/generate?mode=${mode.value}`)
 }
+
+/* ── 生命周期 ── */
+onDeactivated(() => {
+  // keep-alive 失活时不做取消，保持生成任务在后台继续运行
+  console.log('[game generate] page deactivated')
+})
+
+onUnmounted(() => {
+  // 真正销毁时清理当前任务的流
+  const taskId = gameGenerationStore.activeTaskId
+  if (taskId) {
+    gameGenerationStore.cancelTask(taskId)
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -274,6 +573,15 @@ function startAnother() {
   display: flex;
   align-items: center;
   justify-content: center;
+
+  &.small {
+    width: auto;
+    height: 34px;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
 }
 
 .task-status {
@@ -301,7 +609,7 @@ function startAnother() {
 .stream-section,
 .preview-section {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(8, 12, 20, 0.72);
 }
 
@@ -325,7 +633,7 @@ function startAnother() {
   min-height: 180px;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;
@@ -336,6 +644,17 @@ function startAnother() {
   &:focus {
     outline: none;
     border-color: rgba(56, 189, 248, 0.45);
+  }
+
+  &.edit-area {
+    min-height: 120px;
+    margin-top: 12px;
+  }
+
+  &.file-editor {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.7;
   }
 }
 
@@ -355,7 +674,7 @@ function startAnother() {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .soft-btn {
@@ -378,6 +697,16 @@ function startAnother() {
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+
+  &.small {
+    width: auto;
+    padding: 0 16px;
+    margin-top: 0;
+  }
+
+  &.import-btn {
+    margin-top: 14px;
   }
 }
 
@@ -457,12 +786,16 @@ function startAnother() {
   margin: 12px 0 0;
   padding: 14px;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(0, 0, 0, 0.28);
   color: #dce7f3;
   font: 13px/1.7 ui-monospace, SFMono-Regular, Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-word;
+
+  &.file-content {
+    margin-top: 12px;
+  }
 }
 
 .game-preview {
@@ -470,12 +803,92 @@ function startAnother() {
   min-height: min(68vh, 680px);
   margin-top: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 4px;
   background: #fff;
 }
 
 .error-copy {
   margin: 12px 0 0;
   color: #fca5a5;
+}
+
+/* ── 操作按钮行 ── */
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.three-btn-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+
+  .soft-btn,
+  .primary-btn.small {
+    width: 100%;
+  }
+}
+
+/* ── 文件树 ── */
+.file-tree {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+}
+
+.tree-toggle,
+.tree-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tree-toggle:hover,
+.tree-file:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.tree-file {
+  color: #9eead7;
+}
+
+/* ── 文件详情头部 ── */
+.file-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.file-path {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+@media (max-width: 720px) {
+  .three-btn-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

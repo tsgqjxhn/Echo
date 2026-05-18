@@ -9,17 +9,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/dialogue',
     component: () => import('./pages/dialogue/feed.vue'),
-    meta: { title: '回声' }
+    meta: { title: '对话' }
   },
   {
     path: '/character',
     component: () => import('./pages/character/list.vue'),
     meta: { title: '主页' }
-  },
-  {
-    path: '/character/detail/:id',
-    component: () => import('./pages/character/detail.vue'),
-    meta: { title: '角色详情' }
   },
   {
     path: '/character/edit',
@@ -64,17 +59,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/settings/api-config',
     component: () => import('./pages/settings/api-config.vue'),
-    meta: { title: '语音与模型配置' }
+    meta: { title: '大模型配置' }
   },
   {
     path: '/settings/export',
     component: () => import('./pages/settings/export.vue'),
     meta: { title: '数据管理' }
-  },
-  {
-    path: '/settings/notification',
-    component: () => import('./pages/settings/notification.vue'),
-    meta: { title: '通知/消息' }
   },
   {
     path: '/settings/chat-defaults',
@@ -87,9 +77,14 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '存储管理' }
   },
   {
-    path: '/settings/voice',
-    component: () => import('./pages/settings/voice.vue'),
-    meta: { title: '语音设置' }
+    path: '/settings/network',
+    component: () => import('./pages/settings/network.vue'),
+    meta: { title: '网络与连接' }
+  },
+  {
+    path: '/settings/about',
+    component: () => import('./pages/settings/about.vue'),
+    meta: { title: '关于与帮助' }
   },
   {
     path: '/moments',
@@ -120,6 +115,16 @@ const routes: RouteRecordRaw[] = [
     path: '/game/play/:id',
     component: () => import('./pages/game/play.vue'),
     meta: { title: '游戏' }
+  },
+  {
+    path: '/world-book/list',
+    component: () => import('./pages/world-book/list.vue'),
+    meta: { title: '世界书' }
+  },
+  {
+    path: '/world-book/edit',
+    component: () => import('./pages/world-book/edit.vue'),
+    meta: { title: '编辑世界书' }
   }
 ]
 
@@ -128,13 +133,26 @@ const router = createRouter({
   routes
 })
 
-router.afterEach(to => {
+router.afterEach(async to => {
   if (typeof document === 'undefined') {
     return
   }
 
-  const pageTitle = typeof to.meta.title === 'string' ? `${to.meta.title} - AI角色聊天` : 'AI角色聊天'
-  document.title = pageTitle
+  try {
+    // 动态导入语言相关模块（需要 Pinia 初始化后才可用）
+    const [{ useLanguageStore }, { t }] = await Promise.all([
+      import('@/stores/language'),
+      import('@/services/i18n')
+    ])
+    const langStore = useLanguageStore()
+    const lang = langStore?.currentLanguage ?? 'zh-CN'
+    const appName = t('AI角色聊天', lang)
+    const pageTitle = typeof to.meta.title === 'string' ? `${t(to.meta.title as string, lang)} - ${appName}` : appName
+    document.title = pageTitle
+  } catch {
+    const pageTitle = typeof to.meta.title === 'string' ? `${to.meta.title} - AI角色聊天` : 'AI角色聊天'
+    document.title = pageTitle
+  }
 })
 
 export default router

@@ -18,11 +18,27 @@ export interface WorldBookEntry {
   probability: number
   /** 注释/备注 */
   comment?: string
+  /** 词条类型 */
+  type?: 'profile' | 'world_info' | 'dialogue' | 'style'
+  /** 绑定的角色 ID（空 = 全局） */
+  characterId?: string
+  /** 动态角色注释/心理锚点 */
+  dynamicAnchor?: string
+  /** 用户画像与长期关系演算 */
+  userPersona?: string
+  /** 契合度/联结度指标 0-100 */
+  compatibilityScore?: number
+  /** 当前关系阶段 */
+  relationshipStage?: 'stranger' | 'familiar' | 'trusted' | 'intimate' | 'hostile' | 'reconciled'
+  /** 关系阶段触发条件 */
+  relationshipTrigger?: string
 }
 
 export interface WorldBook {
   id: string
   name: string
+  /** 世界书描述 */
+  description?: string
   entries: WorldBookEntry[]
   /** 扫描消息范围，默认 100 */
   scanRange: number

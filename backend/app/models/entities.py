@@ -122,7 +122,6 @@ class UserProfileRecord(Base):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
     global_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
-    core_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     fortune_coins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     chat_level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     game_level: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

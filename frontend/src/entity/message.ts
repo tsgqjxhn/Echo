@@ -18,6 +18,7 @@ export class Message implements IMessage {
   isLiked: boolean = false
   timestamp: number = 0
   tokenUsage?: TokenUsage
+  memberName?: string
 
   /**
    * 构造函数

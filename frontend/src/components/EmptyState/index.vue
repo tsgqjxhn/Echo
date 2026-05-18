@@ -58,7 +58,7 @@ function handleAction() {
   justify-content: center;
   min-height: 220px;
   border: 1px solid var(--border-color);
-  border-radius: 28px;
+  border-radius: 14px;
   background: var(--surface-gradient);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(var(--backdrop-blur));

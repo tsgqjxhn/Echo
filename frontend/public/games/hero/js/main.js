@@ -10,6 +10,10 @@ const UI = {
   modalStack: [],
   _autoSaveInterval: null,
   _timerInterval: null,
+  _pendingTimeouts: [],
+  _onTouchFallback: null,
+  _onMessage: null,
+  _onVisibilityChange: null,
 
   init() {
     const saved = loadGame();
@@ -41,6 +45,7 @@ const UI = {
     if (!STORY_DATA || !STORY_DATA.levelStories) return;
     const story = STORY_DATA.levelStories.find(s => s.level === stageIndex);
     if (!story) return;
+    if (!gameState) return;
     // Check if we've already shown this story
     const shownKey = '_story_shown_' + stageIndex;
     if (gameState[shownKey]) return;
@@ -155,6 +160,7 @@ const UI = {
   updateTopBar() {
     const bar = document.getElementById('top-bar');
     if (!bar) return;
+    if (!gameState || !gameState.player) return;
     const p = gameState.player;
     const active = this.currentScreen || 'city';
     // 5 nav tabs are now hosted in the outer Vue top-bar (play.vue) so they
@@ -246,6 +252,7 @@ const UI = {
   },
 
   selectBattleMap(mapId) {
+    if (!gameState) return;
     const mapIndex = BATTLE_MAPS.findIndex(m => m.id === mapId);
     if (mapIndex < 0) return;
     if (mapIndex * 10 > (gameState.roguelike.highestStage || 0)) {
@@ -258,6 +265,7 @@ const UI = {
   },
 
   startBattle(stageIndex) {
+    if (!gameState) return;
     const infiniteMode = stageIndex === 'infinite';
     const cost = getBattleStageEnergyCost(stageIndex);
     if (gameState.player.energy < cost) {
@@ -372,7 +380,7 @@ const UI = {
       saveGame();
       if (typeof HeroAudio !== 'undefined') {
       if (win) HeroAudio.playVictory(); else HeroAudio.playGameOver();
-      setTimeout(() => HeroAudio.setBGM('city'), 2000);
+      UI._pendingTimeouts.push(setTimeout(() => HeroAudio.setBGM('city'), 2000));
     }
     this.showBattleResult(win, kills, time, rewards, wave, infiniteMode, promotedRank);
     };
@@ -395,6 +403,7 @@ const UI = {
   },
 
   showBattleResult(win, kills, time, rewards, wave, infiniteMode = false, promotedRank = null) {
+    if (!gameState) return;
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     const title = infiniteMode ? '无限模式结束' : (win ? '胜利！' : '战败');
@@ -442,6 +451,7 @@ const UI = {
   },
 
   renderMenuScreen() {
+    if (!gameState) return;
     const el = document.getElementById('menu-screen');
     const p = gameState.player;
     const civ = CIVILIZATIONS[p.civilization];
@@ -576,6 +586,7 @@ const UI = {
   setHeroDifficulty(lv) {
     const hs = typeof loadHeroSettings === 'function' ? loadHeroSettings() : {};
     hs.difficultyLevel = lv;
+    if (!gameState) { gameState = {}; }
     gameState.difficultyLevel = lv;
     if (typeof saveHeroSettings === 'function') saveHeroSettings(hs);
     if (typeof saveGame === 'function') saveGame({ force: true });
@@ -672,12 +683,37 @@ const UI = {
         if (salaryBtn && getSalaryStatus().canClaim) this.renderScreen('city');
       }
     }, 1000);
+  },
+
+  /** Clean up all timers, listeners, and resources. Call when the game iframe is hidden/destroyed. */
+  destroy() {
+    if (this._autoSaveInterval) { clearInterval(this._autoSaveInterval); this._autoSaveInterval = null; }
+    if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
+    if (this._pendingTimeouts.length) {
+      this._pendingTimeouts.forEach(id => clearTimeout(id));
+      this._pendingTimeouts.length = 0;
+    }
+    if (this._onTouchFallback) {
+      document.removeEventListener('touchend', this._onTouchFallback);
+      this._onTouchFallback = null;
+    }
+    if (this._onMessage) {
+      window.removeEventListener('message', this._onMessage);
+      this._onMessage = null;
+    }
+    if (this._onVisibilityChange) {
+      document.removeEventListener('visibilitychange', this._onVisibilityChange);
+      this._onVisibilityChange = null;
+    }
+    if (roguelikeGame) { roguelikeGame.stop(); roguelikeGame = null; }
+    if (typeof HeroAudio !== 'undefined' && HeroAudio.destroy) HeroAudio.destroy();
+    if (typeof ImageCache !== 'undefined' && ImageCache.clear) ImageCache.clear();
   }
 };
 
 function bindCampaignTouchFallback() {
   let lastTouchAt = 0;
-  document.addEventListener('touchend', (event) => {
+  const handler = (event) => {
     const target = event.target;
     const button = target?.closest?.('[data-stage-index], [data-map-id]');
     if (!button || button.disabled || button.classList.contains('locked')) return;
@@ -697,7 +733,9 @@ function bindCampaignTouchFallback() {
     if (button.dataset.mapId) {
       UI.selectBattleMap(button.dataset.mapId);
     }
-  }, { passive: false });
+  };
+  UI._onTouchFallback = handler;
+  document.addEventListener('touchend', handler, { passive: false });
 }
 
 // Boot
@@ -720,7 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Accept screen-switch commands from the outer Vue wrapper (play.vue).
 // Allowed screens mirror the original 5-tab nav.
-window.addEventListener('message', (event) => {
+UI._onMessage = (event) => {
   const data = event.data;
   if (!data) return;
 
@@ -777,4 +815,17 @@ window.addEventListener('message', (event) => {
       window.parent.postMessage({ source: 'hero-game', type: 'save-complete', requestId: data.requestId, ok }, '*');
     } catch (_) {}
   }
-});
+};
+window.addEventListener('message', UI._onMessage);
+
+// Pause background timers when page is hidden to reduce CPU/battery drain
+UI._onVisibilityChange = () => {
+  if (document.hidden) {
+    if (UI._autoSaveInterval) { clearInterval(UI._autoSaveInterval); UI._autoSaveInterval = null; }
+    if (UI._timerInterval) { clearInterval(UI._timerInterval); UI._timerInterval = null; }
+  } else {
+    if (!UI._autoSaveInterval) UI.startAutoSave();
+    if (!UI._timerInterval) UI.startTimerUpdates();
+  }
+};
+document.addEventListener('visibilitychange', UI._onVisibilityChange);

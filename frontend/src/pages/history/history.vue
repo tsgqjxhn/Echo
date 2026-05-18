@@ -238,7 +238,7 @@
         :key="character.id"
         class="friend-card"
         :class="{ 'friend-card--group': isGroupCharacter(character) }"
-        @click="goToChat(character.id)"
+        @click="handleCardClick(character.id)"
       >
         <img
           :src="character.avatar || defaultAvatar"
@@ -286,7 +286,7 @@
         v-for="character in filteredLikedCharacters"
         :key="character.id"
         class="friend-card"
-        @click="goToChat(character.id)"
+        @click="handleCardClick(character.id)"
       >
         <img :src="character.avatar || defaultAvatar" :alt="character.name" class="friend-avatar" />
         <div class="friend-info">
@@ -858,8 +858,8 @@ function formatRelativeTime(timestamp: number): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
 }
 
-function goToDetail(characterId: string) {
-  router.push(`/character/detail/${characterId}`)
+function goToChat(characterId: string) {
+  router.push(`/chat/${characterId}`)
 }
 
 function markStorySessionsRead(sessionIds: string[]) {
@@ -887,11 +887,16 @@ function acceptFriendReq(characterId: string) {
   friendRequestStore.acceptRequest(characterId)
 }
 
-function goToChat(characterId: string) {
+function handleCardClick(characterId: string) {
   if (activeTab.value === 'contacts') {
     readState.value = markContactsRead(contactsSubTab.value)
   } else if (activeTab.value === 'liked') {
     readState.value = markLikedRead()
+  } else if (activeTab.value === 'chatted') {
+    const session = filteredSessionCardsForTab.value.find(s => s.characterId === characterId)
+    if (session) {
+      readState.value = markSessionsRead(session.sessionIds)
+    }
   }
 
   const character = getCharacterById(characterId)
@@ -1227,7 +1232,7 @@ async function handleImportFile(event: Event) {
   width: 48px;
   height: 48px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   box-shadow: none;
@@ -1301,7 +1306,7 @@ async function handleImportFile(event: Event) {
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.06);
   min-height: 48px;
 }
@@ -1312,7 +1317,7 @@ async function handleImportFile(event: Event) {
   gap: 12px;
   min-height: 50px;
   padding: 0 16px;
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -1412,7 +1417,7 @@ async function handleImportFile(event: Event) {
   height: 30px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 9px;
+  border-radius: 4.5px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   font-size: 18px;
@@ -1435,7 +1440,7 @@ async function handleImportFile(event: Event) {
   gap: 14px;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(20px);
   cursor: pointer;
@@ -1455,7 +1460,7 @@ async function handleImportFile(event: Event) {
 .friend-accept-btn {
   padding: 6px 18px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(56, 189, 248, 0.25);
   color: #e0f2fe;
   font-size: 13px;
@@ -1509,7 +1514,7 @@ async function handleImportFile(event: Event) {
   align-items: center;
   min-height: var(--record-card-min-height);
   padding: var(--record-card-padding-y) var(--record-card-padding-x);
-  border-radius: 16px;
+  border-radius: 8px;
   cursor: pointer;
   transition: transform var(--transition-base), border-color var(--transition-base);
 }
@@ -1608,7 +1613,7 @@ async function handleImportFile(event: Event) {
   min-height: var(--record-action-height);
   padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.20);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
   font: inherit;
@@ -1627,7 +1632,7 @@ async function handleImportFile(event: Event) {
   width: min(1080px, calc(100% - 32px));
   margin: 14px auto 0;
   padding: 28px;
-  border-radius: 18px;
+  border-radius: 9px;
 }
 
 .hidden-input {
@@ -1671,7 +1676,7 @@ async function handleImportFile(event: Event) {
   width: 34px;
   height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   cursor: pointer;
@@ -1742,7 +1747,7 @@ async function handleImportFile(event: Event) {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 5px;
   transition: color var(--transition-base);
 
   &:hover {
@@ -1757,7 +1762,7 @@ async function handleImportFile(event: Event) {
   gap: 10px;
   padding: 0 14px;
   min-height: 40px;
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.07);
 }
 
@@ -1799,7 +1804,7 @@ async function handleImportFile(event: Event) {
   margin: 14px 0 4px;
   padding: 0 18px;
   border: 1px solid rgba(56, 189, 248, 0.16);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(56, 189, 248, 0.07);
   color: #7dd3fc;
   font: inherit;
@@ -1883,7 +1888,7 @@ async function handleImportFile(event: Event) {
   padding: 16px;
   margin-bottom: 12px;
   border: 1px solid rgba(56, 189, 248, 0.12);
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -1891,7 +1896,7 @@ async function handleImportFile(event: Event) {
   grid-row: 1 / span 2;
   width: 64px;
   height: 64px;
-  border-radius: 16px;
+  border-radius: 8px;
   object-fit: cover;
 }
 
@@ -1907,7 +1912,7 @@ async function handleImportFile(event: Event) {
 .group-field textarea {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   padding: 11px 12px;
@@ -2004,7 +2009,7 @@ async function handleImportFile(event: Event) {
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.04);
   margin-bottom: 8px;
   transition: background var(--transition-base), border-color var(--transition-base);

@@ -1,6 +1,7 @@
 /**
  * Prompt Assembler: 将 PromptTemplate 的 entries 排序组装为最终 prompt
  * + 模板变量宏替换系统
+ * + 统一 Prompt 组装 (constructPrompt)
  */
 
 import {
@@ -10,7 +11,114 @@ import {
   type EntryConditionGroup,
 } from '@/types/prompt-template'
 import type { ChatMessage } from '@/types/chat'
+import type { LorebookEntry } from '@/types/character'
 import { getActivePrompts } from './system-prompt'
+
+// ── Unified Prompt Assembly ──
+
+/** 世界书词条分类类型 */
+export type LorebookEntryType = 'profile' | 'world_info' | 'dialogue' | 'style'
+
+/** 带分类的世界书词条 */
+export interface TypedLorebookEntry extends LorebookEntry {
+  type: LorebookEntryType
+}
+
+/** constructPrompt 上下文 */
+export interface PromptContext {
+  /** 系统级 system prompt（来自全局设置） */
+  globalSystemPrompt?: string
+  /** 用户自定义的系统提示词 */
+  userSystemPrompt?: string
+  /** 角色卡 system prompt */
+  characterSystemPrompt?: string
+  /** 世界书词条（已按 type/depth/order 排序） */
+  lorebookEntries?: TypedLorebookEntry[]
+  /** 对话历史 */
+  messages?: ChatMessage[]
+  /** 当前用户输入 */
+  userInput?: string
+  /** 最大上下文消息数 */
+  maxContext?: number
+}
+
+const TYPE_PRIORITY: Record<LorebookEntryType, number> = {
+  profile: 0,
+  world_info: 1,
+  dialogue: 2,
+  style: 3,
+}
+
+/**
+ * 世界书词条排序：
+ * - 先按 type 优先级（profile → world_info → dialogue → style）
+ * - 同一 type 内按 order 升序
+ */
+export function sortLorebookEntries(entries: TypedLorebookEntry[]): TypedLorebookEntry[] {
+  return [...entries].sort((a, b) => {
+    const prioA = TYPE_PRIORITY[a.type] ?? 999
+    const prioB = TYPE_PRIORITY[b.type] ?? 999
+    if (prioA !== prioB) return prioA - prioB
+    return (a.order ?? 0) - (b.order ?? 0)
+  })
+}
+
+/**
+ * 按规范顺序组装 prompt
+ * 1. 系统级 system prompt（来自全局设置）
+ * 2. user-defined system prompt
+ * 3. 角色卡 system prompt
+ * 4. 世界书词条（按 type/depth/order 排序后插入）
+ * 5. 对话历史（按 max_context 截断后的消息列表）
+ * 6. user input（当前用户输入）
+ *
+ * 每个部分之间用换行符分隔，空内容跳过。
+ */
+export function constructPrompt(context: PromptContext): {
+  systemPrompt: string
+  messages: ChatMessage[]
+} {
+  const sections: string[] = []
+
+  // 1. 系统级 system prompt
+  if (context.globalSystemPrompt?.trim()) {
+    sections.push(context.globalSystemPrompt.trim())
+  }
+
+  // 2. 用户自定义 system prompt
+  if (context.userSystemPrompt?.trim()) {
+    sections.push(context.userSystemPrompt.trim())
+  }
+
+  // 3. 角色卡 system prompt
+  if (context.characterSystemPrompt?.trim()) {
+    sections.push(context.characterSystemPrompt.trim())
+  }
+
+  // 4. 世界书词条
+  if (context.lorebookEntries && context.lorebookEntries.length > 0) {
+    const sorted = sortLorebookEntries(context.lorebookEntries)
+    const combined = sorted.map(e => e.content.trim()).filter(Boolean).join('\n')
+    if (combined) {
+      sections.push(combined)
+    }
+  }
+
+  const systemPrompt = sections.join('\n\n')
+
+  // 5. 对话历史（截断）
+  let history = context.messages ? [...context.messages] : []
+  if (context.maxContext !== undefined && context.maxContext >= 0) {
+    history = history.slice(-context.maxContext)
+  }
+
+  // 6. 当前用户输入
+  if (context.userInput?.trim()) {
+    history = [...history, { role: 'user' as const, content: context.userInput.trim() }]
+  }
+
+  return { systemPrompt, messages: history }
+}
 
 // ── Template variable macro replacement ──
 
@@ -57,7 +165,6 @@ export function buildVariableContext(params: {
     'memory': params.memorySummary,
     'lorebook': params.lorebookText,
     'user.name': params.userName,
-    'user.corePrompt': params.userCorePrompt,
   }
 }
 
@@ -101,6 +208,7 @@ export interface AssembledPrompt {
 
 /**
  * 组装 prompt: 将模板 entries 按条件/优先级分类为 system 和 chat 两部分
+ * @deprecated 请使用 constructPrompt 进行统一 prompt 组装
  */
 export function assemblePrompt(
   template: PromptTemplate,
@@ -165,6 +273,7 @@ export function injectChatEntries(
 
 /**
  * 构建默认模板 (兼容现有 chat.ts 的分层组装逻辑)
+ * @deprecated 请使用 constructPrompt 进行统一 prompt 组装
  */
 export function buildDefaultTemplate(): PromptTemplate {
   const entries: PromptTemplate['entries'] = [
@@ -256,7 +365,7 @@ export function buildDefaultTemplate(): PromptTemplate {
     for (const prompt of activePrompts) {
       const pos = prompt.injectionPosition
       if (pos === 'system-top' || pos === 'system-middle' || pos === 'system-bottom') {
-        const text = prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+        const text = prompt.basicPrompt
         entries.push({
           id: `sys-${prompt.id}`,
           name: prompt.name,

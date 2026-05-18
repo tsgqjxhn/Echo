@@ -153,16 +153,22 @@ export class CombatSystem {
       throw new Error('[CombatSystem] 未在战斗中');
     }
 
-    const { player, enemy } = this._state;
-    const result = this._executeUnitTurn(player, enemy, action, 'player');
+    try {
+      const { player, enemy } = this._state;
+      const result = this._executeUnitTurn(player, enemy, action, 'player');
 
-    // 检查战斗结束
-    const battleResult = this.checkBattleEnd();
-    if (battleResult) {
-      this._addLog('system', '战斗结束', battleResult.victory ? '胜利' : '失败', undefined, undefined);
+      // 检查战斗结束
+      const battleResult = this.checkBattleEnd();
+      if (battleResult) {
+        this._addLog('system', '战斗结束', battleResult.victory ? '胜利' : '失败', undefined, undefined);
+      }
+
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this._addLog('system', '错误', `玩家回合执行异常: ${msg}`, undefined, undefined);
+      return { actor: 'player', action: action.type, logs: [`[系统] 回合执行异常: ${msg}`] };
     }
-
-    return result;
   }
 
   /**
@@ -173,17 +179,23 @@ export class CombatSystem {
       throw new Error('[CombatSystem] 未在战斗中');
     }
 
-    const { enemy, player } = this._state;
-    const action = this._chooseEnemyAction(enemy, player);
-    const result = this._executeUnitTurn(enemy, player, action, 'enemy');
+    try {
+      const { enemy, player } = this._state;
+      const action = this._chooseEnemyAction(enemy, player);
+      const result = this._executeUnitTurn(enemy, player, action, 'enemy');
 
-    // 检查战斗结束
-    const battleResult = this.checkBattleEnd();
-    if (battleResult) {
-      this._addLog('system', '战斗结束', battleResult.victory ? '胜利' : '失败', undefined, undefined);
+      // 检查战斗结束
+      const battleResult = this.checkBattleEnd();
+      if (battleResult) {
+        this._addLog('system', '战斗结束', battleResult.victory ? '胜利' : '失败', undefined, undefined);
+      }
+
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this._addLog('system', '错误', `敌方回合执行异常: ${msg}`, undefined, undefined);
+      return { actor: 'enemy', action: 'attack', logs: [`[系统] 回合执行异常: ${msg}`] };
     }
-
-    return result;
   }
 
   // ==========================================================================
@@ -199,122 +211,138 @@ export class CombatSystem {
     const logs: string[] = [];
     const result: TurnResult = { actor: actorType, action: action.type, logs };
 
-    // 回合开始：处理状态效果
-    const turnStart = this._statusSystem.processTurnStart(actor);
-    logs.push(...turnStart.logs);
+    try {
+      // 回合开始：处理状态效果
+      const turnStart = this._statusSystem.processTurnStart(actor);
+      logs.push(...turnStart.logs);
 
-    if (turnStart.skipped) {
-      // 跳过回合
-      this._endTurn(actor);
-      return result;
-    }
-
-    // 每回合自动恢复灵气
-    const manaRegen = Math.floor(actor.maxMp * 0.1);
-    actor.mp = Math.min(actor.maxMp, actor.mp + manaRegen);
-
-    // 执行行动
-    switch (action.type) {
-      case 'attack': {
-        // 普通攻击
-        const damage = this.calculateDamage(actor, target, actor.skills[0]);
-        target.hp = Math.max(0, target.hp - damage.damage);
-        result.damage = damage;
-        logs.push(
-          `${actor.name} 普通攻击造成 ${damage.damage} 点伤害` +
-            (damage.isCrit ? '（暴击！）' : '') +
-            (damage.elementModifier > 1 ? '（五行克制！）' : damage.elementModifier < 1 ? '（被克制）' : '')
-        );
-        break;
+      if (turnStart.skipped) {
+        // 跳过回合
+        this._endTurn(actor);
+        return result;
       }
-      case 'skill': {
-        const skill = actor.skills.find((s) => s.id === action.skillId);
-        if (skill && this._skillSystem.isSkillAvailable(skill, actor)) {
-          // 消耗灵气
-          actor.mp -= skill.mpCost;
-          // 设置冷却
-          this._skillSystem.putOnCooldown(skill);
 
-          // 计算伤害
-          const damage = this.calculateDamage(actor, target, skill);
+      // 每回合自动恢复灵气
+      const manaRegen = Math.floor(actor.maxMp * 0.1);
+      actor.mp = Math.min(actor.maxMp, actor.mp + manaRegen);
+
+      // 执行行动
+      switch (action.type) {
+        case 'attack': {
+          // 普通攻击：如果无技能则使用默认参数
+          const attackSkill = actor.skills && actor.skills.length > 0 ? actor.skills[0] : { id: 'default_attack', name: '攻击', power: 100, type: 'attack' as const, element: 'metal' as const, target: 'single' as const, mpCost: 0, cooldown: 0, currentCooldown: 0, effects: [] };
+          const damage = this.calculateDamage(actor, target, attackSkill as Skill);
           target.hp = Math.max(0, target.hp - damage.damage);
           result.damage = damage;
           logs.push(
-            `${actor.name} 使用 ${skill.name} 造成 ${damage.damage} 点伤害` +
+            `${actor.name} 普通攻击造成 ${damage.damage} 点伤害` +
               (damage.isCrit ? '（暴击！）' : '') +
-              (damage.elementModifier > 1 ? '（五行克制！）' : '')
+              (damage.elementModifier > 1 ? '（五行克制！）' : damage.elementModifier < 1 ? '（被克制）' : '')
           );
+          break;
+        }
+        case 'skill': {
+          const skill = actor.skills.find((s) => s.id === action.skillId);
+          if (skill && this._skillSystem.isSkillAvailable(skill, actor)) {
+            // 消耗灵气
+            actor.mp -= skill.mpCost;
+            // 设置冷却
+            this._skillSystem.putOnCooldown(skill);
 
-          // 执行技能附加效果
-          for (const effect of skill.effects) {
-            if (effect.type !== 'damage') {
-              const effectValue = this._skillSystem.applySkillEffect(effect, target, actor);
-              if (effect.type === 'heal') {
-                result.healAmount = effectValue;
-                logs.push(`${actor.name} 恢复 ${effectValue} 生命`);
-              } else if (effect.type === 'shield') {
-                logs.push(`${actor.name} 获得护盾`);
-              } else if (effect.type === 'control') {
-                logs.push(`${target.name} 被控制！`);
-              } else if (effect.type === 'dot') {
-                logs.push(`${target.name} 中毒！`);
+            // 计算伤害
+            const damage = this.calculateDamage(actor, target, skill);
+            target.hp = Math.max(0, target.hp - damage.damage);
+            result.damage = damage;
+            logs.push(
+              `${actor.name} 使用 ${skill.name} 造成 ${damage.damage} 点伤害` +
+                (damage.isCrit ? '（暴击！）' : '') +
+                (damage.elementModifier > 1 ? '（五行克制！）' : '')
+            );
+
+            // 执行技能附加效果
+            if (skill.effects && skill.effects.length > 0) {
+              for (const effect of skill.effects) {
+                if (effect.type !== 'damage') {
+                  const effectValue = this._skillSystem.applySkillEffect(effect, target, actor);
+                  if (effect.type === 'heal') {
+                    result.healAmount = effectValue;
+                    logs.push(`${actor.name} 恢复 ${effectValue} 生命`);
+                  } else if (effect.type === 'shield') {
+                    logs.push(`${actor.name} 获得护盾`);
+                  } else if (effect.type === 'control') {
+                    logs.push(`${target.name} 被控制！`);
+                  } else if (effect.type === 'dot') {
+                    logs.push(`${target.name} 中毒！`);
+                  }
+                }
               }
             }
+          } else {
+            logs.push(`${actor.name} 技能无法使用，改为普通攻击`);
+            // 安全获取技能，防止空数组
+            const fallbackSkill = actor.skills && actor.skills.length > 0 ? actor.skills[0] : { id: 'default_attack', name: '攻击', power: 100, type: 'attack' as const, element: 'metal' as const, target: 'single' as const, mpCost: 0, cooldown: 0, currentCooldown: 0, effects: [] };
+            const damage = this.calculateDamage(actor, target, fallbackSkill as Skill);
+            target.hp = Math.max(0, target.hp - damage.damage);
+            result.damage = damage;
           }
-        } else {
-          logs.push(`${actor.name} 技能无法使用，改为普通攻击`);
-          const damage = this.calculateDamage(actor, target, actor.skills[0]);
-          target.hp = Math.max(0, target.hp - damage.damage);
-          result.damage = damage;
+          break;
         }
-        break;
-      }
-      case 'defend': {
-        // 防御：提升防御力一回合
-        actor.buffs.push({
-          id: 'defend',
-          name: '防御姿态',
-          type: 'buff',
-          duration: 1,
-          effects: [{ stat: 'defense', value: 0.5, mode: 'multiply' }],
-        });
-        logs.push(`${actor.name} 进入防御姿态，防御力提升`);
-        break;
-      }
-      case 'item': {
-        // 使用物品（在战斗场景中处理消耗，这里只记录）
-        logs.push(`${actor.name} 使用了物品`);
-        break;
-      }
-      case 'flee': {
-        const fleeSuccess = this._attemptFlee(actor, target);
-        if (fleeSuccess) {
-          logs.push(`${actor.name} 成功逃跑！`);
-          // 标记战斗结束（逃跑算失败但无惩罚）
-          if (this._state) {
-            this._state.player.hp = 0; // 触发结束检查
+        case 'defend': {
+          // 防御：提升防御力一回合
+          if (!actor.buffs) actor.buffs = [];
+          actor.buffs.push({
+            id: 'defend',
+            name: '防御姿态',
+            type: 'buff',
+            duration: 1,
+            effects: [{ stat: 'defense', value: 0.5, mode: 'multiply' }],
+          });
+          logs.push(`${actor.name} 进入防御姿态，防御力提升`);
+          break;
+        }
+        case 'item': {
+          // 使用物品（在战斗场景中处理消耗，这里只记录）
+          logs.push(`${actor.name} 使用了物品`);
+          break;
+        }
+        case 'flee': {
+          const fleeSuccess = this._attemptFlee(actor, target);
+          if (fleeSuccess) {
+            logs.push(`${actor.name} 成功逃跑！`);
+            // 标记战斗结束（逃跑算失败但无惩罚）
+            if (this._state) {
+              this._state.player.hp = 0; // 触发结束检查
+            }
+          } else {
+            logs.push(`${actor.name} 逃跑失败！`);
           }
-        } else {
-          logs.push(`${actor.name} 逃跑失败！`);
+          break;
         }
-        break;
       }
+
+      // 功法特效处理
+      this._applyClassEffects(actor, target, result, logs);
+
+      // 回合结束：处理状态效果
+      const turnEndLogs = this._statusSystem.processTurnEnd(actor);
+      logs.push(...turnEndLogs);
+      this._statusSystem.removeExpiredEffects(actor);
+      this._statusSystem.removeExpiredEffects(target);
+
+      // 减少技能冷却
+      if (actor.skills) {
+        this._skillSystem.reduceCooldowns(actor.skills);
+      }
+
+      // 推进回合
+      this._endTurn(actor);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logs.push(`[系统] 回合执行异常: ${msg}`);
+      result.logs = logs;
+      // 即使异常也尝试推进回合，防止死锁
+      try { this._endTurn(actor); } catch { /* ignore */ }
     }
-
-    // 功法特效处理
-    this._applyClassEffects(actor, target, result, logs);
-
-    // 回合结束：处理状态效果
-    const turnEndLogs = this._statusSystem.processTurnEnd(actor);
-    logs.push(...turnEndLogs);
-    this._statusSystem.removeExpiredEffects(actor);
-    this._statusSystem.removeExpiredEffects(target);
-
-    // 减少技能冷却
-    this._skillSystem.reduceCooldowns(actor.skills);
-
-    // 推进回合
-    this._endTurn(actor);
 
     return result;
   }
@@ -353,23 +381,31 @@ export class CombatSystem {
    * @param defender 防御者
    * @param skill 使用的技能
    */
-  calculateDamage(attacker: CombatUnit, defender: CombatUnit, skill: Skill): DamageResult {
+  calculateDamage(attacker: CombatUnit, defender: CombatUnit, skill?: Skill): DamageResult {
+    // 安全检查：skill 为 null/undefined 时使用默认值
+    const safeSkill = skill ?? { id: 'default_attack', name: '攻击', power: 100, type: 'attack' as const, element: 'metal' as const, target: 'single' as const, mpCost: 0, cooldown: 0, currentCooldown: 0, effects: [] };
+
     // 基础伤害 = (攻击力 - 防御力 * 0.5) * 技能系数
     let defenseAfterBreak = defender.defense;
     if (attacker.defenseBreak) {
       defenseAfterBreak = Math.floor(defender.defense * (1 - attacker.defenseBreak));
     }
 
-    let baseDamage = Math.max(1, (attacker.attack - defenseAfterBreak * 0.5) * (skill.power / 100));
+    // 防止除零 / 异常 power 值
+    const power = (safeSkill.power != null && safeSkill.power > 0) ? safeSkill.power : 100;
+    const atk = attacker.attack || 1;
+    const def = defenseAfterBreak || 0;
+    let baseDamage = Math.max(1, (atk - def * 0.5) * (power / 100));
 
     // 随机波动 85%-115%
     baseDamage *= 0.85 + Math.random() * 0.3;
 
     // 暴击判定
+    const critRate = attacker.critRate || 0;
     const critRoll = Math.random();
-    const isCrit = critRoll < attacker.critRate;
+    const isCrit = critRoll < critRate;
     if (isCrit) {
-      baseDamage *= 1 + attacker.critDamage;
+      baseDamage *= 1 + (attacker.critDamage || 0);
     }
 
     // 五行克制
@@ -542,9 +578,12 @@ export class CombatSystem {
     // 3. 优先使用高伤害技能（如果灵气足够）
     // 4. 否则普通攻击
 
-    const hpRatio = enemy.hp / enemy.maxHp;
+    const hpRatio = enemy.hp / Math.max(1, enemy.maxHp);
 
-    for (const skill of enemy.skills) {
+    // 安全检查：确保 skills 存在
+    const skills = enemy.skills || [];
+
+    for (const skill of skills) {
       if (!this._skillSystem.isSkillAvailable(skill, enemy)) continue;
 
       // 低血量优先治疗
@@ -553,7 +592,8 @@ export class CombatSystem {
       }
 
       // 优先控制
-      if (skill.type === 'control' && !player.buffs.some((b) => b.type === 'control')) {
+      const hasControl = player.buffs && player.buffs.some((b) => b.type === 'control');
+      if (skill.type === 'control' && !hasControl) {
         return { type: 'skill', skillId: skill.id };
       }
 
@@ -564,7 +604,7 @@ export class CombatSystem {
     }
 
     // 使用第一个可用攻击技能
-    const availableAttack = enemy.skills.find(
+    const availableAttack = skills.find(
       (s) => s.type === 'attack' && this._skillSystem.isSkillAvailable(s, enemy)
     );
     if (availableAttack) {
@@ -681,11 +721,12 @@ export class CombatSystem {
   useBattleItem(itemId: string, actor: CombatUnit): { success: boolean; healAmount?: number; log: string } {
     switch (itemId) {
       case 'huixue_dan': {
-        const heal = Math.floor(actor.maxHp * 0.3);
-        actor.hp = Math.min(actor.maxHp, actor.hp + heal);
+        const heal = Math.floor((actor.maxHp || 100) * 0.3);
+        actor.hp = Math.min(actor.maxHp || 100, (actor.hp || 0) + heal);
         return { success: true, healAmount: heal, log: `${actor.name} 使用回血丹，恢复 ${heal} 生命` };
       }
       case 'huti_dan': {
+        if (!actor.buffs) actor.buffs = [];
         actor.buffs.push({
           id: 'huti',
           name: '护体',

@@ -29,7 +29,7 @@
         v-for="character in filteredCharacters"
         :key="character.id"
         class="favorite-card"
-        @click="goToDetail(character.id)"
+        @click="goToChat(character.id)"
       >
         <img :src="character.avatar || defaultAvatar" :alt="character.name" class="avatar" />
 
@@ -57,9 +57,8 @@
       <p class="eyebrow">还没有收藏</p>
       <h2>{{ searchKeyword ? '没有找到匹配收藏' : '收藏夹还是空的' }}</h2>
       <p>
-        {{ searchKeyword ? '换个关键词试试，或者返回角色页继续筛选。' : '在角色页把常用角色加入收藏，下次就能更快回到这里。' }}
+        {{ searchKeyword ? '换个关键词试试。' : '暂无收藏角色。' }}
       </p>
-      <button type="button" class="browse-btn" @click="goToCharacters">去角色页看看</button>
     </section>
   </div>
 </template>
@@ -77,7 +76,7 @@ const searchKeyword = ref('')
 const defaultAvatar = '/src/static/images/default-avatar.svg'
 
 const favoriteCharacters = computed(() =>
-  [...characterStore.favoriteCharacters].sort((a, b) => b.updatedAt - a.updatedAt)
+  [...characterStore.characters.filter(c => c.isFavorite)].sort((a, b) => b.updatedAt - a.updatedAt)
 )
 
 const filteredCharacters = computed(() => {
@@ -95,12 +94,8 @@ const filteredCharacters = computed(() => {
 })
 
 onMounted(async () => {
-  await characterStore.loadCharacters({ favorite: true, sortBy: 'updatedAt', sortOrder: 'desc' })
+  await characterStore.loadCharacters()
 })
-
-function goToDetail(id: string) {
-  router.push(`/character/detail/${id}`)
-}
 
 function goToChat(id: string) {
   const character = favoriteCharacters.value.find(item => item.id === id)
@@ -112,12 +107,8 @@ function goToChat(id: string) {
   router.push(`/chat/${id}`)
 }
 
-function goToCharacters() {
-  router.push('/character')
-}
-
 async function toggleFavorite(id: string) {
-  await characterStore.toggleFavorite(id)
+  await characterStore.toggleLike(id)
 }
 </script>
 
@@ -144,7 +135,7 @@ async function toggleFavorite(id: string) {
   justify-content: space-between;
   gap: 20px;
   padding: 28px;
-  border-radius: 32px;
+  border-radius: 16px;
   background: var(--hero-gradient);
   animation: rise-in 0.5s ease both;
 }
@@ -172,7 +163,7 @@ async function toggleFavorite(id: string) {
   min-width: 120px;
   padding: 18px 20px;
   border: 1px solid var(--border-color);
-  border-radius: 22px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.04);
 
   span {
@@ -191,7 +182,7 @@ async function toggleFavorite(id: string) {
 .toolbar {
   margin-top: 18px;
   padding: 16px;
-  border-radius: 24px;
+  border-radius: 12px;
   animation: rise-in 0.62s ease both;
 }
 
@@ -200,7 +191,7 @@ async function toggleFavorite(id: string) {
   height: 50px;
   padding: 0 18px;
   border: 1px solid var(--input-border);
-  border-radius: 18px;
+  border-radius: 9px;
   background: var(--ghost-gradient);
   color: var(--text-primary);
   font: inherit;
@@ -227,7 +218,7 @@ async function toggleFavorite(id: string) {
   align-items: center;
   min-height: var(--record-card-min-height);
   padding: var(--record-card-padding-y) var(--record-card-padding-x);
-  border-radius: 16px;
+  border-radius: 8px;
   cursor: pointer;
   transition: transform var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
   background: linear-gradient(180deg, rgba(46, 51, 57, 0.24), rgba(16, 18, 21, 0.94));
@@ -301,7 +292,7 @@ async function toggleFavorite(id: string) {
 .browse-btn {
   min-height: var(--record-action-height);
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: 5px;
   cursor: pointer;
 }
 
@@ -327,7 +318,7 @@ async function toggleFavorite(id: string) {
 .empty-card {
   margin-top: 18px;
   padding: 30px;
-  border-radius: 32px;
+  border-radius: 16px;
   animation: rise-in 0.86s ease both;
 
   h2 {

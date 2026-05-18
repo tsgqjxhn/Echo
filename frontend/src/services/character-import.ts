@@ -33,6 +33,46 @@ function bytesToString(data: Uint8Array, start: number, end: number): string {
   return result
 }
 
+/* ── zlib inflate 辅助（用于 zTXt） ── */
+
+async function inflateZlib(data: Uint8Array): Promise<Uint8Array> {
+  if (typeof DecompressionStream !== 'undefined') {
+    try {
+      const ds = new DecompressionStream('deflate')
+      const writer = ds.writable.getWriter()
+      await writer.write(data.slice().buffer as ArrayBuffer)
+      await writer.close()
+      const reader = ds.readable.getReader()
+      const chunks: Uint8Array[] = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+      const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
+      const result = new Uint8Array(totalLength)
+      let pos = 0
+      for (const chunk of chunks) {
+        result.set(chunk, pos)
+        pos += chunk.length
+      }
+      return result
+    } catch {
+      // fall through
+    }
+  }
+  throw new Error('当前环境不支持 zTXt chunk 解压')
+}
+
+function base64ToUtf8(base64: string): string {
+  const binaryString = atob(base64)
+  const bytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
 /* ── Chara Card 归一化类型 ── */
 
 interface CharaCardNormalized {
@@ -46,6 +86,7 @@ interface CharaCardNormalized {
   system_prompt?: string
   post_history_instructions?: string
   alternate_greetings?: string[]
+  group_only_greetings?: string[]
   tags?: string[]
   creator?: string
   character_version?: string
@@ -95,6 +136,11 @@ function buildSettings(data: CharaCardNormalized): string {
   if (data.post_history_instructions?.trim())
     parts.push(`后历史指令：\n${data.post_history_instructions.trim()}`)
   return parts.join('\n\n')
+}
+
+function normalizeRequiredText(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim() || ''
+  return trimmed || fallback
 }
 
 function buildPersona(data: CharaCardNormalized): CharacterPersona | undefined {
@@ -147,20 +193,26 @@ function charaCardToICharacter(
   }
 
   const settings = buildSettings(data)
+  const description = normalizeRequiredText(data.description, `${data.name.trim()} 的导入角色卡。`)
+
+  // 校验前截断，避免存储层校验失败
+  const safeName = data.name.trim().slice(0, 50)
+  const safeDescription = description.trim().slice(0, 1000)
+  const safeSettings = normalizeRequiredText(settings, safeDescription).trim() || safeDescription
 
   const character: ICharacter = {
     id: generateUUID(),
-    name: data.name.trim(),
+    name: safeName,
     avatar: imageDataUrl || undefined,
-    description: data.description?.trim() || '',
+    description: safeDescription,
     greeting: data.first_mes?.trim() || undefined,
-    settings,
+    settings: safeSettings,
     isFavorite: false,
     createdAt: now,
     updatedAt: now,
     mode: 'free-dialogue',
-    category: '综合',
-    subCategory: '角色扮演',
+    category: '自由对话',
+    subCategory: '',
     sourceType: 'document-import',
     sourceName:
       data.creator?.trim() ||
@@ -175,6 +227,10 @@ function charaCardToICharacter(
       data.alternate_greetings?.filter(
         (g): g is string => typeof g === 'string' && !!g.trim(),
       ) || undefined,
+    groupOnlyGreetings:
+      data.group_only_greetings?.filter(
+        (g): g is string => typeof g === 'string' && !!g.trim(),
+      ) || undefined,
   }
 
   return character
@@ -182,8 +238,15 @@ function charaCardToICharacter(
 
 /* ── PNG 解析 ── */
 
+function findNullIndex(data: Uint8Array, start: number): number {
+  for (let i = start; i < data.length; i++) {
+    if (data[i] === 0) return i
+  }
+  return -1
+}
+
 /**
- * 解析 PNG 的 tEXt/iTXt chunk 中的 chara 数据
+ * 解析 PNG 的 tEXt / zTXt / iTXt chunk 中的 chara 数据
  */
 export async function parsePngCharaChunk(arrayBuffer: ArrayBuffer): Promise<Record<string, unknown>> {
   const data = new Uint8Array(arrayBuffer)
@@ -205,17 +268,11 @@ export async function parsePngCharaChunk(arrayBuffer: ArrayBuffer): Promise<Reco
     const length = readUint32(data, offset)
     const type = bytesToString(data, offset + 4, offset + 8)
 
-    if (type === 'tEXt' || type === 'iTXt') {
+    if (type === 'tEXt' || type === 'zTXt' || type === 'iTXt') {
       const chunkData = data.slice(offset + 8, offset + 8 + length)
 
       // Find null terminator separating keyword from text
-      let nullIndex = -1
-      for (let i = 0; i < chunkData.length; i++) {
-        if (chunkData[i] === 0) {
-          nullIndex = i
-          break
-        }
-      }
+      const nullIndex = findNullIndex(chunkData, 0)
 
       if (nullIndex !== -1) {
         const keyword = bytesToString(chunkData, 0, nullIndex)
@@ -223,16 +280,45 @@ export async function parsePngCharaChunk(arrayBuffer: ArrayBuffer): Promise<Reco
           if (type === 'iTXt') {
             // iTXt: keyword \0 compression_flag compression_method language_tag \0 translated_keyword \0 text
             let textStart = nullIndex + 1
-            // Skip compression flag + compression method (2 bytes)
-            textStart += 2
-            // Skip language tag (null-terminated)
+            // compression_flag (1 byte) + compression_method (1 byte)
+            if (textStart + 2 > chunkData.length) break
+            const compressionFlag = chunkData[textStart]
+            textStart += 2 // skip both
+            // language tag (null-terminated)
             while (textStart < chunkData.length && chunkData[textStart] !== 0) textStart++
             textStart++ // skip null
-            // Skip translated keyword (null-terminated)
+            // translated keyword (null-terminated)
             while (textStart < chunkData.length && chunkData[textStart] !== 0) textStart++
             textStart++ // skip null
-            charaText = bytesToString(chunkData, textStart, chunkData.length)
+
+            if (compressionFlag === 1) {
+              // Compressed text (zlib deflate)
+              const compressed = chunkData.slice(textStart)
+              try {
+                const inflated = await inflateZlib(compressed)
+                charaText = new TextDecoder('utf-8').decode(inflated)
+              } catch {
+                // fall through to raw bytes string
+                charaText = bytesToString(chunkData, textStart, chunkData.length)
+              }
+            } else {
+              charaText = new TextDecoder('utf-8').decode(chunkData.slice(textStart))
+            }
+          } else if (type === 'zTXt') {
+            // zTXt: keyword \0 compression_method text_bytes
+            const method = chunkData[nullIndex + 1]
+            if (method !== 0) {
+              throw new Error(`不支持的 zTXt 压缩方法: ${method}`)
+            }
+            const compressed = chunkData.slice(nullIndex + 2)
+            try {
+              const inflated = await inflateZlib(compressed)
+              charaText = new TextDecoder('utf-8').decode(inflated)
+            } catch {
+              charaText = bytesToString(chunkData, nullIndex + 2, chunkData.length)
+            }
           } else {
+            // tEXt: keyword \0 text
             charaText = bytesToString(chunkData, nullIndex + 1, chunkData.length)
           }
           break
@@ -248,19 +334,17 @@ export async function parsePngCharaChunk(arrayBuffer: ArrayBuffer): Promise<Reco
     throw new Error('未找到角色卡数据，请确认是有效的 SillyTavern PNG 角色卡')
   }
 
-  // Decode base64
+  // Decode base64 → UTF-8 JSON
   let jsonString: string
   try {
-    jsonString = atob(charaText)
-    // Handle UTF-8 encoding
-    jsonString = decodeURIComponent(
-      jsonString
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(''),
-    )
+    jsonString = base64ToUtf8(charaText)
   } catch {
-    throw new Error('无法解码 PNG 中的角色卡数据')
+    // Try pure base64 decode as fallback
+    try {
+      jsonString = atob(charaText)
+    } catch {
+      throw new Error('无法解码 PNG 中的角色卡数据')
+    }
   }
 
   try {
@@ -329,9 +413,9 @@ export async function importCharacterFromImage(file: File): Promise<ICharacter> 
     id: generateUUID(),
     name: baseName,
     avatar: imageDataUrl,
-    description: '',
+    description: `${baseName || '导入角色'} 的图片角色卡。`,
     greeting: undefined,
-    settings: '',
+    settings: `${baseName || '导入角色'} 由图片导入，可在编辑页补充详细设定。`,
     isFavorite: false,
     createdAt: now,
     updatedAt: now,
@@ -392,15 +476,15 @@ export async function importCharacterFromText(
     name: data.name?.trim() || '导入角色',
     avatar: data.avatar || undefined,
     background: data.background || undefined,
-    description: data.description?.trim() || '',
+    description: data.description?.trim() || `${data.name?.trim() || '导入角色'} 的导入角色卡。`,
     greeting: data.greeting?.trim() || undefined,
-    settings: data.settings?.trim() || '',
+    settings: data.settings?.trim() || data.description?.trim() || `${data.name?.trim() || '导入角色'} 的导入设定。`,
     isFavorite: data.isFavorite ?? false,
     createdAt: now,
     updatedAt: now,
     mode: (data.mode as ICharacter['mode']) || 'free-dialogue',
-    category: data.category || '综合',
-    subCategory: data.subCategory || '角色扮演',
+    category: data.category || '自由对话',
+    subCategory: data.subCategory || '',
     sourceType: 'document-import',
     sourceName: fileName,
     tags: data.tags || [],

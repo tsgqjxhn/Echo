@@ -252,6 +252,11 @@ function formatTime(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+function compactToastMessage(message: string, fallback: string): string {
+  const text = message.trim() || fallback
+  return text.length > 60 ? `${text.slice(0, 57)}...` : text
+}
+
 /**
  * 启动进度定时器
  */
@@ -285,6 +290,8 @@ function stopProgressTimer() {
 async function startTTSSpeak() {
   if (!props.text || !props.enableTTS) return
 
+  let ttsErrorHandled = false
+
   try {
     const ttsConfig = await loadTTSConfig()
 
@@ -309,6 +316,8 @@ async function startTTSSpeak() {
 
     ttsService.value.onError((error) => {
       isTTSSpeaking.value = false
+      ttsErrorHandled = true
+      uni.showToast({ title: compactToastMessage(error.message, '朗读失败'), icon: 'none' })
       emit('error', error)
     })
 
@@ -319,7 +328,9 @@ async function startTTSSpeak() {
     await ttsService.value.speak(props.text)
   } catch (error) {
     isTTSSpeaking.value = false
-    emit('error', error as Error)
+    if (!ttsErrorHandled) {
+      emit('error', error as Error)
+    }
   }
 }
 

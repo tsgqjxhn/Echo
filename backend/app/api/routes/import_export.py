@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import httpx
+import io
 import json
 import re
+import zipfile
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.entities import AssetRecord, CharacterRecord, ExportTaskRecord
+from app.models.entities import AssetRecord, CharacterRecord, ExportTaskRecord, MessageRecord, SessionRecord
 from app.schemas.entities import (
     CharacterResponse,
     ChatContextRequest,
@@ -21,6 +26,8 @@ from app.schemas.entities import (
 )
 from app.services.export_service import (
     build_backup_export,
+    build_jsonl_export,
+    build_sillytavern_png,
     build_standard_export,
     create_character_from_document,
     get_overview,
@@ -129,7 +136,7 @@ async def _llm_parse_character_text(text: str, filename: str) -> dict[str, Any] 
             systemPrompt=system_prompt,
             messages=[ChatMessage(role="user", content=truncated)],
         )
-        response = await llm_service.chat(None, request)  # type: ignore[arg-type]
+        response = await llm_service.chat(None, request)
         content = response.content.strip()
         # 移除可能的 markdown 代码块
         if content.startswith("```"):
@@ -236,6 +243,194 @@ def export_character_by_path(character_id: str, db: Session = Depends(get_db)) -
     return _build_character_export(character_id, db)
 
 
+@router.post("/export/character/png")
+async def export_character_png(character_id: str = Query(...), db: Session = Depends(get_db)) -> StreamingResponse:
+    record = db.get(CharacterRecord, character_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Character not found.")
+
+    character_data = {
+        "name": record.name,
+        "description": record.description or "",
+        "personality": record.personality or "",
+        "scenario": record.background or "",
+        "first_mes": record.greeting or "",
+        "mes_example": "",
+        "creatorcomment": "",
+        "tags": record.tags or [],
+        "talkativeness": "0.5",
+        "fav": False,
+        "spec": "chara_card_v2",
+        "spec_version": "2.0",
+        "data": {
+            "name": record.name,
+            "description": record.description or "",
+            "personality": record.personality or "",
+            "scenario": record.background or "",
+            "first_mes": record.greeting or "",
+            "mes_example": "",
+            "creatorcomment": "",
+            "tags": record.tags or [],
+            "talkativeness": "0.5",
+            "fav": False,
+        },
+    }
+
+    avatar_bytes: bytes | None = None
+    if record.avatar:
+        try:
+            avatar_url = record.avatar
+            if avatar_url.startswith("/"):
+                avatar_url = f"{settings.public_base_url.rstrip('/')}{avatar_url}"
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(avatar_url, timeout=10)
+            if resp.status_code == 200:
+                avatar_bytes = resp.content
+        except Exception:
+            avatar_bytes = None
+
+    png_bytes = build_sillytavern_png(character_data, avatar_bytes)
+    safe_name = re.sub(r"[^\w\-. ]", "_", record.name) or "character"
+    filename = f"{safe_name}.png"
+    return StreamingResponse(
+        io.BytesIO(png_bytes),
+        media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/characters/png")
+async def export_characters_png(db: Session = Depends(get_db)) -> StreamingResponse:
+    characters = list(db.scalars(select(CharacterRecord)))
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for record in characters:
+            character_data = {
+                "name": record.name,
+                "description": record.description or "",
+                "personality": record.personality or "",
+                "scenario": record.background or "",
+                "first_mes": record.greeting or "",
+                "mes_example": "",
+                "creatorcomment": "",
+                "tags": record.tags or [],
+                "talkativeness": "0.5",
+                "fav": False,
+                "spec": "chara_card_v2",
+                "spec_version": "2.0",
+                "data": {
+                    "name": record.name,
+                    "description": record.description or "",
+                    "personality": record.personality or "",
+                    "scenario": record.background or "",
+                    "first_mes": record.greeting or "",
+                    "mes_example": "",
+                    "creatorcomment": "",
+                    "tags": record.tags or [],
+                    "talkativeness": "0.5",
+                    "fav": False,
+                },
+            }
+            avatar_bytes: bytes | None = None
+            if record.avatar:
+                try:
+                    avatar_url = record.avatar
+                    if avatar_url.startswith("/"):
+                        avatar_url = f"{settings.public_base_url.rstrip('/')}{avatar_url}"
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(avatar_url, timeout=10)
+                    if resp.status_code == 200:
+                        avatar_bytes = resp.content
+                except Exception:
+                    avatar_bytes = None
+            png_bytes = build_sillytavern_png(character_data, avatar_bytes)
+            safe_name = re.sub(r"[^\w\-. ]", "_", record.name) or "character"
+            zf.writestr(f"{safe_name}.png", png_bytes)
+    zip_buffer.seek(0)
+    filename = f"xiang-characters-{now_ms()}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/characters/json")
+def export_characters_json(db: Session = Depends(get_db)) -> StreamingResponse:
+    characters = list(db.scalars(select(CharacterRecord)))
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for record in characters:
+            character_data = {
+                "name": record.name,
+                "description": record.description or "",
+                "personality": record.personality or "",
+                "scenario": record.background or "",
+                "first_mes": record.greeting or "",
+                "mes_example": "",
+                "creatorcomment": "",
+                "tags": record.tags or [],
+                "talkativeness": "0.5",
+                "fav": False,
+                "spec": "chara_card_v2",
+                "spec_version": "2.0",
+                "data": {
+                    "name": record.name,
+                    "description": record.description or "",
+                    "personality": record.personality or "",
+                    "scenario": record.background or "",
+                    "first_mes": record.greeting or "",
+                    "mes_example": "",
+                    "creatorcomment": "",
+                    "tags": record.tags or [],
+                    "talkativeness": "0.5",
+                    "fav": False,
+                },
+            }
+            safe_name = re.sub(r"[^\w\-. ]", "_", record.name) or "character"
+            json_bytes = json.dumps(character_data, ensure_ascii=False, indent=2).encode("utf-8")
+            zf.writestr(f"{safe_name}.json", json_bytes)
+    zip_buffer.seek(0)
+    filename = f"xiang-characters-json-{now_ms()}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/session/jsonl")
+def export_session_jsonl(session_id: str = Query(...), db: Session = Depends(get_db)) -> StreamingResponse:
+    session = db.get(SessionRecord, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    character = db.get(CharacterRecord, session.character_id)
+    messages = list(db.scalars(select(MessageRecord).where(MessageRecord.session_id == session_id).order_by(MessageRecord.timestamp)))
+
+    session_data = {
+        "character_name": character.name if character else "",
+        "character_version": "1.0",
+        "creator": "",
+        "create_date": str(session.created_at),
+        "messages": [
+            {
+                "name": character.name if character and msg.role != "user" else "User",
+                "content": msg.content,
+                "role": msg.role,
+            }
+            for msg in messages
+        ],
+    }
+    jsonl_content = build_jsonl_export(session_data)
+    safe_name = re.sub(r"[^\w\-. ]", "_", character.name if character else "session")
+    filename = f"{safe_name}-{session_id}.jsonl"
+    return StreamingResponse(
+        io.BytesIO(jsonl_content.encode("utf-8")),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/export/tasks/{task_id}", response_model=ExportTaskResponse)
 def get_export_task(task_id: str, db: Session = Depends(get_db)) -> ExportTaskResponse:
     task = db.get(ExportTaskRecord, task_id)
@@ -330,7 +525,8 @@ async def _create_character_from_text(
                     description=record.description,
                     greeting=record.greeting,
                     settings=record.settings,
-                    isFavorite=record.is_favorite,
+                    isLiked=False,
+                    isFriend=False,
                     createdAt=record.created_at,
                     updatedAt=record.updated_at,
                     mode=record.mode,
@@ -387,7 +583,8 @@ async def _create_character_from_text(
         description=record.description,
         greeting=record.greeting,
         settings=record.settings,
-        isFavorite=record.is_favorite,
+        isLiked=False,
+        isFriend=False,
         createdAt=record.created_at,
         updatedAt=record.updated_at,
         mode=record.mode,

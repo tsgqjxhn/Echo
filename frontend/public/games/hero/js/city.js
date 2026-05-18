@@ -7,6 +7,7 @@ const CityManager = {
   GRID_ROWS: 6,
 
   init() {
+    if (!gameState) return;
     if (!gameState.city) gameState.city = {};
     if ((gameState.city.buildings || []).length > 0 || (gameState.buildQueue || []).length > 0) {
       gameState.city.buildings = [];
@@ -16,6 +17,7 @@ const CityManager = {
   },
 
   getBuildingAt(gridX, gridY) {
+    if (!gameState || !gameState.city) return null;
     return gameState.city.buildings.find(b => b.gridX === gridX && b.gridY === gridY);
   },
 
@@ -25,6 +27,7 @@ const CityManager = {
   },
 
   build(type, gridX, gridY) {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     if (!this.canPlace(gridX, gridY)) return { ok: false, msg: '无法在此位置建造' };
 
     const bt = BUILDING_TYPES[type];
@@ -62,6 +65,7 @@ const CityManager = {
   },
 
   upgrade(buildingId) {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     const building = gameState.city.buildings.find(b => b.id === buildingId);
     if (!building) return { ok: false, msg: '建筑不存在' };
 
@@ -91,6 +95,7 @@ const CityManager = {
   },
 
   speedUp(buildingId) {
+    if (!gameState) return { ok: false, msg: '游戏未初始化' };
     const queueIdx = gameState.buildQueue.findIndex(q => q.buildingId === buildingId);
     if (queueIdx < 0) return { ok: false, msg: '该建筑不在队列中' };
 
@@ -109,6 +114,7 @@ const CityManager = {
   },
 
   collectResources() {
+    if (!gameState) return {};
     let collected = { wood: 0, food: 0, stone: 0, gold: 0 };
     const buildings = gameState.city.buildings || [];
 
@@ -133,6 +139,7 @@ const CityManager = {
   },
 
   getProductionRates() {
+    if (!gameState) return { wood: 0, food: 0, stone: 0, gold: 0 };
     const rates = { wood: 0, food: 0, stone: 0, gold: 0 };
     for (const b of gameState.city.buildings) {
       if (b.level <= 0) continue;
@@ -200,6 +207,7 @@ const CityManager = {
   },
 
   collectSalary() {
+    if (!gameState) return;
     const result = claimSalary();
     if (typeof HeroAudio !== 'undefined') HeroAudio.playBuildComplete();
     UI.showToast(result.msg);
@@ -208,6 +216,7 @@ const CityManager = {
   },
 
   renderBattlePortal() {
+    if (!gameState) return '';
     const highest = gameState.roguelike.highestStage || 0;
     let selectedId = gameState.roguelike.selectedMap || BATTLE_MAPS[0].id;
     let selectedIndex = BATTLE_MAPS.findIndex(m => m.id === selectedId);

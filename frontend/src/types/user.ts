@@ -1,7 +1,6 @@
 export interface UserInfo {
   name?: string
   avatar?: string
-  corePrompt?: string
   globalPrompt?: string
 }
 

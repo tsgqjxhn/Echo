@@ -162,7 +162,7 @@ interface Match3Design {
 }
 
 const design: Match3Design = {
-  name: '星糖消消乐',
+  name: '糖果消消乐',
   board: {
     rows: 8,
     cols: 8,
@@ -217,7 +217,7 @@ const design: Match3Design = {
     },
     {
       id: 'star',
-      label: '星芒糖',
+      label: '闪光糖',
       symbol: 'A',
       shape: 'star',
       color: '#facc15',
@@ -238,8 +238,8 @@ const design: Match3Design = {
     autoShuffleWhenNoMove: true,
   },
   states: {
-    playing: '交换相邻星糖，组成三连即可消除。',
-    won: '目标达成，星糖乐园被点亮。',
+    playing: '交换相邻糖果，组成三连即可消除。',
+    won: '目标达成，糖果乐园被点亮。',
     lost: '步数用尽，距离目标还差一点。',
   },
 }
@@ -273,7 +273,7 @@ const progressPercent = computed(() => {
 const statusText = computed(() => {
   if (result.value === 'won') return design.states.won
   if (result.value === 'lost') return design.states.lost
-  if (isResolving.value) return '星糖正在连锁消除...'
+  if (isResolving.value) return '糖果正在连锁消除...'
   return lastEvent.value
 })
 
@@ -366,7 +366,7 @@ function handleCellClick(cell: RenderCell) {
   const selected = selectedCell.value
   if (!selected) {
     selectedCell.value = { row: cell.row, col: cell.col }
-    lastEvent.value = '再点一枚相邻星糖进行交换。'
+    lastEvent.value = '再点一枚相邻糖果进行交换。'
     return
   }
 
@@ -378,7 +378,7 @@ function handleCellClick(cell: RenderCell) {
 
   if (!isAdjacent(selected, cell)) {
     selectedCell.value = { row: cell.row, col: cell.col }
-    lastEvent.value = '只能交换上下左右相邻的星糖。'
+    lastEvent.value = '只能交换上下左右相邻的糖果。'
     return
   }
 
@@ -430,7 +430,7 @@ async function resolveMatches(initialMatches: MatchLine[]) {
     score.value += points
     clearedCount.value += matchedCells.size
     updateHighScore()
-    lastEvent.value = `消除 ${matchedCells.size} 枚星糖，获得 ${points} 分。`
+    lastEvent.value = `消除 ${matchedCells.size} 枚糖果，获得 ${points} 分。`
 
     clearingKeys.value = matchedCells
     refreshBoard()
@@ -598,7 +598,7 @@ function showHint() {
     return
   }
   hintKeys.value = new Set(move.map(cell => cellKey(cell.row, cell.col)))
-  lastEvent.value = '已标出一组可以交换的星糖。'
+  lastEvent.value = '已标出一组可以交换的糖果。'
 }
 
 function manualShuffle() {
@@ -689,7 +689,7 @@ function wait(ms: number): Promise<void> {
 .tool-btn,
 .primary-btn {
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   font: inherit;
@@ -724,7 +724,7 @@ function wait(ms: number): Promise<void> {
   min-width: 0;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.05);
 
   span {
@@ -774,7 +774,7 @@ function wait(ms: number): Promise<void> {
   aspect-ratio: 1;
   padding: 8px;
   border: 1px solid rgba(125, 211, 252, 0.12);
-  border-radius: 20px;
+  border-radius: 10px;
   background:
     radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 34%),
     linear-gradient(135deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.9));
@@ -794,7 +794,7 @@ function wait(ms: number): Promise<void> {
   min-width: 0;
   min-height: 0;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.055);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   cursor: pointer;
@@ -859,7 +859,7 @@ function wait(ms: number): Promise<void> {
 }
 
 .shape-diamond {
-  border-radius: 8px;
+  border-radius: 4px;
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
@@ -872,7 +872,7 @@ function wait(ms: number): Promise<void> {
 }
 
 .shape-rounded-square {
-  border-radius: 18px;
+  border-radius: 9px;
 }
 
 .shape-star {
@@ -895,7 +895,7 @@ function wait(ms: number): Promise<void> {
   width: min(320px, calc(100% - 32px));
   padding: 22px;
   border: 1px solid rgba(125, 211, 252, 0.18);
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(15, 23, 42, 0.94);
   text-align: center;
   box-shadow: var(--shadow-xl);
@@ -920,7 +920,7 @@ function wait(ms: number): Promise<void> {
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
 
@@ -1001,11 +1001,11 @@ function wait(ms: number): Promise<void> {
   .board {
     gap: 4px;
     padding: 6px;
-    border-radius: 18px;
+    border-radius: 9px;
   }
 
   .tile-cell {
-    border-radius: 11px;
+    border-radius: 5.5px;
   }
 
   .tile-shape {

@@ -57,13 +57,18 @@ export const dashscopeAdapter: ProviderAdapter = {
       content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
     }))
 
+    const parameters: Record<string, unknown> = {
+      result_format: 'message',
+      ...(request.stream ? { incremental_output: true } : {}),
+    }
+    if (request.temperature !== undefined) parameters.temperature = request.temperature
+    if (request.maxTokens !== undefined) parameters.max_tokens = request.maxTokens
+    if (request.topP !== undefined) parameters.top_p = request.topP
+
     const body: Record<string, unknown> = {
       model: request.model,
       input: { messages },
-      parameters: {
-        result_format: 'message',
-        ...(request.stream ? { incremental_output: true } : {}),
-      },
+      parameters,
     }
 
     return body

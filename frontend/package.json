@@ -4,7 +4,6 @@
   "description": "相 - AI 角色聊天移动应用",
   "type": "module",
   "scripts": {
-    "import:dialogue": "python .\\scripts\\import-dialogue-xing.py",
     "dev": "vite --config vite.config.mjs",
     "dev:hidden": "powershell -ExecutionPolicy Bypass -File .\\scripts\\start-dev-hidden.ps1",
     "serve:hidden": "powershell -ExecutionPolicy Bypass -File .\\scripts\\start-dist-hidden.ps1",
@@ -16,7 +15,9 @@
     "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.3.1",
     "crypto-js": "^4.1.1",
+    "jsqr": "^1.4.0",
     "pinia": "^2.1.7",
+    "qrcode": "^1.5.4",
     "uuid": "^9.0.0",
     "vue": "^3.5.13",
     "vue-router": "^4.3.0"

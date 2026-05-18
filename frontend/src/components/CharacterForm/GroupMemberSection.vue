@@ -189,7 +189,7 @@ function emitMembers() {
 .add-btn {
   padding: 3px 10px;
   border: 1px solid rgba(56, 189, 248, 0.15);
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: rgba(56, 189, 248, 0.6);
   font: inherit;
@@ -222,7 +222,7 @@ function emitMembers() {
 .member-item {
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.02);
   transition: border-color 0.2s;
 
@@ -269,7 +269,7 @@ function emitMembers() {
 .remove-btn {
   padding: 0 6px;
   border: none;
-  border-radius: 3px;
+  border-radius: 1.5px;
   background: transparent;
   color: var(--text-tertiary);
   font-size: 14px;
@@ -286,7 +286,7 @@ function emitMembers() {
   gap: 0;
   margin-bottom: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 3px;
   overflow: hidden;
   width: fit-content;
 }

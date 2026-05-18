@@ -13,39 +13,25 @@
           />
         </svg>
       </button>
-      <h1 class="page-title">配置软件底层规范提示词/全局提示词</h1>
+      <h1 class="page-title">配置全局提示词</h1>
       <span class="header-placeholder" aria-hidden="true"></span>
     </header>
 
-    <div class="type-tabs" role="tablist" aria-label="提示词类型切换">
-      <button
-        v-for="tab in promptTabs"
-        :key="tab.value"
-        type="button"
-        class="type-tab"
-        :class="{ active: activePromptTab === tab.value }"
-        :aria-pressed="activePromptTab === tab.value"
-        @click="activePromptTab = tab.value"
-      >
-        {{ tab.label }}
-      </button>
-    </div>
-
     <section class="content-card">
       <label class="field">
-        <span>{{ activePromptLabel }}</span>
+        <span>全局提示词</span>
         <textarea
-          v-model="activePromptValue"
+          v-model="formData.globalPrompt"
           maxlength="3000"
           rows="10"
-          :placeholder="`请输入${activePromptLabel}`"
+          placeholder="请输入全局提示词"
         />
       </label>
 
       <div class="action-row">
-        <button type="button" class="ghost-btn" @click="clearPrompt">清空</button>
+        <button type="button" class="ghost-btn" @click="formData.globalPrompt = ''">清空</button>
         <button type="button" class="primary-btn" :disabled="saving" @click="savePrompt">
-          {{ saving ? '保存中...' : '保存当前提示词' }}
+          {{ saving ? '保存中...' : '保存提示词' }}
         </button>
       </div>
     </section>
@@ -53,74 +39,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { uni } from '@/utils/uni-polyfill'
 
-type PromptTabValue = 'core' | 'global'
-
 const router = useRouter()
-const route = useRoute()
 const userStore = useUserStore()
 
-const promptTabs: { label: string; value: PromptTabValue }[] = [
-  { label: '软件底层规范提示词', value: 'core' },
-  { label: '全局提示词', value: 'global' }
-]
-
-const activePromptTab = ref<PromptTabValue>('global')
 const formData = ref({
-  corePrompt: '',
   globalPrompt: ''
 })
 const saving = ref(false)
 
-const activePromptLabel = computed(() =>
-  activePromptTab.value === 'core' ? '软件底层规范提示词' : '全局提示词'
-)
-
-const activePromptValue = computed({
-  get() {
-    return activePromptTab.value === 'core'
-      ? formData.value.corePrompt
-      : formData.value.globalPrompt
-  },
-  set(value: string) {
-    if (activePromptTab.value === 'core') {
-      formData.value.corePrompt = value
-      return
-    }
-
-    formData.value.globalPrompt = value
-  }
-})
-
 onMounted(async () => {
-  const tab = route.query.tab
-  if (tab === 'core' || tab === 'global') {
-    activePromptTab.value = tab
-  }
-
   await userStore.loadUserInfo()
-  formData.value.corePrompt = userStore.corePrompt
   formData.value.globalPrompt = userStore.globalPrompt
 })
 
-function clearPrompt() {
-  activePromptValue.value = ''
-}
-
 async function savePrompt() {
   saving.value = true
-
   try {
-    if (activePromptTab.value === 'core') {
-      await userStore.updateCorePrompt(formData.value.corePrompt.trim())
-    } else {
-      await userStore.updateGlobalPrompt(formData.value.globalPrompt.trim())
-    }
-
+    await userStore.updateGlobalPrompt(formData.value.globalPrompt.trim())
     uni.showToast({ title: '提示词已保存', icon: 'success' })
   } catch (error) {
     uni.showToast({
@@ -172,17 +112,6 @@ async function savePrompt() {
   overflow: hidden;
 }
 
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--top-bar-highlight);
-  pointer-events: none;
-}
-
 .page-title {
   min-width: 0;
   margin: 0;
@@ -199,19 +128,10 @@ async function savePrompt() {
   height: 48px;
 }
 
-.type-tabs {
-  width: min(960px, calc(100% - 32px));
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 12px auto 18px;
-}
-
-.type-tab,
 .ghost-btn,
 .primary-btn {
   min-height: 46px;
-  border-radius: 18px;
+  border-radius: 9px;
   font: inherit;
   cursor: pointer;
   transition:
@@ -219,26 +139,6 @@ async function savePrompt() {
     border-color var(--transition-base),
     background var(--transition-base),
     color var(--transition-base);
-}
-
-.type-tab {
-  border: 1px solid rgba(52, 211, 153, 0.14);
-  background: rgba(52, 211, 153, 0.06);
-  color: var(--text-secondary);
-  font-size: 15px;
-  font-weight: 600;
-
-  &:hover {
-    background: rgba(52, 211, 153, 0.12);
-    color: var(--text-primary);
-  }
-
-  &.active {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.82), rgba(52, 211, 153, 0.78));
-    border-color: transparent;
-    color: #fff;
-    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.26);
-  }
 }
 
 .ghost-btn {
@@ -261,11 +161,11 @@ async function savePrompt() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-primary);
   box-shadow: none;
@@ -294,7 +194,7 @@ async function savePrompt() {
   width: min(960px, calc(100% - 32px));
   margin: 0 auto;
   padding: 28px;
-  border-radius: 32px;
+  border-radius: 16px;
 }
 
 .field {
@@ -308,7 +208,7 @@ async function savePrompt() {
     min-height: 220px;
     padding: 16px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
+    border-radius: 10px;
     resize: vertical;
     background: rgba(255, 255, 255, 0.04);
     color: var(--text-primary);
@@ -333,7 +233,6 @@ async function savePrompt() {
     padding-right: 12px;
   }
 
-  .type-tabs,
   .content-card {
     width: calc(100% - 20px);
   }

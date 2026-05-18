@@ -1,9 +1,18 @@
 import type { APIConfig as AppAPIConfig } from '@/types/api-config'
 import type { IMessage, IChatSession } from '@/types/chat'
 import type { ICharacter } from '@/types/character'
-import type { GameState } from '@/types/game'
 import type { ThemeType, UserInfo as AppUserInfo } from '@/types/user'
 import { normalizeCharacterTaxonomy } from '@/data/taxonomy'
+
+export interface StorageGameState {
+  id: string
+  gameId: string
+  characterId: string
+  sessionId?: string
+  state: Record<string, unknown>
+  createdAt: number
+  updatedAt: number
+}
 
 export const STORAGE_KEYS = {
   CHARACTERS: 'xiang_characters',
@@ -63,10 +72,10 @@ export interface StorageDriver {
   saveGameSettings(settings: GameSettings): Promise<void>
   getGameSettings(): Promise<GameSettings | null>
 
-  saveGameState(state: GameState): Promise<void>
-  getGameState(gameId: string): Promise<GameState | null>
-  getAllGameStates(): Promise<GameState[]>
-  getGameStatesBySession(sessionId: string): Promise<GameState[]>
+  saveGameState(state: StorageGameState): Promise<void>
+  getGameState(gameId: string): Promise<StorageGameState | null>
+  getAllGameStates(): Promise<StorageGameState[]>
+  getGameStatesBySession(sessionId: string): Promise<StorageGameState[]>
   deleteGameState(gameId: string): Promise<void>
 
   clear(): Promise<void>
@@ -309,28 +318,28 @@ export class LocalStorageDriver implements StorageDriver {
     }
   }
 
-  async saveGameState(state: GameState): Promise<void> {
-    const map = lsGetMap<GameState>(STORAGE_KEYS.GAME_STATES)
+  async saveGameState(state: StorageGameState): Promise<void> {
+    const map = lsGetMap<StorageGameState>(STORAGE_KEYS.GAME_STATES)
     map[state.id] = state
     lsSetMap(STORAGE_KEYS.GAME_STATES, map)
   }
 
-  async getGameState(gameId: string): Promise<GameState | null> {
-    return lsGetMap<GameState>(STORAGE_KEYS.GAME_STATES)[gameId] ?? null
+  async getGameState(gameId: string): Promise<StorageGameState | null> {
+    return lsGetMap<StorageGameState>(STORAGE_KEYS.GAME_STATES)[gameId] ?? null
   }
 
-  async getAllGameStates(): Promise<GameState[]> {
-    return Object.values(lsGetMap<GameState>(STORAGE_KEYS.GAME_STATES))
+  async getAllGameStates(): Promise<StorageGameState[]> {
+    return Object.values(lsGetMap<StorageGameState>(STORAGE_KEYS.GAME_STATES))
   }
 
-  async getGameStatesBySession(sessionId: string): Promise<GameState[]> {
-    return Object.values(lsGetMap<GameState>(STORAGE_KEYS.GAME_STATES)).filter(
+  async getGameStatesBySession(sessionId: string): Promise<StorageGameState[]> {
+    return Object.values(lsGetMap<StorageGameState>(STORAGE_KEYS.GAME_STATES)).filter(
       state => state.sessionId === sessionId
     )
   }
 
   async deleteGameState(gameId: string): Promise<void> {
-    const map = lsGetMap<GameState>(STORAGE_KEYS.GAME_STATES)
+    const map = lsGetMap<StorageGameState>(STORAGE_KEYS.GAME_STATES)
     delete map[gameId]
     lsSetMap(STORAGE_KEYS.GAME_STATES, map)
   }

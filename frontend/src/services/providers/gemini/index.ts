@@ -26,7 +26,7 @@ export const geminiAdapter: ProviderAdapter = {
     if (service === 'video') {
       return `${resolveBaseURL(baseURL)}/videos/generations`
     }
-    return openaiAdapter.resolveEndpoint(baseURL, service)
+    return openaiAdapter.resolveEndpoint(resolveBaseURL(baseURL), service)
   },
 
   buildVideoBody(request: AdapterVideoRequest): Record<string, unknown> {

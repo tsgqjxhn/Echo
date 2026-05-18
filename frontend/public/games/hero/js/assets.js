@@ -135,8 +135,14 @@ const DAMAGE_DIGIT_SPRITES = {
 // Cache + simple loader for canvas-rendered sprites.
 const ImageCache = {
   _cache: new Map(),
+  _MAX_ENTRIES: 128,
   get(src) {
     if (!this._cache.has(src)) {
+      // Evict oldest entries when cache exceeds limit
+      if (this._cache.size >= this._MAX_ENTRIES) {
+        const firstKey = this._cache.keys().next().value;
+        this._cache.delete(firstKey);
+      }
       const img = new Image();
       img.src = src;
       const rec = { img, ready: false };
@@ -144,6 +150,10 @@ const ImageCache = {
       this._cache.set(src, rec);
     }
     return this._cache.get(src);
+  },
+  /** Remove all cached images to free memory. */
+  clear() {
+    this._cache.clear();
   },
 };
 

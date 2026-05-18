@@ -66,46 +66,51 @@ class LLMService:
         character_name = request.character.name if request.character else "角色"
         return f"{character_name} 已通过后端收到消息：{latest_user or '你好'}"
 
-    async def chat(self, db: Session, request: ChatContextRequest) -> ChatCompletionResponse:
+    async def chat(self, db: Session | None, request: ChatContextRequest) -> ChatCompletionResponse:
         runtime = resolve_runtime_api_config(db, self.settings)
         if runtime is None or self.settings.llm_provider == "mock":
             content = self._mock_reply(request)
             usage = TokenUsage(promptTokens=0, completionTokens=len(content), totalTokens=len(content))
             return ChatCompletionResponse(content=content, usage=usage, model="mock-backend")
 
-        body = {
-            "model": runtime["model"],
-            "messages": self._build_messages(request),
-            "stream": False,
-            "temperature": 0.7,
-            "max_tokens": 2048,
-        }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{runtime['base_url']}/chat/completions",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {runtime['api_key']}",
-                },
-                json=body,
-            )
-        if not response.is_success:
-            raise HTTPException(status_code=response.status_code, detail=response.text or "LLM request failed")
+        content_parts: list[str] = []
+        usage_payload: dict[str, int] = {}
+        model = runtime["model"]
 
-        payload = response.json()
-        usage_payload = payload.get("usage") or {}
+        async for event in self.stream_lines(db, request):
+            for raw_line in event.splitlines():
+                if not raw_line.startswith("data:"):
+                    continue
+                data = raw_line.removeprefix("data:").strip()
+                if not data or data == "[DONE]":
+                    continue
+                try:
+                    payload = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                if payload.get("model"):
+                    model = payload["model"]
+                if payload.get("usage"):
+                    usage_payload = payload["usage"]
+                choice = (payload.get("choices") or [{}])[0]
+                delta = choice.get("delta") or {}
+                message = choice.get("message") or {}
+                text = delta.get("content") or message.get("content") or ""
+                if text:
+                    content_parts.append(text)
+
         usage = TokenUsage(
             promptTokens=usage_payload.get("prompt_tokens", 0),
             completionTokens=usage_payload.get("completion_tokens", 0),
             totalTokens=usage_payload.get("total_tokens", 0),
         )
         return ChatCompletionResponse(
-            content=payload.get("choices", [{}])[0].get("message", {}).get("content", ""),
+            content="".join(content_parts),
             usage=usage,
-            model=payload.get("model"),
+            model=model,
         )
 
-    async def stream_lines(self, db: Session, request: ChatContextRequest):
+    async def stream_lines(self, db: Session | None, request: ChatContextRequest):
         runtime = resolve_runtime_api_config(db, self.settings)
         if runtime is None or self.settings.llm_provider == "mock":
             text = self._mock_reply(request)

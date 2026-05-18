@@ -3,11 +3,42 @@
  * 负责游戏的触发、动作处理、结果管理
  */
 
+import { GameType } from '@/types/game';
 import type { GameContext, GameResult, GameState } from '@/types/game';
-import type { StorageDriver } from './storage';
+import type { StorageDriver, StorageGameState } from './storage';
 import { GameSettingsService } from './game-settings';
 import { getGameHandler } from './game-handlers';
 import { Game } from '@/entity/game';
+
+/**
+ * 将业务层 GameState 转换为持久化 StorageGameState
+ */
+function toStorageGameState(state: GameState): StorageGameState {
+  return {
+    id: state.id,
+    gameId: state.gameType,
+    characterId: state.characterId,
+    sessionId: state.sessionId,
+    state: state.stateData,
+    createdAt: state.createdAt,
+    updatedAt: state.updatedAt,
+  };
+}
+
+/**
+ * 将持久化 StorageGameState 转换为业务层 GameState
+ */
+function toGameState(storage: StorageGameState): GameState {
+  return {
+    id: storage.id,
+    gameType: storage.gameId as GameType,
+    characterId: storage.characterId,
+    sessionId: storage.sessionId || '',
+    stateData: storage.state,
+    createdAt: storage.createdAt,
+    updatedAt: storage.updatedAt,
+  };
+}
 
 /**
  * 游戏服务类
@@ -51,7 +82,7 @@ export class GameService {
     );
 
     // 保存游戏状态
-    await this.storage.saveGameState(game);
+    await this.storage.saveGameState(toStorageGameState(game));
 
     return game;
   }
@@ -68,10 +99,12 @@ export class GameService {
     payload: any
   ): Promise<GameResult | null> {
     // 获取游戏状态
-    const gameState = await this.storage.getGameState(gameId);
-    if (!gameState) {
+    const storageState = await this.storage.getGameState(gameId);
+    if (!storageState) {
       throw new Error('游戏状态不存在');
     }
+
+    const gameState = toGameState(storageState);
 
     // 获取游戏处理器
     const handler = getGameHandler(gameState.gameType);
@@ -82,7 +115,7 @@ export class GameService {
     // 更新游戏状态
     gameState.stateData = result.newState;
     gameState.updatedAt = Date.now();
-    await this.storage.saveGameState(gameState);
+    await this.storage.saveGameState(toStorageGameState(gameState));
 
     if (result.isEnd) {
       // 游戏结束，可以触发事件或回调
@@ -106,7 +139,8 @@ export class GameService {
    * @param gameId 游戏 ID
    */
   async getGameState(gameId: string): Promise<GameState | null> {
-    return this.storage.getGameState(gameId);
+    const storageState = await this.storage.getGameState(gameId);
+    return storageState ? toGameState(storageState) : null;
   }
 
   /**
@@ -114,7 +148,8 @@ export class GameService {
    * @param sessionId 会话 ID
    */
   async getSessionGames(sessionId: string): Promise<GameState[]> {
-    return this.storage.getGameStatesBySession(sessionId);
+    const states = await this.storage.getGameStatesBySession(sessionId);
+    return states.map(toGameState);
   }
 
   /**

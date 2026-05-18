@@ -105,6 +105,19 @@ page {
   backdrop-filter: blur(10px);
 }
 
+// Reusable radius primitives for page components.
+.ui-radius-xs { border-radius: var(--radius-xs); }
+.ui-radius-sm { border-radius: var(--radius-sm); }
+.ui-radius-md { border-radius: var(--radius-md); }
+.ui-radius-lg { border-radius: var(--radius-lg); }
+.ui-radius-xl { border-radius: var(--radius-xl); }
+.ui-radius-2xl { border-radius: var(--radius-2xl); }
+.ui-radius-control { border-radius: var(--radius-control); }
+.ui-radius-card { border-radius: var(--radius-card); }
+.ui-radius-panel { border-radius: var(--radius-panel); }
+.ui-radius-dialog { border-radius: var(--radius-dialog); }
+.ui-radius-full { border-radius: var(--radius-full); }
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -535,7 +548,7 @@ input[type="radio"] {
   max-width: 500px;
   padding: var(--spacing-xl);
   border: 1px solid rgba(255, 255, 255, 0.30);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-dialog);
   background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(24px) saturate(1.5);
   box-shadow: var(--shadow-lg);

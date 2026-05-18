@@ -24,7 +24,7 @@ export async function fetchDefaultStory(): Promise<StoryRuntimePayload> {
 
   return {
     title: story.storyName,
-    characterName: story.characterName || '星',
+    characterName: story.characterName || '',
     segments,
   }
 }

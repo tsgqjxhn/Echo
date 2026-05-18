@@ -1,6 +1,4 @@
 export type APIProvider =
-  | 'local'
-  | 'ollama'
   | 'openai'
   | 'openai-compatible'
   | 'anthropic'
@@ -13,12 +11,8 @@ export type APIProvider =
   | 'zhipu'
   | 'baidu'
   | 'minimax'
-
-export const LOCAL_PROVIDERS: APIProvider[] = ['local']
-
-export function isLocalProvider(provider: string | undefined | null): boolean {
-  return !!provider && (LOCAL_PROVIDERS as string[]).includes(provider)
-}
+  | 'ollama'
+  | 'local'
 
 export type APIConfigSource = 'storage' | 'env'
 
@@ -46,9 +40,18 @@ export interface TestResult {
   model?: string
 }
 
+export interface BalanceInfo {
+  provider: string
+  configName: string
+  balance?: number
+  used?: number
+  total?: number
+  currency?: string
+  status: 'success' | 'unsupported' | 'error'
+  message?: string
+}
+
 export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
-  local: '内置/系统模型',
-  ollama: '本地/Ollama',
   openai: 'OpenAI/ChatGPT',
   'openai-compatible': 'OpenAI/兼容协议',
   anthropic: 'Anthropic/Claude',
@@ -61,6 +64,8 @@ export const PROVIDER_DISPLAY_NAMES: Record<APIProvider, string> = {
   zhipu: '智谱/GLM',
   baidu: '百度/文心',
   minimax: 'MiniMax/海螺',
+  ollama: 'Ollama/本地模型',
+  local: '本地语音',
 }
 
 export const DEFAULT_OPENAI_CONFIG: Partial<APIConfig> = {

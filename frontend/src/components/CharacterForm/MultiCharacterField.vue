@@ -333,7 +333,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
 
 .character-card {
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.02);
 }
@@ -371,7 +371,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
   align-items: center;
   justify-content: center;
   width: 24px; height: 24px;
-  border: none; border-radius: 4px;
+  border: none; border-radius: 2px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -485,7 +485,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
 .card-upload-btn {
   padding: 3px 8px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: var(--text-tertiary);
   font: inherit;
@@ -504,7 +504,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
 
 .card-media-preview {
   margin-top: 4px;
-  border-radius: 4px;
+  border-radius: 2px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.04);
   max-height: 80px;
@@ -524,7 +524,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
   margin-top: 4px;
   padding: 4px;
   border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .add-card-btn {
@@ -535,7 +535,7 @@ function uploadCardEmotion(cardIdx: number, emotionIdx: number) {
   width: 100%;
   padding: 10px;
   border: 1px dashed rgba(56, 189, 248, 0.2);
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   color: rgba(56, 189, 248, 0.6);
   font: inherit;

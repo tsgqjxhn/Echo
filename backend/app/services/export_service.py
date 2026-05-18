@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import base64
+import io
 import json
+import zlib
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -48,7 +52,6 @@ def _profile_to_dict(profile: UserProfileRecord | None) -> dict[str, Any] | None
         "name": profile.name,
         "avatar": profile.avatar,
         "globalPrompt": profile.global_prompt,
-        "corePrompt": profile.core_prompt,
     }
 
 
@@ -115,6 +118,7 @@ def _api_config_to_dict(item: APIConfigRecord, include_key: bool = False) -> dic
         "model": item.model,
         "isDefault": item.is_default,
         "source": item.source,
+        "configType": item.config_type,
     }
 
 
@@ -299,7 +303,6 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
         profile.name = user.get("name")
         profile.avatar = user.get("avatar")
         profile.global_prompt = user.get("globalPrompt")
-        profile.core_prompt = user.get("corePrompt")
         db.add(profile)
 
     for character in data.get("characters", []):
@@ -375,6 +378,7 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
             model=config.get("model", settings.openai_model),
             is_default=config.get("isDefault", False),
             source=config.get("source", "storage"),
+            config_type=config.get("configType", "text"),
             created_at=now_ms(),
             updated_at=now_ms(),
         ))
@@ -436,3 +440,84 @@ def create_character_from_document(
         "category": category,
         "subCategory": safe_sub_category,
     }
+
+
+def build_sillytavern_png(character_data: dict[str, Any], avatar_image: bytes | None = None) -> bytes:
+    """将角色 JSON 元数据以 zTXt chunk 形式写入 PNG，兼容 SillyTavern 格式。"""
+    # 准备 zTXt 数据: key + null + compression_method(0) + compressed_value
+    json_bytes = json.dumps(character_data, ensure_ascii=False).encode("utf-8")
+    b64_bytes = base64.b64encode(json_bytes)
+    raw_text = b"chara=" + b64_bytes
+
+    compressed = io.BytesIO()
+    import zlib
+    with zlib.compressobj() as compressor:
+        compressed.write(compressor.compress(raw_text))
+        compressed.write(compressor.flush())
+    compressed_value = compressed.getvalue()
+
+    # key + null + compression_method(0) + compressed_value
+    ztxt_data = b"chara\x00\x00" + compressed_value
+
+    # 计算 chunk CRC
+    def _crc32(data: bytes) -> int:
+        return zlib.crc32(data) & 0xFFFFFFFF
+
+    def _chunk(chunk_type: bytes, data: bytes) -> bytes:
+        length = len(data).to_bytes(4, "big")
+        crc = _crc32(chunk_type + data).to_bytes(4, "big")
+        return length + chunk_type + data + crc
+
+    if avatar_image:
+        img = Image.open(io.BytesIO(avatar_image))
+        # 确保是 RGB/RGBA PNG
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA")
+        png_buffer = io.BytesIO()
+        img.save(png_buffer, format="PNG")
+        base_png = png_buffer.getvalue()
+    else:
+        # 最小 1x1 空白 PNG
+        img = Image.new("RGBA", (1, 1), (255, 255, 255, 0))
+        png_buffer = io.BytesIO()
+        img.save(png_buffer, format="PNG")
+        base_png = png_buffer.getvalue()
+
+    # 在 IHDR 后插入 zTXt chunk（找到 IHDR chunk 结尾位置）
+    # PNG signature: 8 bytes
+    pos = 8
+    while pos < len(base_png):
+        chunk_len = int.from_bytes(base_png[pos:pos + 4], "big")
+        chunk_type = base_png[pos + 4:pos + 8]
+        chunk_end = pos + 12 + chunk_len
+        if chunk_type == b"IHDR":
+            # 在 IHDR 后插入 zTXt
+            ztxt_chunk = _chunk(b"zTXt", ztxt_data)
+            base_png = base_png[:chunk_end] + ztxt_chunk + base_png[chunk_end:]
+            break
+        pos = chunk_end
+
+    return base_png
+
+
+def build_jsonl_export(session_data: dict[str, Any]) -> str:
+    """构建带 metadata 的 jsonl 导出内容。"""
+    lines: list[str] = []
+
+    metadata = {
+        "char_name": session_data.get("character_name", ""),
+        "char_version": session_data.get("character_version", ""),
+        "creator": session_data.get("creator", ""),
+        "create_date": session_data.get("create_date", ""),
+    }
+    lines.append(json.dumps(metadata, ensure_ascii=False))
+
+    for message in session_data.get("messages", []):
+        line = {
+            "name": message.get("name", ""),
+            "mes": message.get("content", ""),
+            "is_user": message.get("role") == "user",
+        }
+        lines.append(json.dumps(line, ensure_ascii=False))
+
+    return "\n".join(lines)

@@ -26,19 +26,54 @@ def sanitize_api_config(record: APIConfigRecord) -> APIConfigResponse:
     )
 
 
-def resolve_runtime_api_config(db: Session, settings: Settings) -> dict[str, str] | None:
+def resolve_runtime_api_config(db: Session | None, settings: Settings, config_type: str | None = None) -> dict[str, str] | None:
     if settings.openai_api_key:
+        model = settings.openai_model
+        if config_type == "stt":
+            model = settings.openai_stt_model
+        elif config_type == "tts":
+            model = settings.openai_tts_model
         return {
             "provider": "openai-compatible",
             "api_key": settings.openai_api_key,
             "base_url": settings.openai_base_url.rstrip("/"),
-            "model": settings.openai_model,
+            "model": model,
             "source": "env",
         }
 
-    record = db.scalar(select(APIConfigRecord).where(APIConfigRecord.is_default.is_(True)))
-    if record is None:
-        record = db.scalar(select(APIConfigRecord).order_by(APIConfigRecord.updated_at.desc()))
+    if db is None:
+        return None
+
+    if config_type:
+        record = db.scalar(
+            select(APIConfigRecord).where(
+                APIConfigRecord.config_type == config_type,
+                APIConfigRecord.is_default.is_(True),
+            )
+        )
+        if record is None:
+            record = db.scalar(
+                select(APIConfigRecord)
+                .where(APIConfigRecord.config_type == config_type)
+                .order_by(APIConfigRecord.updated_at.desc())
+            )
+        if record is None and config_type in {"stt", "tts"}:
+            record = db.scalar(
+                select(APIConfigRecord).where(
+                    APIConfigRecord.config_type == "voice",
+                    APIConfigRecord.is_default.is_(True),
+                )
+            )
+            if record is None:
+                record = db.scalar(
+                    select(APIConfigRecord)
+                    .where(APIConfigRecord.config_type == "voice")
+                    .order_by(APIConfigRecord.updated_at.desc())
+                )
+    else:
+        record = db.scalar(select(APIConfigRecord).where(APIConfigRecord.is_default.is_(True)))
+        if record is None:
+            record = db.scalar(select(APIConfigRecord).order_by(APIConfigRecord.updated_at.desc()))
     if record is None:
         return None
 

@@ -56,13 +56,32 @@ export const anthropicAdapter: ProviderAdapter = {
         role: m.role,
         content: typeof m.content === 'string' ? m.content : m.content,
       })),
-      max_tokens: 8192,
+      max_tokens: request.maxTokens ?? 8192,
       stream: request.stream,
     }
 
+    // Prompt Caching: 为 system prompt 添加 cache_control 标记
+    // Anthropic 要求标记的块从请求前缀开始，system prompt 是最佳候选
+    // 至少需要两个 cache_control 块来定义缓存边界：一个在开头，一个在最后一个可缓存块
     if (request.systemPrompt.trim()) {
-      body.system = request.systemPrompt
+      // 将 system prompt 拆分为换行符分隔的块，每个块都标记为可缓存
+      // 注意：最小可缓存大小约 1024 tokens，长的 system prompt 会获得更好的缓存效果
+      const systemText = request.systemPrompt.trim()
+      
+      // 使用对象数组格式来支持 cache_control
+      // 对于简单的 system prompt，我们将其作为一个文本块，并标记为可缓存
+      // 未来可以优化：将固定部分和动态部分分开，只缓存固定部分
+      body.system = [
+        {
+          type: 'text',
+          text: systemText,
+          cache_control: { type: 'ephemeral' },
+        },
+      ]
     }
+    
+    if (request.temperature !== undefined) body.temperature = request.temperature
+    if (request.topP !== undefined) body.top_p = request.topP
 
     return body
   },

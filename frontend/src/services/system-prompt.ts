@@ -3,11 +3,87 @@
  * 提供底层提示词的加载、保存、查询、批量操作等功能
  */
 
+import type { ICharacter } from '@/types/character'
 import type { SystemPrompt, PromptCategory } from '@/types/system-prompt'
-import { DEFAULT_SYSTEM_PROMPTS } from '@/data/system-prompts'
+import { DEFAULT_SYSTEM_PROMPTS, DISTILLED_PROMPTS } from '@/data/system-prompts'
+
+/**
+ * 宏替换上下文
+ */
+export interface MacroContext {
+  charName: string
+  userName: string
+  originalPrompt?: string
+  idleDuration?: string
+  character?: ICharacter
+  memoryPrompt?: string
+  sessionSummary?: string | null
+  userGlobalPrompt?: string
+}
+
+/**
+ * 将毫秒时长格式化为人类可读字符串
+ */
+export function formatDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days}天`
+  if (hours > 0) return `${hours}小时`
+  if (minutes > 0) return `${minutes}分钟`
+  return '刚刚'
+}
+
+function pad(n: number): string {
+  return n.toString().padStart(2, '0')
+}
+
+/**
+ * 统一宏替换入口
+ * 支持 SillyTavern 风格 {{parameter}} 语法
+ */
+export function resolveMacros(text: string, context: MacroContext): string {
+  const now = new Date()
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const idleStr = context.idleDuration ?? '刚刚'
+
+  const char = context.character
+
+  return (
+    text
+      // 角色与用户简写
+      .replace(/\{\{char\}\}/g, context.charName)
+      .replace(/\{\{user\}\}/g, context.userName)
+      // 原始 prompt（用于嵌套替换）
+      .replace(/\{\{original\}\}/g, context.originalPrompt ?? '')
+      // 时间/日期
+      .replace(/\{\{time\}\}/g, timeStr)
+      .replace(/\{\{date\}\}/g, dateStr)
+      // 空闲时长
+      .replace(/\{\{idle_duration\}\}/g, idleStr)
+      // 角色详细字段（兼容旧宏）
+      .replace(/\{\{char\.name\}\}/g, context.charName)
+      .replace(/\{\{char\.desc\}\}/g, char?.description ?? '')
+      .replace(/\{\{char\.description\}\}/g, char?.description ?? '')
+      .replace(/\{\{char\.personality\}\}/g, char?.personality ?? '')
+      .replace(/\{\{char\.behavior\}\}/g, char?.behavior ?? '')
+      .replace(/\{\{char\.values\}\}/g, char?.values ?? '')
+      .replace(/\{\{char\.scenario\}\}/g, char?.scenario ?? '')
+      .replace(/\{\{char\.settings\}\}/g, char?.settings ?? '')
+      // 用户字段（兼容旧宏）
+      .replace(/\{\{user\.name\}\}/g, context.userName)
+      .replace(/\{\{user\.globalPrompt\}\}/g, context.userGlobalPrompt ?? '')
+      // 记忆与摘要（兼容旧宏）
+      .replace(/\{\{memory\}\}/g, context.memoryPrompt ?? '')
+      .replace(/\{\{summary\}\}/g, context.sessionSummary ?? '')
+  )
+}
 
 const STORAGE_KEY = 'echo_system_prompts'
-const STORAGE_VERSION = '2'
+const STORAGE_VERSION = '3'
 
 /**
  * 从 localStorage 加载系统提示词配置
@@ -26,13 +102,13 @@ export function loadSystemPrompts(): SystemPrompt[] {
       return getDefaultPrompts()
     }
 
-    // 合并存储数据与默认数据：以存储的 enabled/useAdvanced 为准，但提示词文本以代码中最新版本为准
+    // 合并存储数据与默认数据：保留启用状态和用户编辑后的基础提示词。
     const storedMap = new Map<string, Partial<SystemPrompt>>()
     for (const p of parsed.prompts) {
       if (p && p.id) {
         storedMap.set(p.id, {
           enabled: p.enabled,
-          useAdvanced: p.useAdvanced,
+          basicPrompt: typeof p.basicPrompt === 'string' ? p.basicPrompt : undefined,
         })
       }
     }
@@ -43,7 +119,7 @@ export function loadSystemPrompts(): SystemPrompt[] {
         return {
           ...defaultPrompt,
           enabled: typeof stored.enabled === 'boolean' ? stored.enabled : defaultPrompt.enabled,
-          useAdvanced: typeof stored.useAdvanced === 'boolean' ? stored.useAdvanced : defaultPrompt.useAdvanced,
+          basicPrompt: typeof stored.basicPrompt === 'string' ? stored.basicPrompt : defaultPrompt.basicPrompt,
         }
       }
       return { ...defaultPrompt }
@@ -65,7 +141,7 @@ export function saveSystemPrompts(prompts: SystemPrompt[]): void {
       prompts: prompts.map((p) => ({
         id: p.id,
         enabled: p.enabled,
-        useAdvanced: p.useAdvanced,
+        basicPrompt: p.basicPrompt,
       })),
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -115,7 +191,7 @@ export function getPromptById(id: string, prompts?: SystemPrompt[]): SystemPromp
  */
 export function updatePrompt(
   id: string,
-  updates: Partial<Pick<SystemPrompt, 'enabled' | 'useAdvanced' | 'basicPrompt' | 'advancedPrompt'>>
+  updates: Partial<Pick<SystemPrompt, 'enabled' | 'basicPrompt'>>
 ): SystemPrompt[] {
   const prompts = loadSystemPrompts()
   const index = prompts.findIndex((p) => p.id === id)
@@ -139,38 +215,14 @@ export function setAllEnabled(enabled: boolean): SystemPrompt[] {
 }
 
 /**
- * 一键切换全部提示词的高级模式
- */
-export function setAllAdvanced(useAdvanced: boolean): SystemPrompt[] {
-  const prompts = loadSystemPrompts().map((p) => ({ ...p, useAdvanced }))
-  saveSystemPrompts(prompts)
-  return prompts
-}
-
-/**
- * 一键切换指定分类的高级模式
- */
-export function setCategoryAdvanced(
-  category: PromptCategory,
-  useAdvanced: boolean
-): SystemPrompt[] {
-  const prompts = loadSystemPrompts().map((p) =>
-    p.category === category ? { ...p, useAdvanced } : { ...p }
-  )
-  saveSystemPrompts(prompts)
-  return prompts
-}
-
-/**
  * 获取实际使用的提示词文本
- * 根据 enabled 和 useAdvanced 返回对应的模板文本
  */
 export function getPromptText(id: string): string | null {
   const prompt = getPromptById(id)
   if (!prompt || !prompt.enabled) {
     return null
   }
-  return prompt.useAdvanced ? prompt.advancedPrompt : prompt.basicPrompt
+  return prompt.basicPrompt
 }
 
 /**
@@ -194,7 +246,7 @@ export function exportPromptConfig(prompts?: SystemPrompt[]): string {
       prompts: list.map((p) => ({
         id: p.id,
         enabled: p.enabled,
-        useAdvanced: p.useAdvanced,
+        basicPrompt: p.basicPrompt,
       })),
     },
     null,
@@ -212,10 +264,13 @@ export function importPromptConfig(jsonString: string): SystemPrompt[] | null {
       return null
     }
 
-    const importedMap = new Map<string, { enabled: boolean; useAdvanced: boolean }>()
+    const importedMap = new Map<string, { enabled: boolean; basicPrompt?: string }>()
     for (const p of data.prompts) {
-      if (p && p.id && typeof p.enabled === 'boolean' && typeof p.useAdvanced === 'boolean') {
-        importedMap.set(p.id, { enabled: p.enabled, useAdvanced: p.useAdvanced })
+      if (p && p.id && typeof p.enabled === 'boolean') {
+        importedMap.set(p.id, {
+          enabled: p.enabled,
+          basicPrompt: typeof p.basicPrompt === 'string' ? p.basicPrompt : undefined,
+        })
       }
     }
 
@@ -225,7 +280,7 @@ export function importPromptConfig(jsonString: string): SystemPrompt[] | null {
         return {
           ...defaultPrompt,
           enabled: imported.enabled,
-          useAdvanced: imported.useAdvanced,
+          basicPrompt: imported.basicPrompt || defaultPrompt.basicPrompt,
         }
       }
       return { ...defaultPrompt }
@@ -236,5 +291,73 @@ export function importPromptConfig(jsonString: string): SystemPrompt[] | null {
   } catch (err) {
     console.error('[SystemPrompt] 导入失败:', err)
     return null
+  }
+}
+
+// ============================================================================
+// 精简版提示词支持 (Turbo 模式)
+// ============================================================================
+
+/**
+ * Prompt 模式类型
+ * - 'full': 完整版 (8层结构，最高质量，适合GPT-4等大模型)
+ * - 'distilled': 精简版 (6层蒸馏结构，约节省40% Token，适合Turbo模式和轻量模型)
+ */
+export type PromptMode = 'full' | 'distilled'
+
+/**
+ * 获取指定模式的默认提示词集合
+ */
+export function getDefaultPromptsByMode(mode: PromptMode): SystemPrompt[] {
+  if (mode === 'distilled') {
+    return DISTILLED_PROMPTS.map((p) => ({ ...p }))
+  }
+  return DEFAULT_SYSTEM_PROMPTS.map((p) => ({ ...p }))
+}
+
+/**
+ * 获取当前启用的提示词（支持模式选择）
+ * 默认使用精简版 (distilled) 以获得更好的性能
+ */
+export function getActivePromptsByMode(
+  mode: PromptMode = 'distilled',
+  prompts?: SystemPrompt[]
+): SystemPrompt[] {
+  const list = prompts ?? getDefaultPromptsByMode(mode)
+  return list
+    .filter((p) => p.enabled)
+    .sort((a, b) => b.priority - a.priority)
+}
+
+/**
+ * 切换 Prompt 模式并重置配置
+ * 这会清除用户自定义配置，使用对应模式的默认配置
+ */
+export function switchPromptMode(mode: PromptMode): SystemPrompt[] {
+  const defaults = getDefaultPromptsByMode(mode)
+  saveSystemPrompts(defaults)
+  return defaults
+}
+
+/**
+ * 获取当前使用的模式（根据存储的提示词 ID 推断）
+ * 检测策略：检查是否包含精简版特有的提示词 ID
+ */
+export function detectCurrentPromptMode(): PromptMode {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) {
+      return 'distilled' // 默认使用精简版
+    }
+    const data = JSON.parse(stored)
+    if (Array.isArray(data.prompts)) {
+      const ids = data.prompts.map((p: any) => p.id)
+      // 检测是否包含精简版特有的提示词 ID
+      const hasDistilledIds = ids.some((id: string) => id.startsWith('distilled-'))
+      return hasDistilledIds ? 'distilled' : 'full'
+    }
+    return 'distilled'
+  } catch {
+    return 'distilled'
   }
 }

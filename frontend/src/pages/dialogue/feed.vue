@@ -43,7 +43,7 @@
             :class="`message-row--${message.role}`"
           >
             <template v-if="message.role === 'assistant'">
-              <img :src="xingDisplayAvatar" alt="星" class="bubble-avatar bubble-avatar--assistant" />
+              <img :src="storyDisplayAvatar" alt="对方" class="bubble-avatar bubble-avatar--assistant" />
             </template>
 
             <div class="bubble-stack">
@@ -66,8 +66,13 @@
             </template>
           </article>
 
+          <div v-if="!hasStoryContent" class="empty-block">
+            <strong>暂无可用角色</strong>
+            <p>去创建吧</p>
+          </div>
+
           <article v-if="isTyping" class="message-row message-row--assistant">
-            <img :src="xingDisplayAvatar" alt="星" class="bubble-avatar bubble-avatar--assistant" />
+            <img :src="storyDisplayAvatar" alt="对方" class="bubble-avatar bubble-avatar--assistant" />
             <div class="bubble-stack">
               <div class="typing-bubble">
                 <span></span>
@@ -84,6 +89,11 @@
       </main>
 
       <footer class="composer">
+        <div v-if="storyGuidanceText && hasStoryContent && !isDead && !isCompleted" class="story-guide-card">
+          <span>剧情指引</span>
+          <p>{{ storyGuidanceText }}</p>
+        </div>
+
         <div v-if="isDead" class="status-card">
           <strong>这条线已经断了。</strong>
           <p>回溯到更早的时间点，重新把这段对话接回来。</p>
@@ -201,11 +211,11 @@
       @close="imageViewerVisible = false"
     />
 
-    <Teleport to="body">
-      <div v-if="showPuzzleGame" class="game-overlay">
-        <PuzzleGame :standalone="true" @complete="onPuzzleComplete" @exit="onPuzzleExit" />
-      </div>
-    </Teleport>
+      <Teleport to="body">
+        <div v-if="showPuzzleGame" class="game-overlay">
+          <PuzzleGame :standalone="true" @complete="onPuzzleComplete" @exit="onPuzzleExit" />
+        </div>
+      </Teleport>
 
   </div>
 </template>
@@ -216,8 +226,6 @@ import { useRoute, useRouter } from 'vue-router'
 import type { DialogueMessage } from '@/data/story'
 import ConversationSwitchButton from '@/components/ConversationSwitchButton/index.vue'
 import defaultAvatar from '@/static/images/default-avatar.svg'
-import xingAvatar from '@/static/images/story/星.webp'
-import questionAvatarImg from '@/static/images/story/问号头像.webp'
 import { switchToRandomLocalCharacter } from '@/services/random-character-switch'
 import { useUserStore } from '@/stores/user'
 import {
@@ -229,14 +237,19 @@ import {
   ensureStoryCharacter,
   ECHO_STORY_CHARACTER_ID,
   ECHO_STORY_NAME,
+  buildStoryQuestioningReply,
   getConversationById,
   getConversationMessages,
+  isStoryQuestioningInput,
   loadStoryLibrary,
   loadStoryRuntimeState,
   markConversationRead,
+  refreshStoryDialogueCompression,
+  refreshStoryGuidance,
   resetConversationState,
   resolveStoryAvatar,
   saveStoryRuntimeState,
+  verifyStoryGuidance,
   type StoryConversationDefinition,
   type StoryConversationState,
   type StoryLibrary,
@@ -288,8 +301,8 @@ const isFromTabBar = computed(() => {
 })
 
 const storyLibrary = ref<StoryLibrary>({
-  storyName: ECHO_STORY_NAME,
-  characterName: '星',
+  storyName: '',
+  characterName: '',
   conversations: [],
 })
 const runtimeState = ref<StoryRuntimeState>({
@@ -299,6 +312,10 @@ const runtimeState = ref<StoryRuntimeState>({
   clues: [],
   currentContactName: '未知用户',
   currentAvatarKey: 'question',
+  currentGuide: '',
+  globalGuide: '',
+  dialogueSummary: '',
+  guideHistory: [],
   states: {},
 })
 const displayedMessages = ref<VisibleMessage[]>([])
@@ -382,8 +399,8 @@ function ensureStoryMomentPost(momentAsset: StoryMomentAsset | null = null) {
   const post: MomentPost = {
     id: storyMomentId,
     characterId: ECHO_STORY_CHARACTER_ID,
-    characterName: '星',
-    characterAvatar: xingAvatar,
+    characterName: runtimeState.value.currentContactName || '故事联系人',
+    characterAvatar: defaultAvatar,
     content,
     imageUrl,
     postedAt: Date.now(),
@@ -439,9 +456,6 @@ function unlockAvatarFromSystemText(text: string) {
   }
   if (text.includes('短发')) {
     unlockGalleryItem('avatar-short-hair')
-  }
-  if (text.includes('正面清晰') || text.includes('星｜正面清晰形象') || text.includes('头像更新：【星')) {
-    unlockGalleryItem('avatar-xing')
   }
 }
 
@@ -523,13 +537,24 @@ const activePrompt = computed(() => {
 
   return activeSegment.value?.prompt || ''
 })
+const storyGuidanceText = computed(() => runtimeState.value.currentGuide || '')
 const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
-const xingDisplayAvatar = computed(() =>
-  resolveStoryAvatar(runtimeState.value.currentAvatarKey) || activeConversation.value?.avatar || questionAvatarImg
+const hasStoryContent = computed(() => storyLibrary.value.conversations.length > 0)
+const storyDisplayAvatar = computed(() =>
+  resolveStoryAvatar(runtimeState.value.currentAvatarKey) || activeConversation.value?.avatar || defaultAvatar
 )
-const headerTitle = computed(() => (isTyping.value ? '对方正在输入……' : runtimeState.value.currentContactName || '星'))
-const presenceStatusText = computed(() => (isDead.value ? '角色已死亡' : '角色已上线'))
-const presenceStatusTone = computed(() => (isDead.value ? 'dead' : 'online'))
+const headerTitle = computed(() => {
+  if (!hasStoryContent.value) return '暂无可用角色'
+  return isTyping.value ? '对方正在输入……' : runtimeState.value.currentContactName || '对方'
+})
+const presenceStatusText = computed(() => {
+  if (!hasStoryContent.value) return '暂无可用角色 去创建吧'
+  return isDead.value ? '角色已死亡' : '角色已上线'
+})
+const presenceStatusTone = computed(() => {
+  if (!hasStoryContent.value) return 'offline'
+  return isDead.value ? 'dead' : 'online'
+})
 const showDeathStatusInline = computed(() => isDead.value && displayedMessages.value.length > 0)
 const suggestedReplyOptions = computed<ReplyOption[]>(() => {
   if (!awaitingText.value) {
@@ -604,9 +629,7 @@ async function switchToRandomCharacter() {
   switchingCharacter.value = true
 
   try {
-    const target = await switchToRandomLocalCharacter(router, {
-      excludeCharacterIds: [ECHO_STORY_CHARACTER_ID]
-    })
+    const target = await switchToRandomLocalCharacter(router)
     if (!target) {
       uni.showToast({ title: '没有可切换的本地角色', icon: 'none' })
     }
@@ -624,6 +647,46 @@ async function switchToRandomCharacter() {
 
 function persistRuntime() {
   saveStoryRuntimeState(runtimeState.value)
+}
+
+async function refreshStoryRuntimeHints(conversationId: string = activeConversationId.value, compressDialogue = true) {
+  if (!conversationId) {
+    return
+  }
+
+  if (compressDialogue) {
+    runtimeState.value = await refreshStoryDialogueCompression(runtimeState.value, conversationId)
+  }
+
+  runtimeState.value = refreshStoryGuidance(
+    runtimeState.value,
+    storyLibrary.value.conversations,
+    conversationId,
+  )
+
+  persistRuntime()
+}
+
+async function replyToStoryQuestioning(conversation: StoryConversationDefinition, state: StoryConversationState) {
+  if (!state.sessionId) {
+    return
+  }
+
+  const check = verifyStoryGuidance(runtimeState.value, storyLibrary.value.conversations, conversation.id)
+  const replyText = buildStoryQuestioningReply(check)
+
+  state.status = 'awaiting-text'
+  const savedReply = await appendConversationMessage(state.sessionId, 'assistant', replyText)
+  displayedMessages.value.push({
+    id: savedReply.id,
+    role: 'assistant',
+    text: replyText,
+  })
+  state.lastUpdatedAt = savedReply.timestamp
+  await refreshStoryRuntimeHints(conversation.id)
+  isBusy.value = false
+  isTyping.value = false
+  await scrollToBottom('auto')
 }
 
 function getConversationIndex(conversationId: string) {
@@ -814,7 +877,7 @@ async function appendVisibleStoryMessage(message: DialogueMessage, conversationI
     // Detect friend request trigger
     if (message.role === 'system' && message.text.includes('[好友请求')) {
       const frMatch = message.text.match(/\[好友请求[:：]([^\]]+)\]/)
-      const frName = frMatch?.[1]?.trim() || '星'
+      const frName = frMatch?.[1]?.trim() || '故事联系人'
       if (!friendRequestStore.isAccepted(ECHO_STORY_CHARACTER_ID)) {
         friendRequestStore.addRequest({
           id: `fr-${ECHO_STORY_CHARACTER_ID}`,
@@ -1018,6 +1081,7 @@ async function playBranchMessages(
 
     isTyping.value = false
     await appendVisibleStoryMessage(branchMessage, conversation.id, token)
+    await refreshStoryRuntimeHints(conversation.id)
 
     if (runtimeState.value.states[conversation.id]?.status === 'dead') {
       isBusy.value = false
@@ -1059,6 +1123,7 @@ async function runMessageSegment(conversation: StoryConversationDefinition, toke
     await appendVisibleStoryMessage(message, conversation.id, token)
     state.messageIndex = index + 1
     persistRuntime()
+    await refreshStoryRuntimeHints(conversation.id)
 
     if (runtimeState.value.states[conversation.id]?.status === 'dead') {
       return
@@ -1088,6 +1153,7 @@ async function playUntilInteraction(conversationId: string) {
     if (!segment) {
       state.status = 'completed'
       persistRuntime()
+      await refreshStoryRuntimeHints(conversation.id)
       const nextConversationId = getNextConversationId(conversation.id)
       if (nextConversationId) {
         const handoffPassed = await waitWithToken(520, token)
@@ -1109,6 +1175,7 @@ async function playUntilInteraction(conversationId: string) {
 
     state.status = segment.options.length > 0 ? 'awaiting-choice' : 'awaiting-text'
     persistRuntime()
+    await refreshStoryRuntimeHints(conversation.id)
     break
   }
 
@@ -1135,6 +1202,7 @@ async function openConversation(conversationId: string) {
   persistRuntime()
 
   await refreshDisplayedMessagesThrough(conversationId)
+  await refreshStoryRuntimeHints(conversationId)
 
   let currentState = runtimeState.value.states[conversationId]
   if (
@@ -1182,6 +1250,7 @@ async function chooseOption(optionId: string) {
   })
   state.lastUpdatedAt = userMessage.timestamp
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await scrollToBottom('auto')
 
   const branchResult = await playBranchMessages(
@@ -1205,6 +1274,7 @@ async function chooseOption(optionId: string) {
   if (selectedOption.retry) {
     state.status = 'dead'
     persistRuntime()
+    await refreshStoryRuntimeHints(conversation.id)
     isBusy.value = false
     return
   }
@@ -1213,6 +1283,7 @@ async function chooseOption(optionId: string) {
   state.messageIndex = 0
   state.status = 'idle'
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await scrollToBottom()
   void playUntilInteraction(conversation.id)
 }
@@ -1237,10 +1308,18 @@ async function submitSuggestedReply(content: string) {
     text: content.trim(),
   })
   state.lastUpdatedAt = savedMessage.timestamp
+  await refreshStoryRuntimeHints(conversation.id)
+
+  if (isStoryQuestioningInput(content)) {
+    await replyToStoryQuestioning(conversation, state)
+    return
+  }
+
   state.segmentIndex += 1
   state.messageIndex = 0
   state.status = 'idle'
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await scrollToBottom()
   void playUntilInteraction(conversation.id)
 }
@@ -1272,6 +1351,7 @@ async function submitInlineBranchReply(optionId: string) {
   })
   state.lastUpdatedAt = savedMessage.timestamp
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await scrollToBottom('auto')
 
   pendingInlineBranchReply.value = null
@@ -1296,6 +1376,7 @@ async function submitInlineBranchReply(optionId: string) {
   state.messageIndex = 0
   state.status = 'idle'
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await scrollToBottom()
   void playUntilInteraction(conversation.id)
 }
@@ -1337,6 +1418,7 @@ async function restartCurrentConversation() {
   runtimeState.value = resetConversationState(runtimeState.value, conversation, state.sessionId)
   runtimeState.value = applyConversationPresentation(runtimeState.value, conversation)
   persistRuntime()
+  await refreshStoryRuntimeHints(conversation.id)
   await refreshDisplayedMessagesThrough(conversation.id)
   isTyping.value = false
   isBusy.value = false
@@ -1367,10 +1449,11 @@ async function rollbackToDay(dayLabel: string) {
   }
 
   persistRuntime()
+  const firstConversationId = storyLibrary.value.conversations[resetStartIndex]?.id || ''
+  await refreshStoryRuntimeHints(firstConversationId)
   showRollbackModal.value = false
   pendingInlineBranchReply.value = null
 
-  const firstConversationId = storyLibrary.value.conversations[resetStartIndex]?.id || ''
   if (firstConversationId) {
     await openConversation(firstConversationId)
   }
@@ -1463,6 +1546,14 @@ async function initializeDialogue() {
   await ensureStoryCharacter(storyLibrary.value.characterName)
   await repairLegacySequentialProgress()
 
+  if (storyLibrary.value.conversations.length === 0) {
+    displayedMessages.value = []
+    isTyping.value = false
+    isBusy.value = false
+    pendingInlineBranchReply.value = null
+    return
+  }
+
   const sequentialConversationId = storyLibrary.value.conversations.find(conversation => {
     const state = runtimeState.value.states[conversation.id]
     return state?.status !== 'completed'
@@ -1490,7 +1581,20 @@ watch(
 )
 
 onMounted(() => {
-  void initializeDialogue()
+  const initialStoryLibrary = loadStoryLibrary()
+  if (initialStoryLibrary.conversations.length > 0) {
+    void initializeDialogue()
+    return
+  }
+
+  void switchToRandomLocalCharacter(router, { replace: true }).then(target => {
+    if (!target) {
+      displayedMessages.value = []
+      isTyping.value = false
+      isBusy.value = false
+      pendingInlineBranchReply.value = null
+    }
+  })
 })
 
 onActivated(() => {
@@ -1611,7 +1715,7 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
 }
@@ -1698,6 +1802,10 @@ onUnmounted(() => {
   color: #6fe29c;
 }
 
+.presence-status--offline {
+  color: var(--text-tertiary);
+}
+
 .presence-status--dead {
   color: #ff6b6b;
 }
@@ -1711,7 +1819,7 @@ onUnmounted(() => {
   margin: auto 0;
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-secondary);
 }
@@ -1766,7 +1874,7 @@ onUnmounted(() => {
 .typing-bubble {
   padding: 6px 7px;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 4px;
+  border-radius: 2px;
   line-height: 1.72;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
 }
@@ -1794,7 +1902,7 @@ onUnmounted(() => {
   display: block;
   width: min(280px, 100%);
   max-height: 320px;
-  border-radius: 10px;
+  border-radius: 5px;
   object-fit: cover;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1832,11 +1940,34 @@ onUnmounted(() => {
 .prompt-bar {
   margin-bottom: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.story-guide-card {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 6px;
+  background: rgba(14, 22, 30, 0.72);
+}
+
+.story-guide-card span {
+  display: block;
+  margin-bottom: 4px;
+  color: rgba(125, 211, 252, 0.88);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.story-guide-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .choice-box,
@@ -1850,7 +1981,7 @@ onUnmounted(() => {
   min-height: 44px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   text-align: left;
@@ -1860,7 +1991,7 @@ onUnmounted(() => {
 .status-card {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.03);
 }
 
@@ -1883,7 +2014,7 @@ onUnmounted(() => {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   resize: none;
@@ -1920,7 +2051,7 @@ onUnmounted(() => {
 .secondary-btn.slim {
   min-height: 30px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: 5px;
   font-size: 12px;
 }
 
@@ -1977,7 +2108,7 @@ onUnmounted(() => {
   width: 34px;
   height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   cursor: pointer;
@@ -1986,7 +2117,7 @@ onUnmounted(() => {
 .panel-section {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.03);
 }
 

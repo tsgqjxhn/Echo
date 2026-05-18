@@ -12,7 +12,9 @@
 
     <main class="form-body">
       <div class="config-grid">
-        <!-- 基础信息 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 1. 🏷️ 基础信息 — 默认展开，折叠时仅显示头像+名称      -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: hasBaseInfo }" @click="toggleCard('base')">
           <div class="card-header">
             <span class="card-emoji">🏷️</span>
@@ -21,10 +23,22 @@
               <span class="card-status">{{ baseInfoStatus }}</span>
             </div>
           </div>
+          <!-- 折叠状态：仅头像 + 名称 -->
+          <div v-if="!expandedCards.base" class="card-collapsed-row" @click.stop="toggleCard('base')">
+            <div class="avatar-mini">
+              <img v-if="form.avatar" :src="getAssetUrl(form.avatar)" alt="头像" class="avatar-img-mini" />
+              <div v-else class="avatar-placeholder-mini">{{ form.name?.charAt(0) || '?' }}</div>
+            </div>
+            <span class="collapsed-name">{{ form.name || '未命名角色' }}</span>
+            <svg class="expand-hint" viewBox="0 0 24 24" width="16" height="16">
+              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
           <div v-if="expandedCards.base" class="card-body" @click.stop>
+            <!-- 头像行 -->
             <div class="avatar-row">
               <div class="avatar-wrapper" @click="showAvatarSheet">
-                <img v-if="form.avatar" :src="form.avatar" alt="头像" class="avatar-img" />
+                <img v-if="form.avatar" :src="getAssetUrl(form.avatar)" alt="头像" class="avatar-img" />
                 <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
               </div>
               <div class="avatar-actions">
@@ -32,6 +46,7 @@
               </div>
             </div>
 
+            <!-- 角色名称 -->
             <div class="field-item">
               <label class="field-label">角色名称 <span class="required">*</span></label>
               <input
@@ -47,6 +62,68 @@
               <span v-if="validation.name && touched.name" class="error-text">{{ validation.name }}</span>
             </div>
 
+            <!-- 一句话描述 -->
+            <div class="field-item">
+              <label class="field-label">一句话描述</label>
+              <textarea v-model="form.oneLineDescription" class="field-textarea auto-textarea" rows="2" maxlength="200" placeholder="用一句话概括角色核心特征" @input="onTextareaInput" />
+              <span class="field-hint">{{ form.oneLineDescription.length }}/200</span>
+            </div>
+
+            <!-- 负向特征与行为禁忌 -->
+            <div class="field-item">
+              <label class="field-label">负向特征与行为禁忌</label>
+              <div v-for="(nt, idx) in form.negativeTraits" :key="nt.id" class="list-item-row">
+                <input v-model="nt.content" type="text" class="field-input" placeholder="如：绝不主动道歉" />
+                <button type="button" class="icon-btn danger" @click="removeNegativeTrait(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addNegativeTrait">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 客观物理特征清单 -->
+            <div class="field-item">
+              <label class="field-label">客观物理特征清单</label>
+              <div v-for="(pf, idx) in form.physicalFeatures" :key="pf.id" class="list-item-row">
+                <input v-model="pf.content" type="text" class="field-input" placeholder="如：蓝眼睛、左手有旧伤" />
+                <button type="button" class="icon-btn danger" @click="removePhysicalFeature(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addPhysicalFeature">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 语言习惯与语用特征 -->
+            <div class="field-item">
+              <label class="field-label">语言习惯与语用特征</label>
+              <div v-for="(sp, idx) in form.speechPatterns" :key="sp.id" class="list-item-row speech-row">
+                <select v-model="sp.category" class="field-select speech-cat-select">
+                  <option value="sentence-length">句子长度</option>
+                  <option value="catchphrase">口头禅</option>
+                  <option value="interjection">感叹词</option>
+                  <option value="slang">俚语</option>
+                  <option value="address">称呼方式</option>
+                  <option value="rhetorical-question">反问句</option>
+                  <option value="other">其他</option>
+                </select>
+                <input v-model="sp.content" type="text" class="field-input" placeholder="语言特征描述" />
+                <button type="button" class="icon-btn danger" @click="removeSpeechPattern(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addSpeechPattern">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 分类 -->
             <div class="field-block">
               <span class="field-label">分类</span>
               <select v-model="form.category" class="category-select">
@@ -55,6 +132,7 @@
               <p class="field-hint">系统会自动匹配为 {{ resolvedModeLabel }} 模式。</p>
             </div>
 
+            <!-- 子分类 -->
             <div v-if="subCategories.length" class="field-block">
               <span class="field-label">子分类</span>
               <div class="chip-row">
@@ -69,6 +147,7 @@
               </div>
             </div>
 
+            <!-- 主题大类 -->
             <div class="field-block">
               <span class="field-label">主题大类</span>
               <select v-model="form.themeGroup" class="category-select">
@@ -77,6 +156,7 @@
               </select>
             </div>
 
+            <!-- 主题细类 -->
             <div v-if="currentThemeLeaves.length" class="field-block">
               <span class="field-label">主题细类</span>
               <div class="chip-row">
@@ -115,25 +195,29 @@
               <p class="field-hint">{{ form.customTags.length }}/10 个标签，每个最多20字符</p>
             </div>
 
-            <div class="field-item">
-              <label class="field-label">背景</label>
-              <textarea v-model="form.background" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="角色背景故事，可选" @input="onTextareaInput" />
-              <span class="field-hint">{{ form.background.length }}/500</span>
-            </div>
             <button type="button" class="collapse-btn" @click.stop="toggleCard('base')">收起</button>
           </div>
         </div>
 
-        <!-- 提示词核心 -->
-        <div class="config-card" :class="{ filled: hasPromptCore }" @click="toggleCard('prompt')">
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 2. 📝 整体设定                                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="config-card" :class="{ filled: hasOverallSettings }" @click="toggleCard('overallSettings')">
           <div class="card-header">
             <span class="card-emoji">📝</span>
             <div class="card-meta">
-              <span class="card-title">提示词核心</span>
-              <span class="card-status">{{ promptCoreStatus }}</span>
+              <span class="card-title">整体设定</span>
+              <span class="card-status">{{ overallSettingsStatus }}</span>
             </div>
           </div>
-          <div v-if="expandedCards.prompt" class="card-body" @click.stop>
+          <div v-if="expandedCards.overallSettings" class="card-body" @click.stop>
+            <!-- 一句话描述 -->
+            <div class="field-item">
+              <label class="field-label">一句话描述</label>
+              <textarea v-model="form.oneLineDescription" class="field-textarea auto-textarea" rows="2" maxlength="200" placeholder="用一句话概括角色核心特征" @input="onTextareaInput" />
+            </div>
+
+            <!-- 描述 -->
             <div class="field-item">
               <label class="field-label">描述 <span class="required">*</span></label>
               <textarea
@@ -150,12 +234,149 @@
               <span v-if="validation.description && touched.description" class="error-text">{{ validation.description }}</span>
             </div>
 
+            <!-- 开场白 -->
             <div class="field-item">
               <label class="field-label">开场白</label>
               <textarea v-model="form.greeting" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="首次对话时展示的开场白，可选" @input="onTextareaInput" />
               <span class="field-hint">{{ form.greeting.length }}/500</span>
             </div>
 
+            <!-- 多重情境开场白池 -->
+            <div class="field-item">
+              <label class="field-label">多重情境开场白池</label>
+              <div v-for="(cg, idx) in form.contextualGreetings" :key="cg.id" class="contextual-greeting-row">
+                <div class="cg-header-row">
+                  <select v-model="cg.context" class="field-select cg-context-select">
+                    <option value="first-meet">初次见面</option>
+                    <option value="reunion">重逢</option>
+                    <option value="conflict">冲突</option>
+                    <option value="comfort">安慰</option>
+                    <option value="task-start">任务开始</option>
+                    <option value="group-entry">群组加入</option>
+                    <option value="other">其他</option>
+                  </select>
+                  <input v-if="cg.context === 'other'" v-model="cg.contextLabel" type="text" class="field-input cg-label-input" placeholder="自定义情境标签" />
+                  <button type="button" class="icon-btn danger" @click="removeContextualGreeting(idx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <textarea v-model="cg.content" class="field-textarea auto-textarea" rows="2" placeholder="该情境下的开场白内容" @input="onTextareaInput" />
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addContextualGreeting">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加情境开场白
+              </button>
+            </div>
+
+            <!-- 场景 -->
+            <div class="field-item">
+              <label class="field-label">场景</label>
+              <textarea v-model="form.scenario" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="对话发生的时间、地点、背景等场景设定" @input="onTextareaInput" />
+            </div>
+
+            <!-- 性格 -->
+            <div class="field-item">
+              <label class="field-label">性格</label>
+              <textarea v-model="form.personality" class="field-textarea auto-textarea" rows="2" placeholder="角色的性格特征描述" @input="onTextareaInput" />
+            </div>
+
+            <!-- 负向特征与行为禁忌 -->
+            <div class="field-item">
+              <label class="field-label">负向特征与行为禁忌</label>
+              <div v-for="(nt, idx) in form.negativeTraits" :key="nt.id" class="list-item-row">
+                <input v-model="nt.content" type="text" class="field-input" placeholder="如：绝不主动道歉" />
+                <button type="button" class="icon-btn danger" @click="removeNegativeTrait(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addNegativeTrait">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 客观物理特征清单 -->
+            <div class="field-item">
+              <label class="field-label">客观物理特征清单</label>
+              <div v-for="(pf, idx) in form.physicalFeatures" :key="pf.id" class="list-item-row">
+                <input v-model="pf.content" type="text" class="field-input" placeholder="如：蓝眼睛、左手有旧伤" />
+                <button type="button" class="icon-btn danger" @click="removePhysicalFeature(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addPhysicalFeature">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 语言习惯与语用特征 -->
+            <div class="field-item">
+              <label class="field-label">语言习惯与语用特征</label>
+              <div v-for="(sp, idx) in form.speechPatterns" :key="sp.id" class="list-item-row speech-row">
+                <select v-model="sp.category" class="field-select speech-cat-select">
+                  <option value="sentence-length">句子长度</option>
+                  <option value="catchphrase">口头禅</option>
+                  <option value="interjection">感叹词</option>
+                  <option value="slang">俚语</option>
+                  <option value="address">称呼方式</option>
+                  <option value="rhetorical-question">反问句</option>
+                  <option value="other">其他</option>
+                </select>
+                <input v-model="sp.content" type="text" class="field-input" placeholder="语言特征描述" />
+                <button type="button" class="icon-btn danger" @click="removeSpeechPattern(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addSpeechPattern">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加
+              </button>
+            </div>
+
+            <!-- 系统级越狱与输出排版规范 -->
+            <div class="field-item">
+              <label class="field-label">系统级越狱与输出排版规范</label>
+              <div class="sub-field-grid">
+                <div class="field-item">
+                  <label class="field-label">身份边界说明</label>
+                  <textarea v-model="form.outputFormatRules.identityBoundary" class="field-textarea auto-textarea" rows="2" placeholder="角色身份边界说明" @input="onTextareaInput" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">动作描写格式</label>
+                  <input v-model="form.outputFormatRules.actionFormat" type="text" class="field-input" placeholder="如：用*包裹动作" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">语言描写格式</label>
+                  <input v-model="form.outputFormatRules.speechFormat" type="text" class="field-input" placeholder="如：用双引号包裹对话" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">超出认知范围的回应</label>
+                  <textarea v-model="form.outputFormatRules.outOfScopeResponse" class="field-textarea auto-textarea" rows="2" placeholder="超出认知范围时的回应方式" @input="onTextareaInput" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 示例对话 -->
+            <div class="field-item">
+              <label class="field-label">示例对话</label>
+              <div v-for="(ed, idx) in form.exampleDialogues" :key="ed.id" class="example-dialogue-row">
+                <div class="ed-header">
+                  <span class="lore-entry-index">示例 {{ idx + 1 }}</span>
+                  <button type="button" class="icon-btn danger" @click="removeExampleDialogue(idx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <input v-model="ed.userInput" type="text" class="field-input" placeholder="用户输入示例" />
+                <textarea v-model="ed.characterResponse" class="field-textarea auto-textarea" rows="2" placeholder="角色回复示例" @input="onTextareaInput" />
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addExampleDialogue">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加示例对话
+              </button>
+            </div>
+
+            <!-- 整体设定（主提示词） -->
             <div class="field-item">
               <label class="field-label">整体设定（主提示词） <span class="required">*</span></label>
               <textarea
@@ -177,15 +398,13 @@
               <input v-model="form.sceneTime" type="text" class="field-input" maxlength="30" placeholder="例如：深夜十一点、黄昏时分" />
             </div>
 
-            <div class="field-item">
-              <label class="field-label">场景设定</label>
-              <textarea v-model="form.scenario" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="对话发生的时间、地点、背景等场景设定" @input="onTextareaInput" />
-            </div>
-            <button type="button" class="collapse-btn" @click.stop="toggleCard('prompt')">收起</button>
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('overallSettings')">收起</button>
           </div>
         </div>
 
-        <!-- 结构化人设 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 3. 🎭 结构化人设                                          -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: hasPersona }" @click="toggleCard('persona')">
           <div class="card-header">
             <span class="card-emoji">🎭</span>
@@ -211,18 +430,20 @@
           </div>
         </div>
 
-        <!-- 世界书 (Lorebook) -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 4. 📚 知识书 (Lorebook)                                   -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: form.lorebook.entries.length > 0 }" @click="toggleCard('lorebook')">
           <div class="card-header">
             <span class="card-emoji">📚</span>
             <div class="card-meta">
-              <span class="card-title">世界书 (Lorebook)</span>
+              <span class="card-title">知识书 (Lorebook)</span>
               <span class="card-status">{{ form.lorebook.entries.length }} 个词条</span>
             </div>
           </div>
           <div v-if="expandedCards.lorebook" class="card-body" @click.stop>
             <p class="card-desc">
-              世界书用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
+              知识书（Lorebook）用于存储与角色相关的背景知识。当对话中提到特定关键词时，系统会自动插入对应的词条内容，帮助 AI 更好地理解和回应。
             </p>
             <div class="field-item inline-field">
               <label class="field-label">扫描消息数</label>
@@ -292,6 +513,18 @@
                   <input v-model.number="entry.order" type="number" class="field-input" min="0" max="999" />
                 </div>
               </div>
+
+              <!-- 新增：动态角色注释/心理锚点、用户画像与长期关系演算 -->
+              <div class="lore-grid two-col">
+                <div class="field-item">
+                  <label class="field-label">动态角色注释/心理锚点</label>
+                  <input v-model="entry.dynamicAnchor" type="text" class="field-input" placeholder="可选" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">用户画像与长期关系演算</label>
+                  <input v-model="entry.userPersona" type="text" class="field-input" placeholder="可选" />
+                </div>
+              </div>
             </div>
 
             <button type="button" class="avatar-btn add-entry-btn" @click="addLoreEntry">
@@ -302,7 +535,9 @@
           </div>
         </div>
 
-        <!-- 世界书 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 5. 🌍 世界书                                              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: form.worldBooks.length > 0 }" @click="toggleCard('worldBooks')">
           <div class="card-header">
             <span class="card-emoji">🌍</span>
@@ -431,6 +666,28 @@
                       <input v-model="entry.comment" type="text" class="field-input" placeholder="可选" />
                     </div>
                   </div>
+
+                  <!-- 新增：动态角色注释、用户画像、契合度、关系阶段触发条件 -->
+                  <div class="lore-grid two-col">
+                    <div class="field-item">
+                      <label class="field-label">动态角色注释/心理锚点</label>
+                      <input v-model="entry.dynamicAnchor" type="text" class="field-input" placeholder="可选" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">用户画像与长期关系演算</label>
+                      <input v-model="entry.userPersona" type="text" class="field-input" placeholder="可选" />
+                    </div>
+                  </div>
+                  <div class="lore-grid two-col">
+                    <div class="field-item">
+                      <label class="field-label">契合度/联结度指标</label>
+                      <input v-model.number="entry.compatibilityScore" type="number" class="field-input" min="0" max="100" placeholder="0-100" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">关系阶段触发条件</label>
+                      <input v-model="entry.relationshipTrigger" type="text" class="field-input" placeholder="可选" />
+                    </div>
+                  </div>
                 </div>
 
                 <button type="button" class="avatar-btn add-entry-btn" @click="addWorldBookEntry(wb)">
@@ -444,7 +701,75 @@
           </div>
         </div>
 
-        <!-- 深度提示 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 6. 💬 开场白                                              -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div class="config-card" :class="{ filled: hasGreetings }" @click="toggleCard('greetings')">
+          <div class="card-header">
+            <span class="card-emoji">💬</span>
+            <div class="card-meta">
+              <span class="card-title">开场白</span>
+              <span class="card-status">{{ greetingsStatus }}</span>
+            </div>
+          </div>
+          <div v-if="expandedCards.greetings" class="card-body" @click.stop>
+            <!-- 主开场白 -->
+            <div class="field-item">
+              <label class="field-label">主开场白</label>
+              <textarea v-model="form.mainGreeting" class="field-textarea auto-textarea" rows="3" maxlength="500" placeholder="角色的默认开场白，首次对话时展示" @input="onTextareaInput" />
+              <span class="field-hint">{{ form.mainGreeting.length }}/500</span>
+            </div>
+
+            <!-- 备选开场白 -->
+            <div class="field-item">
+              <label class="field-label">备选开场白</label>
+              <div v-if="form.alternateGreetings.length === 0" class="empty-hint">点击添加备选开场白</div>
+              <div v-for="(_, idx) in form.alternateGreetings" :key="idx" class="alt-greeting-row">
+                <textarea v-model="form.alternateGreetings[idx]" class="field-textarea auto-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" @input="onTextareaInput" />
+                <button type="button" class="icon-btn danger" @click="removeAltGreeting(idx)">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <button v-if="form.alternateGreetings.length < 10" type="button" class="avatar-btn add-entry-btn" @click="addAltGreeting">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加备选
+              </button>
+            </div>
+
+            <!-- 多重情境开场白池 -->
+            <div class="field-item">
+              <label class="field-label">多重情境开场白池</label>
+              <div v-for="(cg, idx) in form.contextualGreetings" :key="cg.id" class="contextual-greeting-row">
+                <div class="cg-header-row">
+                  <select v-model="cg.context" class="field-select cg-context-select">
+                    <option value="first-meet">初次见面</option>
+                    <option value="reunion">重逢</option>
+                    <option value="conflict">冲突</option>
+                    <option value="comfort">安慰</option>
+                    <option value="task-start">任务开始</option>
+                    <option value="group-entry">群组加入</option>
+                    <option value="other">其他</option>
+                  </select>
+                  <input v-if="cg.context === 'other'" v-model="cg.contextLabel" type="text" class="field-input cg-label-input" placeholder="自定义情境标签" />
+                  <button type="button" class="icon-btn danger" @click="removeContextualGreeting(idx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <textarea v-model="cg.content" class="field-textarea auto-textarea" rows="2" placeholder="该情境下的开场白内容" @input="onTextareaInput" />
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addContextualGreeting">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加情境开场白
+              </button>
+            </div>
+
+            <button type="button" class="collapse-btn" @click.stop="toggleCard('greetings')">收起</button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 7. ⚡ 深度提示                                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: !!form.depthPrompt.prompt }" @click="toggleCard('depthPrompt')">
           <div class="card-header">
             <span class="card-emoji">⚡</span>
@@ -472,36 +797,18 @@
               <label class="field-label">深度提示内容</label>
               <textarea v-model="form.depthPrompt.prompt" class="field-textarea auto-textarea" rows="4" placeholder="输入深度提示内容，将被注入到指定深度的对话上下文中" @input="onTextareaInput" />
             </div>
+            <!-- 新增：动态角色注释/心理锚点 -->
+            <div class="field-item">
+              <label class="field-label">动态角色注释/心理锚点</label>
+              <textarea v-model="form.depthPrompt.dynamicAnchor" class="field-textarea auto-textarea" rows="2" placeholder="可选的动态注释或心理锚点描述" @input="onTextareaInput" />
+            </div>
             <button type="button" class="collapse-btn" @click.stop="toggleCard('depthPrompt')">收起</button>
           </div>
         </div>
 
-        <!-- 备选开场白 -->
-        <div class="config-card" :class="{ filled: form.alternateGreetings.length > 0 }" @click="toggleCard('altGreetings')">
-          <div class="card-header">
-            <span class="card-emoji">💬</span>
-            <div class="card-meta">
-              <span class="card-title">备选开场白</span>
-              <span class="card-status">{{ form.alternateGreetings.length }} 条</span>
-            </div>
-          </div>
-          <div v-if="expandedCards.altGreetings" class="card-body" @click.stop>
-            <div v-if="form.alternateGreetings.length === 0" class="empty-hint">点击添加开场白</div>
-            <div v-for="(_, idx) in form.alternateGreetings" :key="idx" class="alt-greeting-row">
-              <textarea v-model="form.alternateGreetings[idx]" class="field-textarea auto-textarea greeting-textarea" rows="2" placeholder="输入备选开场白内容" @input="onTextareaInput" />
-              <button type="button" class="icon-btn danger" @click="removeAltGreeting(idx)">
-                <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </div>
-            <button v-if="form.alternateGreetings.length < 10" type="button" class="avatar-btn add-entry-btn" @click="addAltGreeting">
-              <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-              添加开场白
-            </button>
-            <button type="button" class="collapse-btn" @click.stop="toggleCard('altGreetings')">收起</button>
-          </div>
-        </div>
-
-        <!-- 媒体设定 -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- 8. 🖼️ 媒体设定                                            -->
+        <!-- ═══════════════════════════════════════════════════════ -->
         <div class="config-card" :class="{ filled: hasMedia }" @click="toggleCard('media')">
           <div class="card-header">
             <span class="card-emoji">🖼️</span>
@@ -511,33 +818,95 @@
             </div>
           </div>
           <div v-if="expandedCards.media" class="card-body" @click.stop>
+            <!-- 宏观画风 -->
             <div class="field-item">
-              <label class="field-label">角色聊天背景</label>
+              <label class="field-label">宏观画风</label>
+              <label class="lore-toggle-row">
+                <span>启用聊天中生成图片</span>
+                <span class="lore-toggle">
+                  <input v-model="form.mediaWeights.enableChatImageGeneration" type="checkbox" />
+                  <span class="lore-toggle-slider"></span>
+                </span>
+              </label>
+              <div class="lore-grid two-col">
+                <div class="field-item">
+                  <label class="field-label">宏观画风描述</label>
+                  <input v-model="form.mediaWeights.artStyle" type="text" class="field-input" placeholder="如：赛博朋克、水墨风" />
+                </div>
+                <div class="field-item">
+                  <label class="field-label">视觉风格权重（%）</label>
+                  <input v-model.number="form.mediaWeights.qualityWeight" type="number" class="field-input" min="0" max="100" />
+                </div>
+              </div>
+              <div v-if="form.mediaWeights.enableChatImageGeneration" class="style-config-list">
+                <div v-for="(style, idx) in (form.mediaWeights.artStyleMix || [])" :key="style.id" class="tts-config-row">
+                  <div class="lore-grid two-col">
+                    <div class="field-item">
+                      <label class="field-label">画风条目</label>
+                      <input v-model="style.styleName" type="text" class="field-input" placeholder="如：胶片感、厚涂、清透水彩" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">权重%</label>
+                      <input v-model.number="style.weight" type="number" class="field-input" min="0" max="100" placeholder="100" />
+                    </div>
+                  </div>
+                  <div class="ed-header">
+                    <span class="lore-entry-index">画风 {{ idx + 1 }}</span>
+                    <button type="button" class="icon-btn danger" @click="removeArtStyleConfig(idx)">
+                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="avatar-btn add-entry-btn" @click="addArtStyleConfig">
+                  <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                  添加画风
+                </button>
+              </div>
+            </div>
+
+            <!-- 封面图 -->
+            <div class="field-item">
+              <label class="field-label">封面图</label>
+              <div class="media-upload-row">
+                <button type="button" class="avatar-btn" @click="uploadCoverImage">上传图片</button>
+                <button v-if="form.coverImage" type="button" class="avatar-btn remove-media-btn" @click="form.coverImage = ''">移除</button>
+              </div>
+              <div v-if="form.coverImage" class="media-preview"><img :src="getAssetUrl(form.coverImage)" alt="封面图" /></div>
+            </div>
+
+            <!-- 角色背景图 -->
+            <div class="field-item">
+              <label class="field-label">角色背景图</label>
               <div class="media-upload-row">
                 <button type="button" class="avatar-btn" @click="uploadMedia('chatBackground')">上传图片</button>
                 <button v-if="form.media.chatBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.chatBackground = ''">移除</button>
               </div>
-              <div v-if="form.media.chatBackground" class="media-preview"><img :src="form.media.chatBackground" alt="聊天背景" /></div>
+              <div v-if="form.media.chatBackground" class="media-preview"><img :src="getAssetUrl(form.media.chatBackground)" alt="角色背景图" /></div>
             </div>
 
+            <!-- 整体聊天背景 -->
             <div class="field-item">
               <label class="field-label">整体聊天背景</label>
               <div class="media-upload-row">
                 <button type="button" class="avatar-btn" @click="uploadMedia('globalBackground')">上传图片</button>
                 <button v-if="form.media.globalBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.globalBackground = ''">移除</button>
               </div>
-              <div v-if="form.media.globalBackground" class="media-preview"><img :src="form.media.globalBackground" alt="整体背景" /></div>
+              <div v-if="form.media.globalBackground" class="media-preview"><img :src="getAssetUrl(form.media.globalBackground)" alt="整体背景" /></div>
             </div>
 
+            <!-- 对话全局动态视频 -->
             <div class="field-item">
-              <label class="field-label">角色切换动图</label>
+              <label class="field-label">对话全局动态视频</label>
               <div class="media-upload-row">
-                <button type="button" class="avatar-btn" @click="uploadMedia('switchAnimation')">上传动图</button>
-                <button v-if="form.media.switchAnimation" type="button" class="avatar-btn remove-media-btn" @click="form.media.switchAnimation = ''">移除</button>
+                <button type="button" class="avatar-btn" @click="uploadVideoBackground">上传视频</button>
+                <button v-if="form.media.globalVideoBackground" type="button" class="avatar-btn remove-media-btn" @click="form.media.globalVideoBackground = ''">移除</button>
               </div>
-              <div v-if="form.media.switchAnimation" class="media-preview"><img :src="form.media.switchAnimation" alt="切换动图" /></div>
+              <div v-if="form.media.globalVideoBackground" class="media-preview">
+                <video :src="form.media.globalVideoBackground" muted loop playsinline controls></video>
+              </div>
             </div>
 
+            <!-- 角色情感表达动图 -->
             <div class="field-item">
               <label class="field-label">角色情感表达动图</label>
               <button type="button" class="avatar-btn emotion-add-btn" @click="addEmotion">
@@ -556,11 +925,86 @@
                 <div v-if="ea.animationUrl" class="media-preview small"><img :src="ea.animationUrl" alt="情感动图" /></div>
               </div>
             </div>
+
+            <!-- 基于亲密度的动态媒体触发机制 -->
+            <div class="field-item">
+              <label class="field-label">基于亲密度的动态媒体触发机制</label>
+              <div v-for="(trigger, idx) in form.intimacyMediaTriggers" :key="trigger.id" class="intimacy-trigger-row">
+                <div class="lore-grid two-col">
+                  <div class="field-item">
+                    <label class="field-label">亲密度阈值</label>
+                    <input v-model.number="trigger.intimacyLevel" type="number" class="field-input" min="0" max="100" />
+                  </div>
+                  <div class="field-item">
+                    <label class="field-label">媒体类型</label>
+                    <select v-model="trigger.mediaType" class="field-select">
+                      <option value="sticker">贴纸</option>
+                      <option value="meme">表情包</option>
+                      <option value="animation">动画</option>
+                      <option value="background">背景</option>
+                      <option value="tts-voice">TTS音色</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-item">
+                  <label class="field-label">触发文案</label>
+                  <input v-model="trigger.triggerText" type="text" class="field-input" placeholder="触发后显示的文案" />
+                </div>
+                <div class="ed-header">
+                  <span class="lore-entry-index">触发 {{ idx + 1 }}</span>
+                  <button type="button" class="icon-btn danger" @click="removeIntimacyTrigger(idx)">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="avatar-btn add-entry-btn" @click="addIntimacyTrigger">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加触发
+              </button>
+            </div>
+
+            <!-- TTS音色配置列表 -->
+            <div class="field-item">
+              <label class="field-label">TTS音色</label>
+              <select v-model="form.ttsMode" class="field-select">
+                <option value="">先选择音色方案</option>
+                <option value="voice-clone">声音克隆</option>
+                <option value="single">单音色</option>
+                <option value="multi">多音色混合</option>
+                <option value="emotion">情感音色</option>
+              </select>
+              <p class="field-hint">当前仅保存方案选择，具体生成与克隆逻辑后续接入。</p>
+              <template v-if="form.ttsMode && form.ttsMode !== 'voice-clone'">
+                <div v-for="(tts, idx) in form.ttsConfigs" :key="idx" class="tts-config-row">
+                  <div class="lore-grid two-col">
+                    <div class="field-item">
+                      <label class="field-label">音色名称</label>
+                      <input v-model="tts.voiceName" type="text" class="field-input" placeholder="如：alloy、shimmer" />
+                    </div>
+                    <div class="field-item">
+                      <label class="field-label">权重%</label>
+                      <input v-model.number="tts.weight" type="number" class="field-input" min="0" max="100" placeholder="100" />
+                    </div>
+                  </div>
+                  <div class="ed-header">
+                    <span class="lore-entry-index">音色 {{ idx + 1 }}</span>
+                    <button type="button" class="icon-btn danger" @click="removeTtsConfig(idx)">
+                      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <button v-if="form.ttsMode && form.ttsMode !== 'voice-clone'" type="button" class="avatar-btn add-entry-btn" @click="addTtsConfig">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                添加音色
+              </button>
+            </div>
+
             <button type="button" class="collapse-btn" @click.stop="toggleCard('media')">收起</button>
           </div>
         </div>
 
-        <!-- 游戏数据 -->
+        <!-- 游戏数据（保留但默认折叠） -->
         <div v-if="form.gameData" class="config-card" :class="{ filled: !!form.gameData }" @click="toggleCard('gameData')">
           <div class="card-header">
             <span class="card-emoji">🎮</span>
@@ -598,16 +1042,20 @@ import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
+import { getAssetUrl } from '@/services/files'
 import { generateUUID } from '@/utils/uuid'
-import type { ICharacter, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, EmotionAnimation } from '@/types/character'
+import type {
+  ICharacter, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, EmotionAnimation,
+  NegativeTrait, PhysicalFeature, SpeechPattern, ContextualGreeting, ExampleDialogue,
+  OutputFormatRules, MediaWeights, IntimacyMediaTrigger, TTSConfig, ArtStyleConfig, TTSMode,
+} from '@/types/character'
 import type { WorldBook, WorldBookEntry } from '@/types/world-book'
 import {
-  getCategoryGroups,
+  getVisibleCategoryGroups,
   getThemeGroups,
   getFirstSubCategory,
   inferCharacterMode,
 } from '@/data/taxonomy'
-import { generateCharacterAvatar } from '@/services/character-ai-generate'
 
 interface LorebookEntryUI {
   id: string
@@ -620,6 +1068,8 @@ interface LorebookEntryUI {
   position: number
   depth: number
   role: number
+  dynamicAnchor?: string
+  userPersona?: string
 }
 
 interface WorldBookEntryUI {
@@ -634,6 +1084,10 @@ interface WorldBookEntryUI {
   role: number
   probability: number
   comment: string
+  dynamicAnchor?: string
+  userPersona?: string
+  compatibilityScore?: number
+  relationshipTrigger?: string
 }
 
 interface WorldBookUI {
@@ -654,63 +1108,87 @@ const saving = ref(false)
 // 卡片展开状态
 const expandedCards = reactive<Record<string, boolean>>({
   base: true,
-  prompt: true,
+  overallSettings: false,
   persona: false,
   lorebook: false,
   worldBooks: false,
+  greetings: false,
   depthPrompt: false,
-  altGreetings: false,
   media: false,
   gameData: false,
 })
 
-const categoryGroups = getCategoryGroups()
+const categoryGroups = getVisibleCategoryGroups()
 const themeGroups = getThemeGroups()
 
 const form = reactive({
   id: '',
   name: '',
   avatar: '',
+  coverImage: '',
+  voiceSample: '',
   background: '',
-  description: '',
-  greeting: '',
-  settings: '',
-  sceneTime: '',
+  // 基础信息
+  oneLineDescription: '',
+  negativeTraits: [] as NegativeTrait[],
+  physicalFeatures: [] as PhysicalFeature[],
+  speechPatterns: [] as SpeechPattern[],
   category: '',
   subCategory: '',
   themeGroup: '',
   themeType: '',
-  mode: undefined as ICharacter['mode'],
+  customTags: [] as string[],
+  // 整体设定
+  description: '',
+  greeting: '',
+  contextualGreetings: [] as ContextualGreeting[],
   scenario: '',
+  personality: '',
+  outputFormatRules: {} as OutputFormatRules,
+  exampleDialogues: [] as ExampleDialogue[],
+  settings: '',
+  sceneTime: '',
+  mode: undefined as ICharacter['mode'],
+  // 结构化人设
   persona: {
     anchor: '',
     traits: '',
     voice: '',
   },
+  // 知识书
   lorebook: {
     entries: [] as LorebookEntryUI[],
     scanRange: 100,
   },
+  // 世界书
   worldBooks: [] as WorldBookUI[],
+  // 开场白
+  mainGreeting: '',
+  alternateGreetings: [] as string[],
+  // 深度提示
   depthPrompt: {
     depth: 4,
     prompt: '',
     role: 'system' as 'system' | 'user' | 'assistant',
+    dynamicAnchor: '',
   },
-  alternateGreetings: [] as string[],
+  // 媒体设定
+  mediaWeights: { enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100 } as MediaWeights,
   media: {
     chatBackground: '',
     globalBackground: '',
-    switchAnimation: '',
+    globalVideoBackground: '',
     emotionAnimations: [] as EmotionAnimation[],
   },
+  intimacyMediaTriggers: [] as IntimacyMediaTrigger[],
+  ttsMode: '' as TTSMode | '',
+  ttsConfigs: [] as TTSConfig[],
   gameData: '',
-  // 保留原始值
-  personality: undefined as string | undefined,
+  // 保留原始值（兼容旧数据）
+  personality_legacy: undefined as string | undefined,
   behavior: undefined as string | undefined,
   values: undefined as string | undefined,
   exampleDialogue: undefined as string | undefined,
-  customTags: [] as string[],
 })
 
 const tagInput = ref('')
@@ -744,7 +1222,7 @@ const canSubmit = computed(() =>
 
 /* ── 卡片状态计算 ── */
 const hasBaseInfo = computed(() =>
-  !!(form.name.trim() || form.avatar || form.background.trim() || form.category || form.customTags.length)
+  !!(form.name.trim() || form.avatar || form.oneLineDescription.trim() || form.category || form.customTags.length || form.negativeTraits.length || form.physicalFeatures.length || form.speechPatterns.length)
 )
 
 const baseInfoStatus = computed(() => {
@@ -752,12 +1230,13 @@ const baseInfoStatus = computed(() => {
   return '未填写'
 })
 
-const hasPromptCore = computed(() =>
-  !!(form.description.trim() || form.greeting.trim() || form.settings.trim() || form.sceneTime.trim() || form.scenario.trim())
+const hasOverallSettings = computed(() =>
+  !!(form.description.trim() || form.greeting.trim() || form.settings.trim() || form.sceneTime.trim() || form.scenario.trim() || form.oneLineDescription.trim() || form.exampleDialogues.length)
 )
 
-const promptCoreStatus = computed(() => {
+const overallSettingsStatus = computed(() => {
   if (form.description.trim() && form.settings.trim()) return '已填写'
+  if (form.description.trim() || form.settings.trim()) return '部分填写'
   return '未填写'
 })
 
@@ -767,10 +1246,19 @@ const hasPersona = computed(() =>
 
 const personaStatus = computed(() => hasPersona.value ? '已填写' : '未填写')
 
+const hasGreetings = computed(() =>
+  !!(form.mainGreeting.trim() || form.alternateGreetings.length || form.contextualGreetings.length || form.greeting.trim())
+)
+
+const greetingsStatus = computed(() => {
+  const count = (form.mainGreeting.trim() ? 1 : 0) + (form.greeting.trim() ? 1 : 0) + form.alternateGreetings.filter(g => g.trim()).length + form.contextualGreetings.length
+  return count > 0 ? `${count} 条` : '未设置'
+})
+
 const depthPromptStatus = computed(() => form.depthPrompt.prompt.trim() ? '已设置' : '未设置')
 
 const hasMedia = computed(() =>
-  !!(form.media.chatBackground || form.media.globalBackground || form.media.switchAnimation || form.media.emotionAnimations.length)
+  !!(form.coverImage || form.media.chatBackground || form.media.globalBackground || form.media.globalVideoBackground || form.media.emotionAnimations.length || form.intimacyMediaTriggers.length || form.ttsMode || form.ttsConfigs.length || form.mediaWeights.enableChatImageGeneration || form.mediaWeights.artStyle || form.mediaWeights.artStyleMix?.length)
 )
 
 const mediaStatus = computed(() => hasMedia.value ? '已设置' : '未设置')
@@ -824,6 +1312,66 @@ function removeCustomTag(idx: number) {
   form.customTags.splice(idx, 1)
 }
 
+/* ── 列表字段操作 ── */
+function makeId() { return generateUUID() }
+
+function addNegativeTrait() {
+  form.negativeTraits.push({ id: makeId(), content: '' })
+}
+function removeNegativeTrait(idx: number) {
+  form.negativeTraits.splice(idx, 1)
+}
+
+function addPhysicalFeature() {
+  form.physicalFeatures.push({ id: makeId(), content: '' })
+}
+function removePhysicalFeature(idx: number) {
+  form.physicalFeatures.splice(idx, 1)
+}
+
+function addSpeechPattern() {
+  form.speechPatterns.push({ id: makeId(), category: 'catchphrase', content: '' })
+}
+function removeSpeechPattern(idx: number) {
+  form.speechPatterns.splice(idx, 1)
+}
+
+function addContextualGreeting() {
+  form.contextualGreetings.push({ id: makeId(), context: 'first-meet', content: '' })
+}
+function removeContextualGreeting(idx: number) {
+  form.contextualGreetings.splice(idx, 1)
+}
+
+function addExampleDialogue() {
+  form.exampleDialogues.push({ id: makeId(), userInput: '', characterResponse: '' })
+}
+function removeExampleDialogue(idx: number) {
+  form.exampleDialogues.splice(idx, 1)
+}
+
+function addIntimacyTrigger() {
+  form.intimacyMediaTriggers.push({ id: makeId(), intimacyLevel: 50, mediaType: 'sticker' })
+}
+function removeIntimacyTrigger(idx: number) {
+  form.intimacyMediaTriggers.splice(idx, 1)
+}
+
+function addArtStyleConfig() {
+  if (!form.mediaWeights.artStyleMix) form.mediaWeights.artStyleMix = []
+  form.mediaWeights.artStyleMix.push({ id: makeId(), styleName: '', weight: 100 })
+}
+function removeArtStyleConfig(idx: number) {
+  form.mediaWeights.artStyleMix?.splice(idx, 1)
+}
+
+function addTtsConfig() {
+  form.ttsConfigs.push({ voiceId: makeId(), voiceName: '', weight: 100 })
+}
+function removeTtsConfig(idx: number) {
+  form.ttsConfigs.splice(idx, 1)
+}
+
 onMounted(() => {
   const id = route.query.id as string
   if (id) {
@@ -853,7 +1401,6 @@ async function loadCharacter(id: string) {
   }
   originalCharacter.value = c
 
-  // 从 tags 推断 themeType / themeGroup
   const allThemeLeaves = themeGroups.flatMap(g => g.items.map(i => ({ group: g.label, leaf: i })))
   const foundTheme = c.tags?.map(t => allThemeLeaves.find(l => l.leaf === t)).find(Boolean)
   const themeType = foundTheme?.leaf || ''
@@ -862,6 +1409,8 @@ async function loadCharacter(id: string) {
   form.id = c.id
   form.name = c.name
   form.avatar = c.avatar || ''
+  form.coverImage = c.coverImage || ''
+  form.voiceSample = c.voiceSample || ''
   form.background = c.background || ''
   form.description = c.description
   form.greeting = c.greeting || ''
@@ -873,6 +1422,24 @@ async function loadCharacter(id: string) {
   form.themeType = themeType
   form.mode = c.mode || resolvedMode.value
   form.scenario = c.scenario || ''
+  // 新字段
+  form.oneLineDescription = c.oneLineDescription || ''
+  form.negativeTraits = c.negativeTraits ? c.negativeTraits.map(t => ({ ...t })) : []
+  form.physicalFeatures = c.physicalFeatures ? c.physicalFeatures.map(f => ({ ...f })) : []
+  form.speechPatterns = c.speechPatterns ? c.speechPatterns.map(s => ({ ...s })) : []
+  form.contextualGreetings = c.contextualGreetings ? c.contextualGreetings.map(g => ({ ...g })) : []
+  form.exampleDialogues = c.exampleDialogues ? c.exampleDialogues.map(d => ({ ...d })) : []
+  form.outputFormatRules = c.outputFormatRules ? { ...c.outputFormatRules } : {}
+  form.mainGreeting = c.mainGreeting || c.greeting || ''
+  form.personality = c.personality || ''
+  form.mediaWeights = c.mediaWeights
+    ? { enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100, ...c.mediaWeights }
+    : { enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100 }
+  form.mediaWeights.artStyleMix = Array.isArray(form.mediaWeights.artStyleMix) ? form.mediaWeights.artStyleMix : []
+  form.intimacyMediaTriggers = c.intimacyMediaTriggers ? c.intimacyMediaTriggers.map(t => ({ ...t })) : []
+  form.ttsMode = c.ttsMode || ''
+  form.ttsConfigs = c.ttsConfigs ? c.ttsConfigs.map(t => ({ ...t })) : []
+
   form.persona.anchor = c.persona?.anchor || ''
   form.persona.traits = c.persona?.traits?.join(', ') || ''
   form.persona.voice = c.persona?.voice || ''
@@ -888,6 +1455,8 @@ async function loadCharacter(id: string) {
     position: e.position ?? 0,
     depth: e.depth ?? 0,
     role: e.role === 'user' ? 1 : e.role === 'assistant' ? 2 : 0,
+    dynamicAnchor: e.dynamicAnchor || '',
+    userPersona: e.userPersona || '',
   }))
   form.worldBooks = (c.worldBooks || []).map(wb => ({
     id: wb.id || generateUUID(),
@@ -904,6 +1473,10 @@ async function loadCharacter(id: string) {
       role: e.role ?? 0,
       probability: e.probability ?? 100,
       comment: e.comment || '',
+      dynamicAnchor: e.dynamicAnchor || '',
+      userPersona: e.userPersona || '',
+      compatibilityScore: e.compatibilityScore ?? undefined,
+      relationshipTrigger: e.relationshipTrigger || '',
     })),
     scanRange: wb.scanRange || 100,
     _expanded: false,
@@ -911,30 +1484,31 @@ async function loadCharacter(id: string) {
   form.depthPrompt.depth = c.depthPrompt?.depth ?? 4
   form.depthPrompt.prompt = c.depthPrompt?.prompt || ''
   form.depthPrompt.role = c.depthPrompt?.role || 'system'
+  form.depthPrompt.dynamicAnchor = c.depthPrompt?.dynamicAnchor || ''
   form.alternateGreetings = c.alternateGreetings ? [...c.alternateGreetings] : []
   form.media.chatBackground = c.chatBackground || ''
   form.media.globalBackground = c.globalBackground || ''
-  form.media.switchAnimation = c.switchAnimation || ''
+  form.media.globalVideoBackground = c.globalVideoBackground || ''
   form.media.emotionAnimations = c.emotionAnimations ? JSON.parse(JSON.stringify(c.emotionAnimations)) : []
   form.gameData = c.gameData || ''
-  form.personality = c.personality
+  form.personality_legacy = c.personality
   form.behavior = c.behavior
   form.values = c.values
   form.exampleDialogue = c.exampleDialogue
-  // 从 tags 中区分自定义标签与系统标签
   const systemTags = new Set([form.category, form.subCategory, form.themeType].filter(Boolean))
   form.customTags = c.tags?.filter(t => !systemTags.has(t)) || []
 
   // 根据内容自动展开已有数据的卡片
+  expandedCards.base = true
+  expandedCards.overallSettings = !!(c.description || c.settings)
   expandedCards.persona = !!(c.persona?.anchor || c.persona?.traits?.length || c.persona?.voice)
   expandedCards.lorebook = !!(c.lorebook?.entries?.length)
   expandedCards.worldBooks = !!(c.worldBooks?.length)
+  expandedCards.greetings = !!(c.mainGreeting || c.alternateGreetings?.length || c.contextualGreetings?.length)
   expandedCards.depthPrompt = !!(c.depthPrompt?.prompt)
-  expandedCards.altGreetings = !!(c.alternateGreetings?.length)
-  expandedCards.media = !!(c.chatBackground || c.globalBackground || c.switchAnimation || c.emotionAnimations?.length)
+  expandedCards.media = !!(c.coverImage || c.chatBackground || c.globalBackground || c.globalVideoBackground || c.emotionAnimations?.length || c.mediaWeights || c.intimacyMediaTriggers?.length || c.ttsMode || c.ttsConfigs?.length)
   expandedCards.gameData = !!(c.gameData)
 
-  // 自动调整已展开卡片中文本框高度
   await nextTick()
   resizeAllTextareas()
 }
@@ -1006,6 +1580,8 @@ function chooseAvatar() {
   })
 }
 
+import { generateCharacterAvatar } from '@/services/character-ai-generate'
+
 async function generateAvatar() {
   if (!form.name.trim()) {
     uni.showToast({ title: '请先填写角色名称', icon: 'none' })
@@ -1066,6 +1642,10 @@ function parseWorldBookFromJSON(json: any): WorldBookUI | null {
       role: Number(e.role ?? 0),
       probability: Number(e.probability ?? 100),
       comment: String(e.comment || ''),
+      dynamicAnchor: String(e.dynamicAnchor || ''),
+      userPersona: String(e.userPersona || ''),
+      compatibilityScore: e.compatibilityScore != null ? Number(e.compatibilityScore) : undefined,
+      relationshipTrigger: String(e.relationshipTrigger || ''),
     })
   }
   return {
@@ -1077,7 +1657,7 @@ function parseWorldBookFromJSON(json: any): WorldBookUI | null {
   }
 }
 
-type MediaKey = 'chatBackground' | 'globalBackground' | 'switchAnimation'
+type MediaKey = 'globalBackground' | 'chatBackground'
 function uploadMedia(key: MediaKey) {
   uni.chooseImage({
     count: 1,
@@ -1086,6 +1666,29 @@ function uploadMedia(key: MediaKey) {
       if (path) form.media[key] = path
     },
   })
+}
+
+function uploadCoverImage() {
+  uni.chooseImage({
+    count: 1,
+    success: (res: { tempFilePaths: string[] }) => {
+      const path = res.tempFilePaths?.[0]
+      if (path) form.coverImage = path
+    },
+  })
+}
+
+function uploadVideoBackground() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'video/*'
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (file) {
+      form.media.globalVideoBackground = URL.createObjectURL(file)
+    }
+  }
+  input.click()
 }
 
 function addEmotion() {
@@ -1118,6 +1721,8 @@ function makeLoreEntry(): LorebookEntryUI {
     depth: 0,
     role: 0,
     characterName: undefined,
+    dynamicAnchor: '',
+    userPersona: '',
   }
 }
 
@@ -1134,6 +1739,10 @@ function makeWorldBookEntry(): WorldBookEntryUI {
     role: 0,
     probability: 100,
     comment: '',
+    dynamicAnchor: '',
+    userPersona: '',
+    compatibilityScore: undefined,
+    relationshipTrigger: '',
   }
 }
 
@@ -1248,6 +1857,8 @@ function buildLorebook(): Lorebook | undefined {
     depth: e.depth,
     role: e.role === 1 ? 'user' : e.role === 2 ? 'assistant' : 'system',
     characterName: e.characterName,
+    dynamicAnchor: e.dynamicAnchor?.trim() || undefined,
+    userPersona: e.userPersona?.trim() || undefined,
   }))
   return {
     entries,
@@ -1275,16 +1886,55 @@ function buildWorldBooks(): WorldBook[] | undefined {
       role: e.role as WorldBookEntry['role'],
       probability: Number(e.probability) || 100,
       comment: e.comment || undefined,
+      dynamicAnchor: e.dynamicAnchor?.trim() || undefined,
+      userPersona: e.userPersona?.trim() || undefined,
+      compatibilityScore: e.compatibilityScore != null ? Number(e.compatibilityScore) : undefined,
+      relationshipTrigger: e.relationshipTrigger?.trim() || undefined,
     })),
   }))
 }
 
 function buildDepthPrompt(): DepthPrompt | undefined {
-  if (!form.depthPrompt.prompt.trim()) return undefined
+  if (!form.depthPrompt.prompt.trim() && !form.depthPrompt.dynamicAnchor.trim()) return undefined
   return {
     depth: Number(form.depthPrompt.depth) || 4,
     prompt: form.depthPrompt.prompt.trim(),
     role: form.depthPrompt.role,
+    dynamicAnchor: form.depthPrompt.dynamicAnchor.trim() || undefined,
+  }
+}
+
+function buildOutputFormatRules(): OutputFormatRules | undefined {
+  const r = form.outputFormatRules
+  if (!r.identityBoundary?.trim() && !r.actionFormat?.trim() && !r.speechFormat?.trim() && !r.outOfScopeResponse?.trim()) return undefined
+  return {
+    identityBoundary: r.identityBoundary?.trim() || undefined,
+    actionFormat: r.actionFormat?.trim() || undefined,
+    speechFormat: r.speechFormat?.trim() || undefined,
+    outOfScopeResponse: r.outOfScopeResponse?.trim() || undefined,
+  }
+}
+
+function buildMediaWeights(): MediaWeights | undefined {
+  const artStyleMix = (form.mediaWeights.artStyleMix || [])
+    .filter((item): item is ArtStyleConfig => !!item && !!item.styleName?.trim())
+    .map(item => ({
+      id: item.id || makeId(),
+      styleName: item.styleName.trim(),
+      weight: Number(item.weight) || 0,
+    }))
+
+  const artStyle = form.mediaWeights.artStyle?.trim()
+  const qualityWeight = Number(form.mediaWeights.qualityWeight)
+  const enableChatImageGeneration = !!form.mediaWeights.enableChatImageGeneration
+
+  if (!enableChatImageGeneration && !artStyle && !artStyleMix.length && (qualityWeight === 100 || Number.isNaN(qualityWeight))) return undefined
+
+  return {
+    enableChatImageGeneration,
+    artStyle: artStyle || undefined,
+    artStyleMix: artStyleMix.length ? artStyleMix : undefined,
+    qualityWeight: Number.isNaN(qualityWeight) ? 100 : qualityWeight,
   }
 }
 
@@ -1292,14 +1942,23 @@ function buildPreviewCharacter(): Partial<ICharacter> {
   return {
     name: form.name.trim() || '未命名角色',
     avatar: form.avatar || undefined,
-    background: form.background.trim() || undefined,
+    coverImage: form.coverImage || undefined,
     description: form.description.trim(),
-    greeting: form.greeting.trim() || undefined,
+    greeting: form.mainGreeting.trim() || form.greeting.trim() || undefined,
     settings: form.settings.trim(),
     mode: resolvedMode.value,
     category: form.category || undefined,
     subCategory: form.subCategory || undefined,
     scenario: form.scenario.trim() || undefined,
+    chatBackground: form.media.chatBackground || undefined,
+    globalBackground: form.media.globalBackground || undefined,
+    globalVideoBackground: form.media.globalVideoBackground || undefined,
+    emotionAnimations: form.media.emotionAnimations.filter(e => e.emotion.trim() && e.animationUrl).length
+      ? form.media.emotionAnimations.filter(e => e.emotion.trim() && e.animationUrl)
+      : undefined,
+    mediaWeights: buildMediaWeights(),
+    ttsMode: form.ttsMode || undefined,
+    ttsConfigs: form.ttsConfigs.filter(t => t.voiceName.trim()).length ? form.ttsConfigs.filter(t => t.voiceName.trim()) : undefined,
     persona: buildPersona(),
     lorebook: buildLorebook(),
     worldBooks: buildWorldBooks(),
@@ -1320,7 +1979,6 @@ function previewCharacter() {
 async function onSubmit() {
   if (!canSubmit.value || !isFormValid.value) {
     uni.showToast({ title: '请填写必填项', icon: 'none' })
-    // 自动滚动到第一个错误字段
     const firstErrorField = document.querySelector('.invalid') as HTMLElement | null
     if (firstErrorField) {
       firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -1341,30 +1999,45 @@ async function onSubmit() {
       ...c,
       name: form.name.trim(),
       avatar: form.avatar || undefined,
+      coverImage: form.coverImage || undefined,
+      voiceSample: form.voiceSample || undefined,
       background: form.background.trim() || undefined,
       description: form.description.trim(),
-      greeting: form.greeting.trim() || undefined,
+      greeting: form.mainGreeting.trim() || form.greeting.trim() || undefined,
       settings: form.settings.trim(),
       sceneTime: form.sceneTime.trim() || undefined,
       mode: resolvedMode.value,
       category: form.category || undefined,
       subCategory: form.subCategory || undefined,
       scenario: form.scenario.trim() || undefined,
+      personality: form.personality.trim() || undefined,
       persona: buildPersona(),
       lorebook: buildLorebook(),
       worldBooks: buildWorldBooks(),
       depthPrompt: buildDepthPrompt(),
+      // 新字段
+      oneLineDescription: form.oneLineDescription.trim() || undefined,
+      negativeTraits: form.negativeTraits.filter(t => t.content.trim()).length ? form.negativeTraits.filter(t => t.content.trim()) : undefined,
+      physicalFeatures: form.physicalFeatures.filter(f => f.content.trim()).length ? form.physicalFeatures.filter(f => f.content.trim()) : undefined,
+      speechPatterns: form.speechPatterns.filter(s => s.content.trim()).length ? form.speechPatterns.filter(s => s.content.trim()) : undefined,
+      contextualGreetings: form.contextualGreetings.filter(g => g.content.trim()).length ? form.contextualGreetings.filter(g => g.content.trim()) : undefined,
+      exampleDialogues: form.exampleDialogues.filter(d => d.userInput.trim() || d.characterResponse.trim()).length ? form.exampleDialogues.filter(d => d.userInput.trim() || d.characterResponse.trim()) : undefined,
+      outputFormatRules: buildOutputFormatRules(),
+      mainGreeting: form.mainGreeting.trim() || undefined,
       alternateGreetings: form.alternateGreetings.filter(g => g.trim()).length
         ? form.alternateGreetings.filter(g => g.trim())
         : undefined,
       chatBackground: form.media.chatBackground || undefined,
       globalBackground: form.media.globalBackground || undefined,
-      switchAnimation: form.media.switchAnimation || undefined,
+      globalVideoBackground: form.media.globalVideoBackground || undefined,
       emotionAnimations: form.media.emotionAnimations.filter(e => e.emotion.trim() && e.animationUrl).length
         ? form.media.emotionAnimations.filter(e => e.emotion.trim() && e.animationUrl)
         : undefined,
+      mediaWeights: buildMediaWeights(),
+      intimacyMediaTriggers: form.intimacyMediaTriggers.length ? form.intimacyMediaTriggers : undefined,
+      ttsMode: form.ttsMode || undefined,
+      ttsConfigs: form.ttsConfigs.filter(t => t.voiceName.trim()).length ? form.ttsConfigs.filter(t => t.voiceName.trim()) : undefined,
       gameData: form.gameData || undefined,
-      personality: form.personality,
       behavior: form.behavior,
       values: form.values,
       exampleDialogue: form.exampleDialogue,
@@ -1455,7 +2128,7 @@ $mint: #34d399;
 }
 
 .config-card {
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 16px;
   min-height: 100px;
   background: var(--card-bg);
@@ -1520,11 +2193,56 @@ $mint: #34d399;
   margin: 0;
 }
 
+/* ── 折叠行（基础信息卡片折叠态） ── */
+.card-collapsed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 0;
+  cursor: pointer;
+}
+
+.avatar-mini {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  flex-shrink: 0;
+}
+
+.avatar-img-mini {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+.avatar-placeholder-mini {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
+  color: var(--text-tertiary); font-size: 16px; font-weight: 600;
+}
+
+.collapsed-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expand-hint {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
 .collapse-btn {
   align-self: flex-end;
   padding: 4px 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  border-radius: 3px;
   background: transparent;
   color: var(--text-tertiary);
   font: inherit;
@@ -1562,7 +2280,7 @@ $mint: #34d399;
   width: 100%;
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
   font: inherit;
@@ -1580,7 +2298,7 @@ $mint: #34d399;
   min-height: 38px;
   padding: 0 16px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(52, 211, 153, 0.06);
   color: var(--text-secondary);
   font: inherit;
@@ -1618,7 +2336,7 @@ $mint: #34d399;
 .avatar-actions { display: flex; gap: 8px; }
 .avatar-btn {
   padding: 5px 12px;
-  border: 1px solid rgba(52, 211, 153, 0.12); border-radius: 6px;
+  border: 1px solid rgba(52, 211, 153, 0.12); border-radius: 3px;
   background: transparent; color: var(--text-tertiary);
   font: inherit; font-size: 12px; cursor: pointer;
   transition: all 0.15s;
@@ -1638,13 +2356,13 @@ $mint: #34d399;
 
 .media-preview {
   margin-top: 6px;
-  border-radius: 8px;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.06);
   max-height: 120px;
   &.small { max-height: 80px; }
 
-  img {
+  img, video {
     width: 100%;
     max-height: 120px;
     object-fit: cover;
@@ -1652,9 +2370,7 @@ $mint: #34d399;
   }
 }
 
-.emotion-add-btn {
-  margin-top: 4px;
-}
+.emotion-add-btn { margin-top: 4px; }
 
 .emotion-row {
   display: flex;
@@ -1663,26 +2379,19 @@ $mint: #34d399;
   margin-top: 8px;
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
+  border-radius: 3px;
   background: rgba(255, 255, 255, 0.02);
 }
 
-.emotion-input {
-  flex: 1;
-}
-
-.emotion-actions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
+.emotion-input { flex: 1; }
+.emotion-actions { display: flex; gap: 6px; align-items: center; }
 
 /* ── textarea 自动高度 ── */
 .field-textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;
@@ -1692,18 +2401,11 @@ $mint: #34d399;
   outline: none;
   resize: none;
 
-  &::placeholder {
-    color: rgba(255, 255, 255, 0.18);
-  }
-
-  &:focus {
-    border-color: rgba(56, 189, 248, 0.35);
-  }
+  &::placeholder { color: rgba(255, 255, 255, 0.18); }
+  &:focus { border-color: rgba(56, 189, 248, 0.35); }
 }
 
-.settings-input {
-  min-height: 120px;
-}
+.settings-input { min-height: 120px; }
 
 .field-item { display: flex; flex-direction: column; gap: 0; }
 .field-item .field-label {
@@ -1757,9 +2459,99 @@ $mint: #34d399;
   padding: 12px 0;
 }
 
-.number-input {
-  width: 80px;
-  text-align: center;
+.number-input { width: 80px; text-align: center; }
+
+/* ── 列表项行 ── */
+.list-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+
+  .field-input { flex: 1; }
+  .icon-btn { flex-shrink: 0; }
+}
+
+.speech-row {
+  .speech-cat-select {
+    width: 100px;
+    flex-shrink: 0;
+  }
+}
+
+/* ── 情境开场白行 ── */
+.contextual-greeting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+
+.cg-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cg-context-select {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.cg-label-input {
+  flex: 1;
+}
+
+/* ── 示例对话行 ── */
+.example-dialogue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+
+.ed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── 亲密触发行 ── */
+.intimacy-trigger-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+
+/* ── TTS配置行 ── */
+.tts-config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+}
+
+.sub-field-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .lore-entry-card {
@@ -1768,7 +2560,7 @@ $mint: #34d399;
   gap: 8px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.02);
 }
 
@@ -1798,7 +2590,7 @@ $mint: #34d399;
   height: 28px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-radius: 3px;
   background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -1839,10 +2631,21 @@ $mint: #34d399;
   }
 }
 
+.lore-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .lore-toggle-slider {
   position: absolute;
   inset: 0;
-  border-radius: 20px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.1);
   transition: background 0.2s;
 
@@ -1916,7 +2719,7 @@ $mint: #34d399;
   flex-direction: column;
   gap: 0;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.02);
   overflow: hidden;
 }
@@ -1985,7 +2788,7 @@ $mint: #34d399;
   padding: 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
+  border-radius: 3px;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
@@ -2017,7 +2820,7 @@ $mint: #34d399;
   min-height: 48px;
   padding: 0 20px;
   border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 14px;
+  border-radius: 7px;
   background: transparent;
   color: var(--primary-light);
   font: inherit;
@@ -2044,7 +2847,7 @@ $mint: #34d399;
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
 }
 
@@ -2123,7 +2926,7 @@ $mint: #34d399;
 }
 
 .primary-btn.full {
-  width: 100%; min-height: 48px; border: none; border-radius: 14px;
+  width: 100%; min-height: 48px; border: none; border-radius: 7px;
   background: linear-gradient(135deg, $sky-light, $sky, #0284c7);
   color: #fff; font: inherit; font-size: 16px; font-weight: 600;
   cursor: pointer; box-shadow: 0 6px 18px rgba(56, 189, 248, 0.28);

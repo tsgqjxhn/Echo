@@ -17,7 +17,7 @@ class STTService:
         if self.settings.stt_provider == "disabled":
             raise HTTPException(status_code=503, detail="STT provider is disabled.")
 
-        runtime = resolve_runtime_api_config(db, self.settings)
+        runtime = resolve_runtime_api_config(db, self.settings, "stt")
         if runtime is None or not runtime.get("api_key"):
             raise HTTPException(status_code=503, detail="No backend API config is available for STT.")
 
@@ -29,8 +29,8 @@ class STTService:
                 file.content_type or "application/octet-stream",
             )
         }
-        data = {"model": self.settings.openai_stt_model}
-        if language:
+        data = {"model": runtime.get("model") or self.settings.openai_stt_model, "stream": "false"}
+        if language and language != "auto":
             data["language"] = language
 
         async with httpx.AsyncClient(timeout=180.0) as client:

@@ -5,8 +5,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ICharacter, CharacterFilter } from '@/types/character'
-import { getCharacterService } from '@/services/character'
+import type { ICharacter } from '@/types/character'
+import { getCharacterService, type CharacterFilter } from '@/services/character'
 
 /**
  * 角色状态接口
@@ -140,6 +140,34 @@ export const useCharacterStore = defineStore('character', () => {
   }
 
   /**
+   * 批量删除角色
+   */
+  async function batchDelete(ids: string[]): Promise<number> {
+    loading.value = true
+    error.value = null
+    let deletedCount = 0
+
+    try {
+      for (const id of ids) {
+        try {
+          await characterService.delete(id)
+          deletedCount++
+        } catch (err) {
+          console.error(`删除角色 ${id} 失败:`, err)
+        }
+      }
+      await loadCharacters()
+      return deletedCount
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '批量删除角色失败'
+      console.error('批量删除角色失败:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
    * 克隆角色
    */
   async function cloneCharacter(id: string): Promise<string> {
@@ -166,6 +194,33 @@ export const useCharacterStore = defineStore('character', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : '克隆角色失败'
       console.error('克隆角色失败:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 批量克隆角色
+   */
+  async function batchClone(ids: string[]): Promise<string[]> {
+    loading.value = true
+    error.value = null
+    const newIds: string[] = []
+
+    try {
+      for (const id of ids) {
+        try {
+          const newId = await cloneCharacter(id)
+          newIds.push(newId)
+        } catch (err) {
+          console.error(`克隆角色 ${id} 失败:`, err)
+        }
+      }
+      return newIds
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : '批量克隆角色失败'
+      console.error('批量克隆角色失败:', err)
       throw err
     } finally {
       loading.value = false
@@ -245,7 +300,9 @@ export const useCharacterStore = defineStore('character', () => {
     createCharacter,
     updateCharacter,
     deleteCharacter,
+    batchDelete,
     cloneCharacter,
+    batchClone,
     toggleLike,
     toggleFriend,
     searchCharacters,

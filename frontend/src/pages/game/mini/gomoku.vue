@@ -506,14 +506,14 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 .mode-title { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: var(--text-primary); text-align: center; }
 .mode-card {
   display: flex; align-items: center; gap: 16px; width: 100%; padding: 20px;
-  border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
   background: rgba(255,255,255,0.03); color: var(--text-primary); font: inherit;
   cursor: pointer; text-align: left; transition: border-color 0.2s, background 0.2s;
   &:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.06); }
 }
 .mode-icon {
   display: flex; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: 14px;
+  width: 52px; height: 52px; border-radius: 7px;
   background: rgba(56,189,248,0.1); color: rgba(56,189,248,0.7); flex-shrink: 0;
 }
 .engine-icon { background: rgba(168,85,247,0.1); color: rgba(168,85,247,0.7); }
@@ -527,7 +527,7 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 .friend-list { display: flex; flex-direction: column; gap: 6px; }
 .friend-item {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px;
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 6px;
   background: rgba(255,255,255,0.02); color: var(--text-primary); font: inherit;
   cursor: pointer; text-align: left; transition: background 0.15s;
   &:hover { background: rgba(255,255,255,0.05); }
@@ -543,7 +543,7 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 .diff-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .diff-card {
   display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 14px 16px;
-  border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 6px;
   background: rgba(255,255,255,0.02); color: var(--text-primary); font: inherit;
   cursor: pointer; text-align: left; transition: border-color 0.2s, background 0.2s;
   &.selected { border-color: rgba(56,189,248,0.4); background: rgba(56,189,248,0.08); }
@@ -552,13 +552,13 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 .diff-name { font-size: 15px; font-weight: 600; }
 .diff-desc { font-size: 12px; color: var(--text-tertiary); }
 .start-btn {
-  width: 100%; padding: 14px; border: none; border-radius: 12px;
+  width: 100%; padding: 14px; border: none; border-radius: 6px;
   background: var(--interactive-gradient); color: #fff; font: inherit;
   font-size: 15px; font-weight: 600; cursor: pointer;
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .back-btn-sm {
-  padding: 6px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+  padding: 6px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px;
   background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px;
   cursor: pointer; &:hover { background: rgba(255,255,255,0.05); }
 }
@@ -568,7 +568,7 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 .game-info-bar { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
 .opponent-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .action-btns { display: flex; gap: 6px; flex: 1; }
-.action-sm { padding: 4px 12px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+.action-sm { padding: 4px 12px; border-radius: 4px; font: inherit; font-size: 12px; cursor: pointer; transition: background 0.15s; }
 .draw-btn { border: 1px solid rgba(250,204,21,0.2); background: transparent; color: rgba(250,204,21,0.7); &:hover { background: rgba(250,204,21,0.08); } }
 .resign-btn { border: 1px solid rgba(248,113,113,0.2); background: transparent; color: rgba(248,113,113,0.7); &:hover { background: rgba(248,113,113,0.08); } }
 .turn-indicator {
@@ -578,12 +578,12 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 }
 .board-wrapper { display: flex; justify-content: center; }
 .board-canvas {
-  border-radius: 8px; border: 2px solid rgba(255,255,255,0.08);
+  border-radius: 4px; border: 2px solid rgba(255,255,255,0.08);
   box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 100%;
 }
 .game-action-panel { display: flex; gap: 8px; }
 .action-wide {
-  flex: 1; min-height: 42px; border-radius: 10px;
+  flex: 1; min-height: 42px; border-radius: 5px;
   border: 1px solid rgba(56,189,248,0.18);
   background: rgba(56,189,248,0.08);
   color: rgba(125,211,252,0.86);
@@ -592,7 +592,7 @@ watch(gameStarted, (v) => { if (v) requestAnimationFrame(() => { ctx = canvas.va
 }
 .ai-waiting-card {
   padding: 10px 12px; border: 1px solid rgba(52,211,153,0.14);
-  border-radius: 10px; background: rgba(52,211,153,0.08);
+  border-radius: 5px; background: rgba(52,211,153,0.08);
   color: rgba(110,231,183,0.9); font-size: 13px; text-align: center;
 }
 .overlay {

@@ -86,6 +86,19 @@ export interface GameExportData {
 }
 
 /**
+ * AI 生成后导入本地游戏库的 H5 游戏
+ */
+export interface GeneratedGameLibraryItem {
+  id: string;
+  title: string;
+  description?: string;
+  html: string;
+  sourceTaskId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
  * 游戏上下文
  */
 export interface GameContext {

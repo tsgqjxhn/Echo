@@ -7,35 +7,31 @@ import {
   type StoryConversation,
 } from '@/data/story'
 import type { ICharacter } from '@/types/character'
-import {
-  STORY_CHARACTER_TAGS,
-  STORY_CHARACTER_TAXONOMY,
-  normalizeCharacterTaxonomy
-} from '@/data/taxonomy'
 import type { IChatSession, IMessage } from '@/types/chat'
-import { getStorageDriver } from './storage'
+import defaultAvatar from '@/static/images/default-avatar.svg'
+import { STORAGE_KEYS, getStorageDriver } from './storage'
 import { generateUUID } from '@/utils/uuid'
-import questionAvatar from '@/static/images/story/问号头像.webp'
-import blurAvatar from '@/static/images/story/模糊轮廓头像.webp'
-import shortHairAvatar from '@/static/images/story/短发头像.webp'
-import xingAvatar from '@/static/images/story/星.webp'
-import echoBgm from '@/static/images/背景音乐.mp3'
 
 export const ECHO_STORY_NAME = '回声'
 export const ECHO_FIRST_CONVERSATION_NAME = '回响'
 export const ECHO_STORY_CHARACTER_ID = 'builtin-echo-xing'
-export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-v5'
+export const ECHO_STORY_RUNTIME_KEY = 'echo-story-runtime-removed-v1'
 
-const MUSIC_RATES = [1, 0.94, 1.08, 0.98, 1.12, 0.9]
+const LEGACY_STORY_RUNTIME_KEYS = [
+  'echo-story-runtime',
+  'echo-story-runtime-v2',
+  'echo-story-runtime-v3',
+  'echo-story-runtime-v4',
+  'echo-story-runtime-v5',
+]
+const GALLERY_PROGRESS_KEY = 'echo-gallery-unlocked'
+const MOMENTS_POSTS_KEY = 'echo_moments_posts'
+const MOMENTS_SCHEDULE_KEY = 'echo_moments_schedule'
+const FRIEND_REQUESTS_KEY = 'echo_friend_requests'
+const STORY_GUIDE_MAX_LENGTH = 380
+const STORY_SUMMARY_MAX_LENGTH = 1200
 
 export type StoryAvatarKey = 'question' | 'blur' | 'short' | 'xing'
-
-const STORY_AVATAR_MAP: Record<StoryAvatarKey, string> = {
-  question: questionAvatar,
-  blur: blurAvatar,
-  short: shortHairAvatar,
-  xing: xingAvatar,
-}
 
 export type StoryConversationStatus =
   | 'idle'
@@ -71,6 +67,14 @@ export interface StoryConversationState {
   lastUpdatedAt: number
 }
 
+export interface StoryGuideSnapshot {
+  conversationId: string
+  currentGuide: string
+  globalGuide: string
+  dialogueSummary: string
+  updatedAt: number
+}
+
 export interface StoryRuntimeState {
   activeConversationId: string
   order: string[]
@@ -78,6 +82,10 @@ export interface StoryRuntimeState {
   clues: string[]
   currentContactName: string
   currentAvatarKey: StoryAvatarKey
+  currentGuide: string
+  globalGuide: string
+  dialogueSummary: string
+  guideHistory: StoryGuideSnapshot[]
   states: Record<string, StoryConversationState>
 }
 
@@ -94,193 +102,95 @@ function readLocalJSON<T>(key: string, fallback: T): T {
 
   try {
     const raw = window.localStorage.getItem(key)
-    if (!raw) {
-      return fallback
-    }
-
-    return JSON.parse(raw) as T
+    return raw ? (JSON.parse(raw) as T) : fallback
   } catch {
     return fallback
   }
 }
 
-export function saveStoryRuntimeState(state: StoryRuntimeState): void {
+function writeLocalJSON(key: string, value: unknown): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function purgeLegacyStoryLocalStorage(): void {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(ECHO_STORY_RUNTIME_KEY, JSON.stringify(state))
-}
-
-function extractGameTime(text: string): string | null {
-  const match = text.match(/(?:当前时间|时间)\s*(\d{1,2}:\d{2})/)
-  return match?.[1] || null
-}
-
-function isStoryAvatarKey(value: unknown): value is StoryAvatarKey {
-  return value === 'question' || value === 'blur' || value === 'short' || value === 'xing'
-}
-
-export function resolveStoryAvatar(key: StoryAvatarKey | null | undefined): string {
-  return STORY_AVATAR_MAP[key || 'question'] || questionAvatar
-}
-
-function resolveAvatarKeyFromText(text: string): StoryAvatarKey | null {
-  const patterns = [
-    /\[头像状态[:：][^=\]]+=>([^\]]+)\]/,
-    /\[头像更换[:：][^=\]]+=>([^\]]+)\]/,
-    /\[头像解锁[:：]\s*([^\]]+)\]/,
-    /\[头像更新[:：]\s*([^\]]+)\]/,
-    /头像解锁[:：]?【(.+?)】/,
-    /头像更新[:：]?【(.+?)】/,
-    /头像已从【.+?】(?:永久)?变更为【(.+?)】/,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    const label = match?.[1]?.trim() || ''
-    if (!label) {
-      continue
-    }
-    if (label.includes('avatar-short-hair') || label === 'short' || label.includes('短发')) {
-      return 'short'
-    }
-    if (label.includes('avatar-blur') || label === 'blur' || label.includes('模糊')) {
-      return 'blur'
-    }
-    if (label.includes('avatar-xing') || label === 'clear' || label.includes('正面清晰') || label.includes('清晰形象') || label === '星') {
-      return 'xing'
-    }
-    if (label.includes('avatar-question') || label === 'question' || label.includes('?') || label.includes('未知')) {
-      return 'question'
-    }
+  for (const key of [ECHO_STORY_RUNTIME_KEY, ...LEGACY_STORY_RUNTIME_KEYS, GALLERY_PROGRESS_KEY]) {
+    window.localStorage.removeItem(key)
   }
 
-  if (text.includes('头像：[?]') || text.includes('头像:[?]')) {
-    return 'question'
-  }
-
-  return null
-}
-
-function resolveContactNameFromText(text: string): string | null {
-  const patterns = [
-    /\[名字更改[:：][^=\]]+=>([^\]]+)\]/,
-    /联系人名称更新为【(.+?)】/,
-    /联系人名称由【.+?】(?:永久)?更新为【(.+?)】/,
-    /联系人暂记为[:：]\s*([^。]+)/,
-  ]
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern)
-    const name = match?.[1]?.trim()
-    if (name) {
-      return name
+  const characters = readLocalJSON<Record<string, ICharacter>>(STORAGE_KEYS.CHARACTERS, {})
+  for (const [id, character] of Object.entries(characters)) {
+    if (id === ECHO_STORY_CHARACTER_ID || character.sourceType === 'builtin-story') {
+      delete characters[id]
     }
   }
+  writeLocalJSON(STORAGE_KEYS.CHARACTERS, characters)
 
-  return null
+  const removedSessionIds: string[] = []
+  const sessions = readLocalJSON<Record<string, IChatSession>>(STORAGE_KEYS.SESSIONS, {})
+  for (const [id, session] of Object.entries(sessions)) {
+    if (session.characterId === ECHO_STORY_CHARACTER_ID) {
+      removedSessionIds.push(id)
+      delete sessions[id]
+    }
+  }
+  writeLocalJSON(STORAGE_KEYS.SESSIONS, sessions)
+  for (const sessionId of removedSessionIds) {
+    window.localStorage.removeItem(`${STORAGE_KEYS.MESSAGES}_${sessionId}`)
+  }
+
+  const posts = readLocalJSON<Array<{ id?: string; characterId?: string }>>(MOMENTS_POSTS_KEY, [])
+  writeLocalJSON(
+    MOMENTS_POSTS_KEY,
+    posts.filter(post => post.characterId !== ECHO_STORY_CHARACTER_ID && !String(post.id || '').startsWith('echo-story-')),
+  )
+
+  const schedule = readLocalJSON<Record<string, number>>(MOMENTS_SCHEDULE_KEY, {})
+  delete schedule[ECHO_STORY_CHARACTER_ID]
+  writeLocalJSON(MOMENTS_SCHEDULE_KEY, schedule)
+
+  const requests = readLocalJSON<Array<{ characterId?: string }>>(FRIEND_REQUESTS_KEY, [])
+  writeLocalJSON(
+    FRIEND_REQUESTS_KEY,
+    requests.filter(request => request.characterId !== ECHO_STORY_CHARACTER_ID),
+  )
+}
+
+export async function purgeStoryRuntimeContent(): Promise<void> {
+  purgeLegacyStoryLocalStorage()
+
+  const storage = getStorageDriver()
+  const sessions = await storage.getSessionsByCharacter(ECHO_STORY_CHARACTER_ID)
+  await Promise.all(sessions.map(session => storage.deleteSession(session.id).catch(() => undefined)))
+  await storage.deleteCharacter(ECHO_STORY_CHARACTER_ID).catch(() => undefined)
+}
+
+export function saveStoryRuntimeState(state: StoryRuntimeState): void {
+  writeLocalJSON(ECHO_STORY_RUNTIME_KEY, state)
+}
+
+export function resolveStoryAvatar(_key: StoryAvatarKey | null | undefined): string {
+  return defaultAvatar
 }
 
 export function applyConversationPresentation(
   runtimeState: StoryRuntimeState,
   conversation: Pick<StoryConversationDefinition, 'contactName' | 'avatarKey'>,
 ): StoryRuntimeState {
-  runtimeState.currentContactName = conversation.contactName || runtimeState.currentContactName || '未知用户'
+  runtimeState.currentContactName = conversation.contactName || runtimeState.currentContactName || ''
   runtimeState.currentAvatarKey = conversation.avatarKey || runtimeState.currentAvatarKey || 'question'
   return runtimeState
 }
 
-function normalizeStorySegments(segments: DialogueSegment[]): DialogueSegment[] {
-  return segments.flatMap(segment => {
-    if (segment.kind === 'choice' && segment.messages.length > 0) {
-      const leadingSegments = normalizeStorySegments([
-        {
-          id: `${segment.id}-leading-messages`,
-          kind: 'messages',
-          scene: segment.scene,
-          prompt: segment.prompt,
-          messages: segment.messages.map(message => ({ ...message })),
-          options: [],
-        },
-      ] as DialogueSegment[])
-
-      return [
-        ...leadingSegments,
-        {
-          ...segment,
-          messages: [],
-        },
-      ] as DialogueSegment[]
-    }
-
-    if (segment.kind !== 'messages' || !segment.messages.some(message => message.role === 'me')) {
-      return [segment]
-    }
-
-    const normalizedSegments: DialogueSegment[] = []
-    let buffer: DialogueMessage[] = []
-    let chunkIndex = 0
-
-    const flushBuffer = () => {
-      if (buffer.length === 0) {
-        return
-      }
-
-      chunkIndex += 1
-      normalizedSegments.push({
-        id: `${segment.id}-messages-${chunkIndex}`,
-        kind: 'messages',
-        scene: segment.scene,
-        prompt: segment.prompt,
-        messages: buffer.map(message => ({ ...message })),
-        options: [],
-      })
-      buffer = []
-    }
-
-    for (let index = 0; index < segment.messages.length; ) {
-      const currentMessage = segment.messages[index]
-
-      if (currentMessage.role !== 'me') {
-        buffer.push({ ...currentMessage })
-        index += 1
-        continue
-      }
-
-      flushBuffer()
-      const choiceMessages: DialogueMessage[] = []
-
-      while (index < segment.messages.length && segment.messages[index].role === 'me') {
-        choiceMessages.push(segment.messages[index])
-        index += 1
-      }
-
-      chunkIndex += 1
-      normalizedSegments.push({
-        id: `${segment.id}-choice-${chunkIndex}`,
-        kind: 'choice',
-        scene: segment.scene,
-        prompt: '你的回复',
-        messages: [],
-        options: choiceMessages.map((message, optionIndex) => ({
-          id: `${segment.id}-inline-option-${chunkIndex}-${optionIndex + 1}`,
-          key: String.fromCharCode(65 + optionIndex),
-          text: message.text,
-          retry: false,
-          branchMessages: [],
-        })),
-      })
-    }
-
-    flushBuffer()
-    return normalizedSegments
-  })
-}
-
 function createDefaultConversationState(
   conversation: StoryConversationDefinition,
-  sessionId: string | null = null,
+  sessionId: string | null,
 ): StoryConversationState {
   return {
     conversationId: conversation.id,
@@ -298,45 +208,258 @@ function getSessionTitle(conversation: StoryConversationDefinition): string {
   return conversation.title === ECHO_FIRST_CONVERSATION_NAME ? ECHO_STORY_NAME : conversation.title
 }
 
-export function loadStoryLibrary(): StoryLibrary {
-  const conversations: StoryConversationDefinition[] = STORY_CONVERSATIONS.map(
-    (conv: StoryConversation, index: number) => {
-      const normalizedSegments = normalizeStorySegments(conv.segments as DialogueSegment[])
-      const avatarKey = isStoryAvatarKey((conv as StoryConversation & { avatarKey?: StoryAvatarKey }).avatarKey)
-        ? (conv as StoryConversation & { avatarKey?: StoryAvatarKey }).avatarKey!
-        : 'question'
-      const contactName =
-        typeof (conv as StoryConversation & { contactName?: string }).contactName === 'string' &&
-        (conv as StoryConversation & { contactName?: string }).contactName!.trim().length > 0
-          ? (conv as StoryConversation & { contactName?: string }).contactName!.trim()
-          : STORY_CHARACTER_NAME
-      let defaultGameTime = '--:--'
-      for (const segment of normalizedSegments) {
-        for (const message of segment.messages) {
-          const inferredTime = extractGameTime(message.text)
-          if (inferredTime) {
-            defaultGameTime = inferredTime
-            break
-          }
-        }
-        if (defaultGameTime !== '--:--') break
-      }
-      return {
-        id: conv.id,
-        title: conv.title,
-        dayLabel: conv.dayLabel,
-        sceneLabel: conv.sceneLabel,
-        shortLabel: conv.shortLabel,
-        contactName,
-        avatarKey,
-        segments: normalizedSegments,
-        defaultGameTime,
-        avatar: resolveStoryAvatar(avatarKey),
-        musicUrl: echoBgm,
-        musicRate: MUSIC_RATES[index % MUSIC_RATES.length],
-      }
+function compactStoryText(value: string | null | undefined, maxLength = 96): string {
+  const text = (value || '')
+    .replace(/\[IMAGE:[^\]]+\]/g, '[图片]')
+    .replace(/\[[^\]]+\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length <= maxLength) {
+    return text
+  }
+  return `${text.slice(0, maxLength)}...`
+}
+
+function normalizeGuideText(value: string): string {
+  return compactStoryText(value, STORY_GUIDE_MAX_LENGTH).replace(/\s+/g, '')
+}
+
+function getConversationIndex(conversations: StoryConversationDefinition[], conversationId: string): number {
+  return conversations.findIndex(conversation => conversation.id === conversationId)
+}
+
+function buildPromptBlock(title: string, lines: string[], maxLength = STORY_GUIDE_MAX_LENGTH): string {
+  const text = [
+    `【${title}】`,
+    ...lines
+      .map(line => compactStoryText(line, 160))
+      .filter(Boolean)
+      .map(line => `- ${line}`),
+  ].join('\n')
+
+  if (text.length <= maxLength) {
+    return text
+  }
+
+  return `${text.slice(0, maxLength)}...`
+}
+
+export function buildStoryGlobalGuide(
+  conversations: StoryConversationDefinition[],
+  runtimeState: StoryRuntimeState,
+  conversationId: string,
+): string {
+  const conversation = getConversationById(conversations, conversationId)
+  if (!conversation) {
+    return '当前暂无可用剧情。'
+  }
+
+  const index = getConversationIndex(conversations, conversationId)
+  const progress = index >= 0 ? `${index + 1}/${conversations.length}` : ''
+  const clueText = runtimeState.clues.length > 0
+    ? runtimeState.clues.slice(-3).join('、')
+    : ''
+
+  return buildPromptBlock('全局剧情指引', [
+    `主线进度：${progress || '未知'}；日期：${conversation.dayLabel || '当前日期'}。`,
+    `当前片段：${conversation.title || conversation.shortLabel || '当前片段'}。`,
+    `场景锚点：${conversation.sceneLabel || '未标注'}。`,
+    clueText ? `已确认线索：${clueText}。` : '',
+    '使用约束：只校准剧情方向，不替代角色台词，不改写已经发生的剧情。',
+  ])
+}
+
+export function buildStoryCurrentGuide(
+  conversations: StoryConversationDefinition[],
+  runtimeState: StoryRuntimeState,
+  conversationId: string,
+): string {
+  const conversation = getConversationById(conversations, conversationId)
+  const state = conversation ? runtimeState.states[conversationId] : null
+
+  if (!conversation || !state) {
+    return buildPromptBlock('下一句剧情指引（非强制）', [
+      '状态：当前暂无可用片段。',
+      '使用约束：等待剧情数据恢复或重新进入片段后再推进。',
+    ])
+  }
+
+  const segment = conversation.segments[state.segmentIndex]
+  if (!segment) {
+    const nextConversation = conversations[getConversationIndex(conversations, conversationId) + 1]
+    return nextConversation
+      ? buildPromptBlock('下一句剧情指引（非强制）', [
+          '状态：当前片段已完成。',
+          `下一步：进入「${nextConversation.title || nextConversation.shortLabel}」。`,
+          '使用约束：先完成当前收束，再切换到下一片段。',
+        ])
+      : buildPromptBlock('下一句剧情指引（非强制）', [
+          '状态：当前剧情已到达末尾。',
+          '下一步：允许回溯、重开当前片段，或等待新剧情导入。',
+        ])
+  }
+
+  if (segment.kind === 'choice') {
+    const options = segment.options.map(option => compactStoryText(option.text, 42)).filter(Boolean)
+    if (options.length > 0) {
+      return buildPromptBlock('下一句剧情指引（非强制）', [
+        '状态：等待用户选择分支。',
+        `可选方向：${options.slice(0, 3).join(' / ')}。`,
+        '使用约束：不要代替用户选择；只在用户询问时解释各分支含义。',
+      ])
+    }
+    return buildPromptBlock('下一句剧情指引（非强制）', [
+      `状态：${segment.prompt || '等待用户回应，保持当前剧情方向。'}`,
+      '使用约束：让用户先行动，不强行推进。',
+    ])
+  }
+
+  const nextMessage = segment.messages.slice(state.messageIndex).find(message => !message.hidden)
+  if (nextMessage) {
+    const speaker = nextMessage.role === 'me' ? '用户' : nextMessage.role === 'other' ? '对方' : '系统'
+    return buildPromptBlock('下一句剧情指引（非强制）', [
+      `推进方：${speaker}。`,
+      `参考内容：${nextMessage.text}`,
+      '使用约束：这是方向提示，不是必须照读的台词；优先保持剧情连续与情绪承接。',
+    ])
+  }
+
+  return buildPromptBlock('下一句剧情指引（非强制）', [
+    `状态：${segment.prompt || '当前片段即将进入下一处互动。'}`,
+    '使用约束：承接当前片段，不跳到未知剧情。',
+  ])
+}
+
+export function refreshStoryGuidance(
+  runtimeState: StoryRuntimeState,
+  conversations: StoryConversationDefinition[],
+  conversationId: string,
+): StoryRuntimeState {
+  const currentGuide = buildStoryCurrentGuide(conversations, runtimeState, conversationId)
+  const globalGuide = buildStoryGlobalGuide(conversations, runtimeState, conversationId)
+  runtimeState.currentGuide = currentGuide
+  runtimeState.globalGuide = globalGuide
+  runtimeState.guideHistory = [
+    ...(runtimeState.guideHistory || []),
+    {
+      conversationId,
+      currentGuide,
+      globalGuide,
+      dialogueSummary: runtimeState.dialogueSummary || '',
+      updatedAt: Date.now(),
     },
+  ].slice(-16)
+  return runtimeState
+}
+
+export function verifyStoryGuidance(
+  runtimeState: StoryRuntimeState,
+  conversations: StoryConversationDefinition[],
+  conversationId: string,
+): { correct: boolean; currentGuide: string; globalGuide: string; previousCurrentGuide: string; previousGlobalGuide: string } {
+  const previousCurrentGuide = runtimeState.currentGuide || ''
+  const previousGlobalGuide = runtimeState.globalGuide || ''
+  const currentGuide = buildStoryCurrentGuide(conversations, runtimeState, conversationId)
+  const globalGuide = buildStoryGlobalGuide(conversations, runtimeState, conversationId)
+  const correct =
+    normalizeGuideText(previousCurrentGuide) === normalizeGuideText(currentGuide) &&
+    normalizeGuideText(previousGlobalGuide) === normalizeGuideText(globalGuide)
+
+  if (!correct) {
+    runtimeState.currentGuide = currentGuide
+    runtimeState.globalGuide = globalGuide
+  }
+
+  return { correct, currentGuide, globalGuide, previousCurrentGuide, previousGlobalGuide }
+}
+
+export function isStoryQuestioningInput(text: string): boolean {
+  return /(不对|错了|走错|选错|剧情不对|你记错|是不是错|没有走错|正确吗|对吗|该往哪|下一步)/.test(text.replace(/\s+/g, ''))
+}
+
+export function buildStoryQuestioningReply(check: ReturnType<typeof verifyStoryGuidance>): string {
+  if (check.correct) {
+    return [
+      '我先核对了当前剧情指引和全局剧情指引。',
+      '结论：没有走错，当前走向是正确的。',
+      `当前指引：${check.currentGuide}`,
+      `全局进度：${check.globalGuide}`,
+      '可以继续按这个方向推进；指引只做校准，不会强制替你选择。',
+    ].join('\n')
+  }
+
+  return [
+    '我先核对了当前剧情指引和全局剧情指引。',
+    '结论：刚才的指引有偏差，已按当前实际进度回退并重新校正。',
+    `校正后指引：${check.currentGuide}`,
+    `全局进度：${check.globalGuide}`,
+    '接下来会以校正后的指引继续，不会沿着错误分支推进。',
+  ].join('\n')
+}
+
+export function compressStoryDialogueMessages(messages: Array<Pick<IMessage, 'role' | 'content'>>): string {
+  const visible = messages
+    .filter(message => message.role === 'user' || message.role === 'assistant')
+    .slice(-24)
+
+  if (visible.length === 0) {
+    return ''
+  }
+
+  const omitted = Math.max(0, messages.length - visible.length)
+  const lines = visible.map(message => {
+    const speaker = message.role === 'user' ? '用户' : '对方'
+    return `- ${speaker}：${compactStoryText(message.content, 88)}`
+  })
+
+  const summary = [
+    '【剧情对话压缩】',
+    omitted > 0 ? `- 折叠范围：较早 ${omitted} 条消息已压缩。` : '- 折叠范围：仅保留当前窗口内消息。',
+    '- 保留重点：用户选择、承诺、线索、情绪转折、关系变化。',
+    '- 最近对话：',
+    ...lines,
+  ].join('\n')
+
+  return summary.length <= STORY_SUMMARY_MAX_LENGTH
+    ? summary
+    : `${summary.slice(0, STORY_SUMMARY_MAX_LENGTH)}...`
+}
+
+export async function refreshStoryDialogueCompression(
+  runtimeState: StoryRuntimeState,
+  conversationId: string,
+): Promise<StoryRuntimeState> {
+  const sessionId = runtimeState.states[conversationId]?.sessionId
+  if (!sessionId) {
+    runtimeState.dialogueSummary = ''
+    return runtimeState
+  }
+
+  const messages = await getConversationMessages(sessionId)
+  runtimeState.dialogueSummary = compressStoryDialogueMessages(messages)
+  return runtimeState
+}
+
+export function loadStoryLibrary(): StoryLibrary {
+  void purgeStoryRuntimeContent()
+
+  const conversations: StoryConversationDefinition[] = STORY_CONVERSATIONS.map(
+    (conv: StoryConversation): StoryConversationDefinition => ({
+      id: conv.id,
+      title: conv.title,
+      dayLabel: conv.dayLabel,
+      sceneLabel: conv.sceneLabel,
+      shortLabel: conv.shortLabel,
+      contactName: conv.contactName || STORY_CHARACTER_NAME,
+      avatarKey: conv.avatarKey,
+      segments: conv.segments as DialogueSegment[],
+      defaultGameTime: '--:--',
+      avatar: defaultAvatar,
+      musicUrl: '',
+      musicRate: 1,
+    }),
   )
+
   return {
     storyName: ECHO_STORY_NAME,
     characterName: STORY_CHARACTER_NAME,
@@ -345,41 +468,24 @@ export function loadStoryLibrary(): StoryLibrary {
 }
 
 export function loadStoryRuntimeState(conversations: StoryConversationDefinition[]): StoryRuntimeState {
-  const conversationIds = conversations.map(conversation => conversation.id)
-  const stored = readLocalJSON<Partial<StoryRuntimeState>>(ECHO_STORY_RUNTIME_KEY, {})
-  const states: Record<string, StoryConversationState> = {}
-  const firstConversation = conversations[0]
+  purgeLegacyStoryLocalStorage()
 
+  const states: Record<string, StoryConversationState> = {}
   for (const conversation of conversations) {
-    const storedState = stored.states?.[conversation.id]
-    states[conversation.id] = {
-      ...createDefaultConversationState(conversation, storedState?.sessionId || null),
-      ...storedState,
-      conversationId: conversation.id,
-      currentGameTime: storedState?.currentGameTime || conversation.defaultGameTime,
-      unreadCount: storedState?.unreadCount || 0,
-    }
+    states[conversation.id] = createDefaultConversationState(conversation, null)
   }
 
-  const order = [...conversationIds]
-
   return {
-    activeConversationId:
-      (typeof stored.activeConversationId === 'string' && conversationIds.includes(stored.activeConversationId))
-        ? stored.activeConversationId
-        : conversationIds[0],
-    order,
-    notes: typeof stored.notes === 'string' ? stored.notes : '',
-    clues: Array.isArray(stored.clues)
-      ? stored.clues.filter(clue => typeof clue === 'string' && clue.trim().length > 0)
-      : [],
-    currentContactName:
-      typeof stored.currentContactName === 'string' && stored.currentContactName.trim().length > 0
-        ? stored.currentContactName.trim()
-        : firstConversation?.contactName || '未知用户',
-    currentAvatarKey: isStoryAvatarKey(stored.currentAvatarKey)
-      ? stored.currentAvatarKey
-      : firstConversation?.avatarKey || 'question',
+    activeConversationId: conversations[0]?.id || '',
+    order: conversations.map(conversation => conversation.id),
+    notes: '',
+    clues: [],
+    currentContactName: conversations[0]?.contactName || '',
+    currentAvatarKey: conversations[0]?.avatarKey || 'question',
+    currentGuide: '',
+    globalGuide: '',
+    dialogueSummary: '',
+    guideHistory: [],
     states,
   }
 }
@@ -404,18 +510,11 @@ export function getConversationIdBySessionId(
       return state.conversationId
     }
   }
-
   return null
 }
 
 export function getRollbackDays(conversations: StoryConversationDefinition[]): string[] {
-  const days = new Set<string>()
-
-  for (const conversation of conversations) {
-    days.add(conversation.dayLabel)
-  }
-
-  return [...days]
+  return [...new Set(conversations.map(conversation => conversation.dayLabel))]
 }
 
 export function getConversationIdsForDay(
@@ -439,24 +538,18 @@ export function resetConversationState(
 
 export function markConversationRead(runtimeState: StoryRuntimeState, conversationId: string): StoryRuntimeState {
   const state = runtimeState.states[conversationId]
-
-  if (!state) {
-    return runtimeState
+  if (state) {
+    state.unreadCount = 0
+    state.lastUpdatedAt = Date.now()
   }
-
-  state.unreadCount = 0
-  state.lastUpdatedAt = Date.now()
   return runtimeState
 }
 
 export function addStoryClue(runtimeState: StoryRuntimeState, clue: string): StoryRuntimeState {
   const normalized = clue.trim()
-
-  if (!normalized || runtimeState.clues.includes(normalized)) {
-    return runtimeState
+  if (normalized && !runtimeState.clues.includes(normalized)) {
+    runtimeState.clues = [...runtimeState.clues, normalized]
   }
-
-  runtimeState.clues = [...runtimeState.clues, normalized]
   return runtimeState
 }
 
@@ -466,74 +559,33 @@ export function removeStoryClue(runtimeState: StoryRuntimeState, clue: string): 
 }
 
 export async function ensureStoryCharacter(characterName: string): Promise<ICharacter> {
-  const storage = getStorageDriver()
-  const existing = await storage.getCharacter(ECHO_STORY_CHARACTER_ID)
-
-  if (existing) {
-    const normalizedExisting = normalizeCharacterTaxonomy(existing)
-    const tags = Array.from(new Set([...(normalizedExisting.tags || []), ...STORY_CHARACTER_TAGS]))
-    if (
-      normalizedExisting.avatar !== questionAvatar ||
-      normalizedExisting.name !== characterName ||
-      normalizedExisting.sourceType !== 'builtin-story' ||
-      normalizedExisting.category !== STORY_CHARACTER_TAXONOMY.category ||
-      normalizedExisting.subCategory !== STORY_CHARACTER_TAXONOMY.subCategory ||
-      normalizedExisting.background !== `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`
-    ) {
-      const updated: ICharacter = {
-        ...normalizedExisting,
-        avatar: questionAvatar,
-        name: characterName,
-        background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
-        category: STORY_CHARACTER_TAXONOMY.category,
-        subCategory: STORY_CHARACTER_TAXONOMY.subCategory,
-        tags,
-        sourceType: 'builtin-story',
-      }
-      await storage.saveCharacter(updated)
-      return updated
-    }
-
-    if (JSON.stringify(tags) !== JSON.stringify(normalizedExisting.tags || [])) {
-      const updated: ICharacter = {
-        ...normalizedExisting,
-        tags
-      }
-      await storage.saveCharacter(updated)
-      return updated
-    }
-
-    return normalizedExisting
-  }
+  await purgeStoryRuntimeContent()
 
   const timestamp = Date.now()
-  const builtInCharacter: ICharacter = {
+  return {
     id: ECHO_STORY_CHARACTER_ID,
-    name: characterName,
-    avatar: questionAvatar,
-    background: `${STORY_CHARACTER_TAXONOMY.category} / ${STORY_CHARACTER_TAXONOMY.subCategory}`,
-    description: '内置故事角色，会话由导入剧本驱动。',
+    name: characterName || '',
+    avatar: defaultAvatar,
+    background: '',
+    description: '',
     greeting: '',
-    settings: '你是内置故事角色，只按导入剧本和玩家选择推进，不进行自由发挥。',
+    settings: '',
     isFavorite: false,
     createdAt: timestamp,
     updatedAt: timestamp,
     mode: 'free-dialogue',
-    category: STORY_CHARACTER_TAXONOMY.category,
-    subCategory: STORY_CHARACTER_TAXONOMY.subCategory,
+    category: '',
+    subCategory: '',
     avatarTone: 'default',
     backgroundImage: '',
     personality: '',
     behavior: '',
     values: '',
     members: [],
-    tags: [ECHO_STORY_NAME, ...STORY_CHARACTER_TAGS],
+    tags: [],
     sourceType: 'builtin-story',
     sourceName: ECHO_STORY_NAME,
   }
-
-  await storage.saveCharacter(builtInCharacter)
-  return builtInCharacter
 }
 
 export async function ensureConversationSession(
@@ -581,9 +633,7 @@ export async function getConversationMessages(sessionId: string | null): Promise
   if (!sessionId) {
     return []
   }
-
-  const storage = getStorageDriver()
-  return storage.getMessages(sessionId)
+  return getStorageDriver().getMessages(sessionId)
 }
 
 let lastMessageTimestamp = Date.now()
@@ -597,7 +647,6 @@ function nextMessageTimestamp(): number {
 async function syncConversationSessionMeta(sessionId: string, timestamp: number): Promise<void> {
   const storage = getStorageDriver()
   const session = await storage.getSession(sessionId)
-
   if (!session) {
     return
   }
@@ -625,7 +674,6 @@ export async function clearConversationMessages(sessionId: string | null): Promi
   if (!sessionId) {
     return
   }
-
   const storage = getStorageDriver()
   await storage.deleteMessages(sessionId)
   await syncConversationSessionMeta(sessionId, Date.now())
@@ -633,35 +681,8 @@ export async function clearConversationMessages(sessionId: string | null): Promi
 
 export function applySystemEffects(
   runtimeState: StoryRuntimeState,
-  conversationId: string,
-  message: Pick<DialogueMessage, 'role' | 'text'>,
+  _conversationId: string,
+  _message: Pick<DialogueMessage, 'role' | 'text'>,
 ): StoryRuntimeState {
-  if (message.role !== 'system') {
-    return runtimeState
-  }
-
-  const inferredTime = extractGameTime(message.text)
-  if (inferredTime) {
-    runtimeState.states[conversationId].currentGameTime = inferredTime
-  }
-
-  const nextName = resolveContactNameFromText(message.text)
-  if (nextName) {
-    runtimeState.currentContactName = nextName
-  }
-
-  const nextAvatarKey = resolveAvatarKeyFromText(message.text)
-  if (nextAvatarKey) {
-    runtimeState.currentAvatarKey = nextAvatarKey
-  }
-
-  if (
-    /(角色已死亡|连接已断开|时间线已中断|时间线中断|被抓住|脑电波被系统强行抹平|救生机在撞击中爆炸)/.test(
-      message.text,
-    )
-  ) {
-    runtimeState.states[conversationId].status = 'dead'
-  }
-
   return runtimeState
 }

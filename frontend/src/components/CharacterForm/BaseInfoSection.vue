@@ -144,7 +144,7 @@ function uploadAvatar() {
 .avatar-btn {
   padding: 5px 12px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 6px;
+  border-radius: 3px;
   background: transparent;
   color: var(--text-tertiary);
   font: inherit;

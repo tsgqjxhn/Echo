@@ -2,7 +2,7 @@
   <div class="character-list-page">
     <section class="search-strip">
       <button type="button" class="circle-tool" @click="router.push('/character/create')">
-        <img :src="createCharacterIcon" alt="创建角色" class="tool-icon" />
+        <img :src="createCharacterIcon" :alt="$t('创建角色')" class="tool-icon" />
       </button>
 
       <label class="search-box">
@@ -11,12 +11,12 @@
           v-model="searchKeyword"
           class="search-input"
           type="search"
-          placeholder="搜索感兴趣的内容"
+          :placeholder="$t('搜索感兴趣的内容')"
         />
       </label>
 
       <button type="button" class="circle-tool" @click="openImportSheet">
-        <img :src="importCharacterIcon" alt="导入角色" class="tool-icon" />
+        <img :src="importCharacterIcon" :alt="$t('导入角色')" class="tool-icon" />
       </button>
     </section>
 
@@ -41,7 +41,7 @@
           :class="{ active: selectedTheme === '' }"
           @click="selectedTheme = ''"
         >
-          全部
+          {{ $t('全部') }}
         </button>
         <button
           v-for="theme in allThemes"
@@ -61,45 +61,27 @@
         v-for="character in filteredCharacters"
         :key="character.id"
         class="character-card"
-        @click="goToDetail(character.id)"
+        @click="goToChat(character.id)"
         @contextmenu.prevent="onCardContextMenu(character, $event)"
         @touchstart="onCardTouchStart(character, $event)"
         @touchend="onCardTouchEnd"
         @touchmove="onCardTouchMove"
       >
-        <div class="card-topbar">
-          <span class="meta-chip meta-chip--top">{{ getModeLabel(character.mode) }}</span>
-          <span class="meta-chip meta-chip--top subtle">{{ character.category || DEFAULT_CATEGORY }}</span>
-          <span v-if="character.subCategory" class="meta-chip meta-chip--top subtle">{{ character.subCategory }}</span>
-        </div>
-
         <div class="card-body">
-          <div class="card-avatar-row">
-            <div class="card-avatar-col">
+          <div class="card-topline">
+            <div class="card-avatar-wrap">
               <img v-if="character.avatar" :src="character.avatar" :alt="character.name" class="card-avatar" />
               <div v-else class="card-avatar-placeholder">{{ character.name?.charAt(0) || '?' }}</div>
-              <button
-                type="button"
-                class="card-edit-btn"
-                title="编辑"
-                @click.stop="goToEdit(character.id)"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
             </div>
-            <div class="card-copy">
-              <h2>{{ character.name }}</h2>
-              <p>{{ character.description }}</p>
+            <div class="card-tags">
+              <span class="meta-chip meta-chip--top">{{ getModeLabel(character.mode) }}</span>
+              <span class="meta-chip meta-chip--top subtle">{{ character.category || DEFAULT_CATEGORY }}</span>
+              <span v-if="character.subCategory" class="meta-chip meta-chip--top subtle">{{ character.subCategory }}</span>
             </div>
           </div>
-          <div class="card-media-hints">
-            <span v-if="character.chatBackground" class="card-media-dot" title="聊天背景">🖼️</span>
-            <span v-if="character.globalBackground" class="card-media-dot" title="全局背景">🌐</span>
-            <span v-if="character.switchAnimation" class="card-media-dot" title="切换动图">🎬</span>
-            <span v-if="character.emotionAnimations && character.emotionAnimations.length" class="card-media-dot" title="情感动图">😊</span>
+          <div class="card-copy">
+            <h2>{{ character.name }}</h2>
+            <p>{{ character.description }}</p>
           </div>
         </div>
       </article>
@@ -141,14 +123,16 @@ import { useCharacterStore } from '@/stores/character'
 import { importCharacterFromFile } from '@/services/character-import'
 import { createSilverAvatarDataUrl, createSilverBackdropDataUrl } from '@/utils/silver-art'
 import { exportService } from '@/services/export'
+import { useI18n } from '@/composables/useI18n'
 import { uni } from '@/utils/uni-polyfill'
 import type { ICharacter } from '@/types/character'
-import { ensureStoryCharacter, loadStoryLibrary } from '@/services/story-conversations'
 import {
   DEFAULT_CATEGORY,
   getAllThemeLeaves,
-  getBrowseCategoryGroups,
+  getVisibleBrowseCategoryGroups,
 } from '@/data/taxonomy'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const characterStore = useCharacterStore()
@@ -159,13 +143,14 @@ const selectedTheme = ref('')
 const importFileInput = ref<HTMLInputElement | null>(null)
 const importFolderInput = ref<HTMLInputElement | null>(null)
 
-const browseCategoryGroups = getBrowseCategoryGroups()
+const browseCategoryGroups = getVisibleBrowseCategoryGroups()
 const allThemes = getAllThemeLeaves()
 
 const filteredCharacters = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
 
   return [...characterStore.characters]
+    .filter(character => character.sourceType !== 'builtin-story')
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .filter(character => {
       const characterCategory = character.category || DEFAULT_CATEGORY
@@ -198,8 +183,6 @@ const filteredCharacters = computed(() => {
 
 
 onMounted(async () => {
-  const library = loadStoryLibrary()
-  await ensureStoryCharacter(library.characterName)
   await characterStore.loadCharacters({ sortBy: 'updatedAt', sortOrder: 'desc' })
 })
 
@@ -222,8 +205,8 @@ function getModeLabel(mode?: ICharacter['mode']): string {
 }
 
 
-function goToDetail(id: string) {
-  router.push(`/character/detail/${id}`)
+function goToChat(id: string) {
+  router.push(`/chat/${id}`)
 }
 
 function goToEdit(id: string) {
@@ -479,7 +462,7 @@ $cyan: #67e8f9;
 .story-spotlight {
   margin-top: 14px;
   padding: 20px;
-  border-radius: 18px;
+  border-radius: 9px;
 }
 
 
@@ -522,7 +505,7 @@ $cyan: #67e8f9;
   min-width: 96px;
   min-height: 42px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: linear-gradient(135deg, $sky-light, $sky, #0284c7);
   color: #fff;
   font: inherit;
@@ -547,7 +530,7 @@ $cyan: #67e8f9;
   align-items: center;
   gap: 0;
   min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
-  padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 1px) 0 2px;
   border-bottom: 1px solid var(--top-bar-border);
   border-radius: 0;
   background: var(--top-bar-surface);
@@ -599,7 +582,7 @@ $cyan: #67e8f9;
   gap: 10px;
   min-height: 44px;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
 }
 
@@ -629,8 +612,8 @@ $cyan: #67e8f9;
 // ── 分类面板 ─────────────────────────────────────────
 .category-panel {
   width: min(1080px, calc(100% - 32px));
-  margin: 5px auto 0;
-  padding: 0 0 10px;
+  margin: 3px auto 4px;
+  padding: 0;
 }
 
 
@@ -668,11 +651,16 @@ $cyan: #67e8f9;
 .small-category-row,
 .chip-row {
   display: flex;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 3px;
+  margin-top: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.small-category-row,
+.chip-row {
+  margin-top: 3px;
 }
 
 .big-category-row::-webkit-scrollbar,
@@ -683,8 +671,8 @@ $cyan: #67e8f9;
 
 .category-chip {
   flex-shrink: 0;
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: 28px;
+  padding: 0 12px;
   border: 1px solid rgba(52, 211, 153, 0.12);
   border-radius: 999px;
   background: rgba(52, 211, 153, 0.07);
@@ -700,7 +688,7 @@ $cyan: #67e8f9;
   }
 
   &.large {
-    min-height: 44px;
+    min-height: 30px;
     font-weight: 600;
   }
 
@@ -718,14 +706,14 @@ $cyan: #67e8f9;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
-  margin-top: 14px;
+  margin-top: 1px;
 }
 
 .character-card {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 208px;
+  min-height: 104px;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -766,22 +754,20 @@ $cyan: #67e8f9;
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 12px 16px;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 6px 8px;
 }
 
-.card-avatar-row {
+.card-topline {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 5px;
 }
 
-.card-avatar-col {
+.card-avatar-wrap {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
   flex-shrink: 0;
 }
 
@@ -810,36 +796,21 @@ $cyan: #67e8f9;
   overflow: hidden;
 }
 
-.card-edit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid rgba(56, 189, 248, 0.18);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
-
-  &:hover {
-    border-color: rgba(56, 189, 248, 0.4);
-    background: rgba(56, 189, 248, 0.08);
-    color: var(--text-secondary);
-  }
-
-  svg {
-    display: block;
-  }
-}
-
 .card-copy {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+}
+
+.card-tags {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -861,19 +832,6 @@ $cyan: #67e8f9;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
-.card-media-hints {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.card-media-dot {
-  font-size: 13px;
-  line-height: 1;
-  opacity: 0.85;
-}
-
 
 .meta-chip {
   padding: 4px 8px;
@@ -898,7 +856,7 @@ $cyan: #67e8f9;
 .primary-btn {
   min-height: 34px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: 5px;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -936,7 +894,7 @@ $cyan: #67e8f9;
   width: min(1080px, calc(100% - 32px));
   margin: 14px auto 0;
   padding: 36px 28px;
-  border-radius: 18px;
+  border-radius: 9px;
   text-align: center;
 }
 
@@ -1017,7 +975,7 @@ $cyan: #67e8f9;
   min-height: 36px;
   padding: 0 14px;
   border: 1px solid rgba(52, 211, 153, 0.14);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(52, 211, 153, 0.07);
   color: var(--text-secondary);
   cursor: pointer;
@@ -1077,7 +1035,7 @@ $cyan: #67e8f9;
   width: 100%;
   padding: 13px 16px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
   font: inherit;
@@ -1102,7 +1060,7 @@ $cyan: #67e8f9;
   width: 100%;
   padding: 13px 16px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
   font: inherit;
@@ -1137,7 +1095,7 @@ $cyan: #67e8f9;
   gap: 6px;
   padding: 10px;
   border: 1px solid rgba(52, 211, 153, 0.16);
-  border-radius: 14px;
+  border-radius: 7px;
   background: rgba(11, 22, 32, 0.98);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(18px);
@@ -1160,7 +1118,7 @@ $cyan: #67e8f9;
   min-height: 40px;
   padding: 0 12px;
   border: 1px solid rgba(52, 211, 153, 0.08);
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   font: inherit;
@@ -1190,7 +1148,7 @@ $cyan: #67e8f9;
 
 .preview-card {
   padding: 16px;
-  border-radius: 14px;
+  border-radius: 7px;
   border: 1px solid rgba(52, 211, 153, 0.10);
   background: rgba(255, 255, 255, 0.08);
 }
@@ -1207,7 +1165,7 @@ $cyan: #67e8f9;
 .preview-backdrop {
   width: 100%;
   margin-top: 14px;
-  border-radius: 12px;
+  border-radius: 6px;
   object-fit: cover;
 }
 
@@ -1220,7 +1178,7 @@ $cyan: #67e8f9;
   min-height: 42px;
   margin-top: 16px;
   border: 1px dashed rgba(52, 211, 153, 0.20);
-  border-radius: 12px;
+  border-radius: 6px;
   background: transparent;
   color: $mint-light;
   font: inherit;
@@ -1254,7 +1212,7 @@ $cyan: #67e8f9;
   gap: 12px;
   margin-top: 18px;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1px solid rgba(52, 211, 153, 0.12);
   background: rgba(255, 255, 255, 0.07);
   color: var(--text-secondary);

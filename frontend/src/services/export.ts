@@ -1,3 +1,5 @@
+import type { IChatSession } from '@/types/chat'
+import type { APIConfig } from '@/types/api-config'
 import { generateUUID } from '@/utils/uuid'
 import { AppError } from './errors'
 import { triggerDownloadBlob } from './files'
@@ -9,6 +11,9 @@ import {
   type BackupSnapshot,
   type StandardSnapshot,
 } from './local-snapshot'
+import { getStorageDriver } from './storage'
+
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://127.0.0.1:8000'
 
 export interface ExportTask {
   id: string
@@ -107,6 +112,131 @@ class ExportService {
     }
 
     await triggerDownloadBlob(latestTask.blob, latestTask.filename)
+  }
+  async exportCustom(options: {
+    characters?: string[]
+    sessions?: string[]
+    games?: string[]
+    includeApiConfigs?: boolean
+    includeApiKeys?: boolean
+    includeGameStates?: boolean
+    includeSettings?: string[]
+  }): Promise<ExportTask> {
+    try {
+      const standard = await buildStandardSnapshot()
+
+      const snapshot: Partial<StandardSnapshot> = {
+        version: '1.0',
+        exportedAt: Date.now(),
+        appVersion: standard.appVersion,
+        user: standard.user,
+      }
+
+      const hasCharacterScope = options.characters !== undefined
+      const hasSessionScope = options.sessions !== undefined
+      const hasGameScope = options.games !== undefined
+      const hasApiScope = options.includeApiConfigs !== undefined
+      const hasSettingsScope = options.includeSettings !== undefined
+
+      if (hasCharacterScope && options.characters?.length) {
+        snapshot.characters = standard.characters.filter(c =>
+          options.characters?.includes(c.id)
+        )
+        const charIds = new Set(options.characters)
+        const sessions = standard.sessions.filter(s => charIds.has(s.characterId))
+        snapshot.sessions = sessions
+        snapshot.messages = Object.fromEntries(
+          Object.entries(standard.messages).filter(([sid]) =>
+            sessions.some(s => s.id === sid)
+          )
+        )
+      }
+
+      if (hasSessionScope && options.sessions?.length) {
+        const existingSessions = snapshot.sessions || []
+        const newSessions = standard.sessions.filter(s =>
+          options.sessions?.includes(s.id) &&
+          !existingSessions.some(es => es.id === s.id)
+        )
+        snapshot.sessions = [...existingSessions, ...newSessions]
+        const sessionIds = new Set((snapshot.sessions as IChatSession[]).map(s => s.id))
+        snapshot.messages = Object.fromEntries(
+          Object.entries(standard.messages).filter(([sid]) => sessionIds.has(sid))
+        )
+      }
+
+      if (!hasCharacterScope && !hasSessionScope) {
+        snapshot.characters = standard.characters
+        snapshot.sessions = standard.sessions
+        snapshot.messages = standard.messages
+      }
+
+      if (hasApiScope && options.includeApiConfigs) {
+        snapshot.apiConfigs = options.includeApiKeys
+          ? standard.apiConfigs
+          : standard.apiConfigs.map(config => {
+              const { apiKey: _apiKey, ...rest } = config
+              return rest as APIConfig
+            })
+      }
+
+      if (hasGameScope && options.games?.length) {
+        snapshot.gameStates = standard.gameStates.filter(g =>
+          options.games?.includes(g.id)
+        )
+      } else if (hasGameScope) {
+        snapshot.gameStates = []
+      }
+
+      if (hasSettingsScope && options.includeSettings?.length) {
+        const settings: Record<string, unknown> = {}
+        const storage = getStorageDriver()
+        for (const key of options.includeSettings) {
+          const raw = await storage.getUserSetting(key)
+          if (raw) {
+            try { settings[key] = JSON.parse(raw) } catch { settings[key] = raw }
+          }
+        }
+        ;(snapshot as Record<string, unknown>).settings = settings
+      }
+
+      return createTask(
+        'custom',
+        `xiang-custom-${Date.now()}.json`,
+        new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
+      )
+    } catch (error) {
+      console.error('[ExportService] custom export failed:', error)
+      throw new AppError('EXPORT_FAILED', '生成自定义导出文件失败')
+    }
+  }
+
+  async exportAllCharactersAsPNG(): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/export/characters/png`, {
+      method: 'POST',
+    })
+    if (!response.ok) {
+      throw new AppError('EXPORT_FAILED', `导出 PNG 失败: ${response.status}`)
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('content-disposition') || ''
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/)
+    const filename = filenameMatch ? filenameMatch[1] : `xiang-characters-${Date.now()}.zip`
+    await triggerDownloadBlob(blob, filename)
+  }
+
+  async exportAllCharactersAsJSON(): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/export/characters/json`, {
+      method: 'POST',
+    })
+    if (!response.ok) {
+      throw new AppError('EXPORT_FAILED', `导出 JSON 失败: ${response.status}`)
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get('content-disposition') || ''
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/)
+    const filename = filenameMatch ? filenameMatch[1] : `xiang-characters-json-${Date.now()}.zip`
+    await triggerDownloadBlob(blob, filename)
   }
 }
 

@@ -1,82 +1,94 @@
 /**
- * 加密服务
- * 使用 AES 加密算法对敏感数据（如 API 密钥）进行加密存储
+ * API Key 加密工具
+ * 使用设备级密钥进行 AES 加密，确保密钥不硬编码
  */
 
-import CryptoJS from 'crypto-js';
+import CryptoJS from 'crypto-js'
+import { generateUUID } from '@/utils/uuid'
 
-/**
- * 加密密钥（实际项目中应该使用更安全的方式管理密钥）
- * 在 UniApp 中，可以使用应用级别的常量
- */
-const ENCRYPTION_KEY = 'xiang-app-secret-key-2024';
+const DEVICE_ID_KEY = 'echo_device_id'
+const ENC_PREFIX = 'enc:'
 
-/**
- * 加密服务类
- */
-class CryptoService {
-  /**
-   * 加密文本
-   * @param text 要加密的文本
-   * @returns 加密后的字符串（Base64 编码）
-   */
-  async encrypt(text: string): Promise<string> {
-    try {
-      const encrypted = CryptoJS.AES.encrypt(text, ENCRYPTION_KEY).toString();
-      return encrypted;
-    } catch (error) {
-      console.error('[CryptoService] 加密失败:', error);
-      throw new Error('数据加密失败');
-    }
-  }
-
-  /**
-   * 解密文本
-   * @param encryptedText 要解密的加密文本
-   * @returns 解密后的原始文本
-   */
-  async decrypt(encryptedText: string): Promise<string> {
-    try {
-      const decrypted = CryptoJS.AES.decrypt(encryptedText, ENCRYPTION_KEY);
-      const originalText = decrypted.toString(CryptoJS.enc.Utf8);
-      
-      if (!originalText) {
-        throw new Error('解密结果为空');
-      }
-      
-      return originalText;
-    } catch (error) {
-      console.error('[CryptoService] 解密失败:', error);
-      throw new Error('数据解密失败');
-    }
-  }
-
-  /**
-   * 生成随机密钥
-   * @param length 密钥长度
-   * @returns 随机生成的密钥字符串
-   */
-  generateSecretKey(length: number = 32): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  }
-
-  /**
-   * 计算哈希值（用于数据完整性校验）
-   * @param data 要计算哈希的数据
-   * @returns SHA256 哈希值
-   */
-  hash(data: string): string {
-    return CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex);
+function getOrCreateDeviceId(): string {
+  try {
+    const existing = localStorage.getItem(DEVICE_ID_KEY)
+    if (existing) return existing
+    const newId = generateUUID()
+    localStorage.setItem(DEVICE_ID_KEY, newId)
+    return newId
+  } catch {
+    // fallback for environments without localStorage
+    return fallbackDeviceKey()
   }
 }
 
-// 导出单例
-export const cryptoService = new CryptoService();
+function fallbackDeviceKey(): string {
+  const raw = (typeof navigator !== 'undefined' ? navigator.userAgent : '') + 'echo_salt_v2'
+  return CryptoJS.SHA256(raw).toString(CryptoJS.enc.Hex).slice(0, 32)
+}
 
-// 导出类供测试使用
-export { CryptoService };
+function deriveKey(password?: string): string {
+  const deviceId = password || getOrCreateDeviceId()
+  return CryptoJS.SHA256(deviceId + '_echo_key_derivation').toString(CryptoJS.enc.Hex).slice(0, 32)
+}
+
+export function encryptApiKey(plainText: string, password?: string): string {
+  if (!plainText) return plainText
+  if (plainText.startsWith(ENC_PREFIX)) return plainText
+  const key = deriveKey(password)
+  const encrypted = CryptoJS.AES.encrypt(plainText, key, {
+    mode: CryptoJS.mode.ECB,
+    padding: CryptoJS.pad.Pkcs7,
+  }).toString()
+  return ENC_PREFIX + encrypted
+}
+
+export function decryptApiKey(cipherText: string, password?: string): string {
+  if (!cipherText) return cipherText
+  if (!cipherText.startsWith(ENC_PREFIX)) return cipherText
+  const key = deriveKey(password)
+  const payload = cipherText.slice(ENC_PREFIX.length)
+  try {
+    const decrypted = CryptoJS.AES.decrypt(payload, key, {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7,
+    })
+    const result = decrypted.toString(CryptoJS.enc.Utf8)
+    if (!result) throw new Error('解密结果为空')
+    return result
+  } catch (e) {
+    console.error('[crypto] API Key 解密失败:', e)
+    return cipherText
+  }
+}
+
+export function isEncryptedApiKey(value: string): boolean {
+  return !!value && value.startsWith(ENC_PREFIX)
+}
+
+// 兼容性：保留旧的 CryptoService 类，供其他可能使用的地方引用
+class CryptoService {
+  async encrypt(text: string): Promise<string> {
+    return encryptApiKey(text)
+  }
+
+  async decrypt(encryptedText: string): Promise<string> {
+    return decryptApiKey(encryptedText)
+  }
+
+  generateSecretKey(length: number = 32): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return result
+  }
+
+  hash(data: string): string {
+    return CryptoJS.SHA256(data).toString(CryptoJS.enc.Hex)
+  }
+}
+
+export const cryptoService = new CryptoService()
+export { CryptoService }

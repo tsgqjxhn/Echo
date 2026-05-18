@@ -5,7 +5,6 @@ import { requireAPIKey, resolveTranscriptionModel } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { base64ToBlob, isNativeRuntime } from './runtime-http'
 import { NativeSpeech } from './native-speech'
-import { isLocalProvider } from '@/types/api-config'
 import type {
   NativeSpeechErrorEvent,
   NativeSpeechSTTResultEvent,
@@ -230,7 +229,7 @@ export class STTService {
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
       : null
 
-    const hasRemoteSTTProvider = !!providerConfig && !isLocalProvider(providerConfig.provider)
+    const hasRemoteSTTProvider = !!providerConfig && providerConfig.provider !== 'local'
     const preferNativeSTT = !!nativeAvailability?.sttAvailable && !hasRemoteSTTProvider
 
     if (preferNativeSTT) {
@@ -257,28 +256,7 @@ export class STTService {
       }
     }
 
-    if (providerConfig && isLocalProvider(providerConfig.provider)) {
-      if (isNativeRuntime() && nativeAvailability?.sttAvailable) {
-        this.useLocal = true
-        this.useNativeLocal = true
-        try {
-          const preferOffline = true
-          return await this.startNativeLocalRecognition(preferOffline)
-        } catch (nativeError) {
-          this.useLocal = false
-          this.useNativeLocal = false
-          const message = (nativeError as Error).message || '系统语音识别启动失败'
-          if (/语音模型|语言|model|language/i.test(message)) {
-            try {
-              await NativeSpeech.downloadRecognitionModel({ language: this.config.language })
-              throw new Error('系统正在下载离线语音模型，请稍后重试。如长时间未完成，请在「系统设置 > 语言和输入 > 语音输入」中手动下载离线包')
-            } catch (downloadError) {
-              throw new Error(`${message}。提示：${(downloadError as Error).message || '请在系统设置中下载离线语音包，或改用云端 STT'}`)
-            }
-          }
-          throw new Error(message)
-        }
-      }
+    if (providerConfig?.provider === 'local') {
       if (getSpeechRecognitionCtor()) {
         this.useLocal = true
         this.useNativeLocal = false
@@ -409,6 +387,66 @@ export class STTService {
     this.onErrorCallback = undefined
   }
 
+  private async startNativeLocalRecognition(preferOffline = true): Promise<void> {
+    await this.detachNativeSpeechListeners()
+    this.localTranscript = ''
+    this.tempAudioPath = ''
+    this.recordedBlob = null
+    const nativeStartTime = Date.now()
+
+    const handles = await Promise.all([
+      NativeSpeech.addListener('sttResult', (event: NativeSpeechSTTResultEvent) => {
+        const text = event.text?.trim() || ''
+        if (!text) return
+        this.localTranscript = text
+        this.onResultCallback?.(text, !!event.final)
+      }),
+      NativeSpeech.addListener('sttState', (event: NativeSpeechStateEvent) => {
+        if (event.state === 'recording' || event.state === 'ready' || event.state === 'listening') {
+          this.state = RecordingState.RECORDING
+        } else if (event.state === 'processing') {
+          this.state = RecordingState.PROCESSING
+        } else if (event.state === 'idle') {
+          this.state = RecordingState.IDLE
+        }
+      }),
+      NativeSpeech.addListener('sttError', (event: NativeSpeechErrorEvent) => {
+        const msg = event.message || ''
+        const elapsed = Date.now() - nativeStartTime
+        const tooShort = elapsed < 1000
+
+        // 过短录音期间的 CLIENT/NO_MATCH/SPEECH_TIMEOUT/aborted 视为正常取消
+        if (tooShort && /被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
+          return
+        }
+
+        // 已有识别文本时，过滤因正常 stopListening 触发的误报错
+        if (/被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
+          if (this.localTranscript && this.localTranscript.trim()) {
+            return
+          }
+        }
+        this.state = RecordingState.ERROR
+        this.onErrorCallback?.(new Error(msg || '系统语音识别失败'))
+      }),
+    ])
+
+    this.nativeSpeechListeners = handles
+
+    try {
+      await NativeSpeech.startRecognition({
+        language: this.config.language && this.config.language !== 'auto' ? this.config.language : 'zh-CN',
+        preferOffline,
+      })
+      this.state = RecordingState.RECORDING
+    } catch (error) {
+      await this.detachNativeSpeechListeners()
+      this.useLocal = false
+      this.useNativeLocal = false
+      throw error
+    }
+  }
+
   private startLocalRecognition(): Promise<void> {
     const SpeechRecognition = getSpeechRecognitionCtor()
     if (!SpeechRecognition) {
@@ -418,7 +456,7 @@ export class STTService {
 
     return new Promise<void>((resolve, reject) => {
       const recognition = new SpeechRecognition()
-      recognition.lang = this.config.language || 'zh-CN'
+      recognition.lang = this.config.language && this.config.language !== 'auto' ? this.config.language : 'zh-CN'
       recognition.continuous = false
       recognition.interimResults = true
 
@@ -490,66 +528,6 @@ export class STTService {
       recognition.stop()
       window.setTimeout(settle, 1500)
     })
-  }
-
-  private async startNativeLocalRecognition(preferOffline = true): Promise<void> {
-    await this.detachNativeSpeechListeners()
-    this.localTranscript = ''
-    this.tempAudioPath = ''
-    this.recordedBlob = null
-    const nativeStartTime = Date.now()
-
-    const handles = await Promise.all([
-      NativeSpeech.addListener('sttResult', (event: NativeSpeechSTTResultEvent) => {
-        const text = event.text?.trim() || ''
-        if (!text) return
-        this.localTranscript = text
-        this.onResultCallback?.(text, !!event.final)
-      }),
-      NativeSpeech.addListener('sttState', (event: NativeSpeechStateEvent) => {
-        if (event.state === 'recording' || event.state === 'ready' || event.state === 'listening') {
-          this.state = RecordingState.RECORDING
-        } else if (event.state === 'processing') {
-          this.state = RecordingState.PROCESSING
-        } else if (event.state === 'idle') {
-          this.state = RecordingState.IDLE
-        }
-      }),
-      NativeSpeech.addListener('sttError', (event: NativeSpeechErrorEvent) => {
-        const msg = event.message || ''
-        const elapsed = Date.now() - nativeStartTime
-        const tooShort = elapsed < 1000
-
-        // 过短录音期间的 CLIENT/NO_MATCH/SPEECH_TIMEOUT/aborted 视为正常取消
-        if (tooShort && /被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
-          return
-        }
-
-        // 已有识别文本时，过滤因正常 stopListening 触发的误报错
-        if (/被中断|没有识别到|NO_MATCH|SPEECH_TIMEOUT|CLIENT|aborted/i.test(msg)) {
-          if (this.localTranscript && this.localTranscript.trim()) {
-            return
-          }
-        }
-        this.state = RecordingState.ERROR
-        this.onErrorCallback?.(new Error(msg || '系统语音识别失败'))
-      }),
-    ])
-
-    this.nativeSpeechListeners = handles
-
-    try {
-      await NativeSpeech.startRecognition({
-        language: this.config.language,
-        preferOffline,
-      })
-      this.state = RecordingState.RECORDING
-    } catch (error) {
-      await this.detachNativeSpeechListeners()
-      this.useLocal = false
-      this.useNativeLocal = false
-      throw error
-    }
   }
 
   private async stopNativeLocalRecognition(): Promise<string> {
@@ -753,9 +731,8 @@ export class STTService {
       (await apiConfigService.getDefaultConfig('voice'))
 
     if (!providerConfig) throw new Error('请先在设置中配置 STT 提供商')
-
-    if (isLocalProvider(providerConfig.provider)) {
-      throw new Error('本地 STT 仅支持系统语音识别，无法对录音文件转写')
+    if (providerConfig.provider === 'local') {
+      throw new Error('本地 STT 仅支持实时语音识别，无法对录音文件转写')
     }
 
     const adapter = getAdapterOrDefault(providerConfig.provider)

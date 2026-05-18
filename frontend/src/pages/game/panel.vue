@@ -87,7 +87,7 @@
         </div>
 
         <div v-if="filteredGames.length === 0" class="empty-games">
-          <strong>当前分类暂无内置游戏</strong>
+          <strong>当前分类暂无游戏</strong>
           <p>可以点击右上角导入按钮，通过规则或完整文件创建新的小游戏。</p>
         </div>
       </div>
@@ -285,10 +285,6 @@ import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 import { readGameInputFiles } from '@/services/game-file-reader'
 import { useGameGenerationStore } from '@/stores/game-generation'
-import xiuxianGameAvatar from '@/static/images/game-center/game-center-xiuxian.webp'
-import empireGameAvatar from '@/static/images/game-center/game-center-empire.webp'
-import heroGameAvatar from '@/static/images/game-center/game-center-hero.webp'
-import darkDormGameAvatar from '@/static/images/game-center/game-center-dark-dorm.webp'
 
 const router = useRouter()
 const gameGenerationStore = useGameGenerationStore()
@@ -331,111 +327,7 @@ const playCategoryOptions: PlayCategoryOption[] = [
   { key: 'board-strategy', label: '棋类竞技' },
 ]
 
-const gameCatalog: GameCatalogItem[] = [
-  {
-    id: 'xiuxian-v2',
-    name: '问道长生',
-    description: '修仙放置游戏，修炼功法、探索洞府、炼丹炼器，踏上长生之路。',
-    route: '/game/play/xiuxian-v2',
-    icon: '道',
-    iconSrc: xiuxianGameAvatar,
-    iconKind: 'text',
-    iconClass: 'xiuxian-icon',
-    primarySubcategory: '传奇仙侠',
-    playCategories: ['xianxia-rpg', 'cultivation', 'simulation'],
-  },
-  {
-    id: 'empire',
-    name: '圣王国',
-    description: '王国经营策略游戏，建设产业、养成城邦、调度资源，扩张你的圣王国。',
-    route: '/game/play/empire',
-    icon: '圣',
-    iconSrc: empireGameAvatar,
-    iconKind: 'text',
-    iconClass: 'empire-icon',
-    primarySubcategory: '战术RPG',
-    playCategories: ['tactical-rpg', 'slg', 'cultivation', 'simulation', 'strategy-action'],
-  },
-  {
-    id: 'hero',
-    name: '勇士',
-    description: '勇士冒险游戏，召唤伙伴、收集装备、挑战副本，开启你的远征旅程。',
-    route: '/game/play/hero',
-    icon: '勇',
-    iconSrc: heroGameAvatar,
-    iconKind: 'text',
-    iconClass: 'hero-icon',
-    primarySubcategory: '卡牌RPG',
-    playCategories: ['role-playing', 'card-rpg'],
-  },
-  {
-    id: 'dark-dorm',
-    name: '暗黑宿舍',
-    description: '暗黑宿舍塔防挑战，布置防线、收集道具、抵御入侵，守住恐怖夜晚。',
-    route: '/game/play/dark-dorm',
-    icon: '暗',
-    iconSrc: darkDormGameAvatar,
-    iconKind: 'text',
-    iconClass: 'darkdorm-icon',
-    primarySubcategory: '塔防设计',
-    playCategories: ['tower-shooter', 'roguelike-rpg', 'tactical-rpg'],
-  },
-  {
-    id: 'survivor-defense',
-    name: '幸存者防线',
-    description: '末日丧尸塔防：放置炮塔、研究科技、抵挡一波波丧尸，守护最后的避难所。',
-    route: '/game/play/survivor-defense',
-    icon: '防',
-    iconKind: 'text',
-    iconClass: 'survivor-icon',
-    primarySubcategory: '塔防设计',
-    playCategories: ['tower-shooter', 'strategy-action'],
-  },
-  {
-    id: 'chess',
-    name: '国际象棋',
-    description: '邀请AI好友对弈，或挑战内置引擎。支持难度选择。',
-    route: '/game/play/chess',
-    icon: '♛',
-    iconKind: 'text',
-    iconClass: 'chess-icon',
-    primarySubcategory: '棋类竞技',
-    playCategories: ['strategy-action', 'board-strategy'],
-  },
-  {
-    id: 'gomoku',
-    name: '五子棋',
-    description: '经典五子连珠，先连成五子获胜。可邀请好友或挑战引擎。',
-    route: '/game/play/gomoku',
-    icon: '',
-    iconKind: 'gomoku',
-    iconClass: 'gomoku-icon',
-    primarySubcategory: '棋类竞技',
-    playCategories: ['strategy-action', 'board-strategy'],
-  },
-  {
-    id: 'match3',
-    name: '星糖消消乐',
-    description: '交换相邻星糖，形成三连或以上即可消除。包含目标分、步数、连锁与重排。',
-    route: '/game/play/match3',
-    icon: '◆',
-    iconKind: 'text',
-    iconClass: 'match3-icon',
-    primarySubcategory: '消除合成',
-    playCategories: ['puzzle-casual', 'merge-match'],
-  },
-  {
-    id: 'cut-rope',
-    name: '糖果绳索',
-    description: '切断绳子，让糖果借助摆动、重力和碰撞落进口袋。包含星星收集和关卡计分。',
-    route: '/game/play/cut-rope',
-    icon: '✂',
-    iconKind: 'text',
-    iconClass: 'cut-rope-icon',
-    primarySubcategory: '益智休闲',
-    playCategories: ['puzzle-casual', 'micro-puzzle'],
-  },
-]
+const gameCatalog: GameCatalogItem[] = []
 
 const showActionModal = ref(false)
 const showImportChoiceModal = ref(false)
@@ -637,7 +529,7 @@ async function submitImport() {
     }
 
     const service = new LLMAPIService(config)
-    const content = await service.chat({
+    const stream = service.chatStreamAbortable({
       systemPrompt: [
         '你是一个 H5 小游戏设计与实现助手。',
         '请根据用户给出的规则、玩法或文件内容，输出一个可落地的游戏创建方案。',
@@ -651,6 +543,13 @@ async function submitImport() {
         },
       ],
     })
+
+    let content = ''
+    for await (const chunk of stream.stream) {
+      if (!chunk.content) continue
+      content += chunk.content
+      createGameResult.value = content
+    }
 
     createGameResult.value = content || 'AI 已返回空结果，请补充更明确的规则后重试。'
     createGameDone.value = true
@@ -742,7 +641,7 @@ function formatFileSize(bytes: number): string {
   align-items: center;
   justify-content: center;
   width: 42px; height: 42px;
-  border: none; border-radius: 14px;
+  border: none; border-radius: 7px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
@@ -770,7 +669,7 @@ function formatFileSize(bytes: number): string {
   min-height: 38px;
   padding: 0 14px;
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   font: inherit;
@@ -812,7 +711,7 @@ function formatFileSize(bytes: number): string {
   gap: 12px;
   min-height: 96px;
   padding: 12px 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   margin-bottom: 10px;
   border: 1px solid var(--border-color);
   background: var(--surface-gradient);
@@ -832,7 +731,7 @@ function formatFileSize(bytes: number): string {
   align-items: center;
   justify-content: center;
   width: 64px; height: 64px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: linear-gradient(135deg, #1a1a2e, #16213e);
   color: #e0e0e0;
   font-size: 28px;
@@ -956,7 +855,7 @@ function formatFileSize(bytes: number): string {
   min-height: 34px;
   padding: 0 12px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: var(--interactive-gradient);
   color: #fff;
   font: inherit;
@@ -983,7 +882,7 @@ function formatFileSize(bytes: number): string {
 .empty-games {
   padding: 24px;
   border: 1px solid var(--border-color);
-  border-radius: 18px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
@@ -1049,7 +948,7 @@ function formatFileSize(bytes: number): string {
   overflow: auto;
   padding: 12px;
   border: 1px solid rgba(56, 189, 248, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
   text-align: left;
@@ -1062,7 +961,7 @@ function formatFileSize(bytes: number): string {
   width: 100%;
   padding: 12px;
   border: 1px solid rgba(248, 113, 113, 0.18);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(248, 113, 113, 0.08);
   color: #fecaca;
   text-align: left;
@@ -1125,7 +1024,7 @@ function formatFileSize(bytes: number): string {
   align-items: center;
   justify-content: center;
   width: 44px; height: 44px;
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(56, 189, 248, 0.08);
   color: rgba(56, 189, 248, 0.7);
 }
@@ -1145,7 +1044,7 @@ function formatFileSize(bytes: number): string {
 
 .upload-textarea-wrap {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: 5px;
   overflow: hidden;
   transition: border-color 0.2s;
   &:focus-within { border-color: rgba(56, 189, 248, 0.4); }
@@ -1177,7 +1076,7 @@ function formatFileSize(bytes: number): string {
   gap: 6px;
   padding: 12px;
   border: 1px dashed rgba(56, 189, 248, 0.25);
-  border-radius: 10px;
+  border-radius: 5px;
   background: transparent;
   color: rgba(56, 189, 248, 0.6);
   font: inherit;
@@ -1196,7 +1095,7 @@ function formatFileSize(bytes: number): string {
   gap: 8px;
   padding: 24px 16px;
   border: 1px dashed rgba(56, 189, 248, 0.25);
-  border-radius: 12px;
+  border-radius: 6px;
   color: rgba(56, 189, 248, 0.5);
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
@@ -1213,7 +1112,7 @@ function formatFileSize(bytes: number): string {
   display: inline-block;
   padding: 2px 8px;
   border: 1px solid rgba(52, 211, 153, 0.15);
-  border-radius: 4px;
+  border-radius: 2px;
   color: rgba(52, 211, 153, 0.7);
   font-size: 11px;
 }
@@ -1223,7 +1122,7 @@ function formatFileSize(bytes: number): string {
 .clear-files-btn {
   padding: 2px 8px;
   border: 1px solid rgba(248, 113, 113, 0.15);
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: rgba(248, 113, 113, 0.6);
   font: inherit;
@@ -1238,7 +1137,7 @@ function formatFileSize(bytes: number): string {
   width: 100%;
   padding: 12px;
   border: none;
-  border-radius: 10px;
+  border-radius: 5px;
   background: var(--interactive-gradient);
   color: #fff;
   font: inherit;
@@ -1276,7 +1175,7 @@ function formatFileSize(bytes: number): string {
     gap: 10px;
     min-height: 92px;
     padding: 12px;
-    border-radius: 16px;
+    border-radius: 8px;
   }
 
   .game-icon {

@@ -6,7 +6,7 @@
       </button>
       <div class="header-text">
         <strong>残缺的逻辑</strong>
-        <span class="header-sub">协助星拼凑展板碎片</span>
+        <span class="header-sub">拼凑展板碎片</span>
       </div>
       <div class="timer-area" :class="{ urgent: timeLeft < 30 }">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" fill="currentColor"/></svg>
@@ -16,7 +16,7 @@
 
     <div class="heartbeat" v-if="timeLeft < 30 && phase === 'puzzle'">
       <span class="hb-dot"></span>
-      <span>星的心跳加速中…</span>
+      <span>倒计时正在加速…</span>
     </div>
 
     <section v-if="phase === 'puzzle'" class="puzzle-board" ref="boardRef">
@@ -392,7 +392,7 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   display: flex;
@@ -471,7 +471,7 @@ onUnmounted(() => {
   position: relative;
   flex: 1;
   margin: 16px;
-  border-radius: 18px;
+  border-radius: 9px;
   border: 1px solid rgba(56, 189, 248, 0.12);
   background: rgba(255, 255, 255, 0.02);
   min-height: 300px;
@@ -482,7 +482,7 @@ onUnmounted(() => {
   position: absolute;
   cursor: grab;
   transition: box-shadow 0.2s, opacity 0.2s;
-  border-radius: 6px;
+  border-radius: 3px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   touch-action: none;
@@ -539,7 +539,7 @@ onUnmounted(() => {
   width: min(380px, 100%);
   padding: 24px;
   border: 1px solid rgba(56, 189, 248, 0.14);
-  border-radius: 22px;
+  border-radius: 11px;
   background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.5);
   text-align: center;
@@ -595,7 +595,7 @@ onUnmounted(() => {
   height: 44px;
   padding: 0 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font: inherit;
@@ -614,7 +614,7 @@ onUnmounted(() => {
   height: 44px;
   padding: 0 20px;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: linear-gradient(135deg, rgba(125, 211, 252, 0.9), rgba(56, 189, 248, 0.9));
   color: #09121f;
   font: inherit;
@@ -641,7 +641,7 @@ onUnmounted(() => {
   width: min(360px, 100%);
   padding: 28px;
   border: 1px solid rgba(74, 222, 128, 0.2);
-  border-radius: 22px;
+  border-radius: 11px;
   background: linear-gradient(180deg, rgba(10, 20, 15, 0.98), rgba(6, 14, 10, 0.98));
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.5);
   text-align: center;

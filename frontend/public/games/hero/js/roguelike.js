@@ -74,6 +74,7 @@ class RoguelikeGame {
 
     this._animFrame = null;
     this._inputBound = false;
+    this._pendingTimeouts = [];
 
     this.sprites = {};
     this.itemImg = {};
@@ -224,6 +225,7 @@ class RoguelikeGame {
   }
 
   start(heroTemplate, stageIndex, options = {}) {
+    if (!gameState) return;
     this.infiniteMode = !!options.infinite;
     const stage = this.infiniteMode ? Math.max(0, stageIndex || 0) : Math.min(stageIndex, WAVE_CONFIGS.length - 1);
     const civBonus = CIVILIZATIONS[gameState.player.civilization]?.bonus || {};
@@ -414,6 +416,11 @@ class RoguelikeGame {
   stop() {
     this.running = false;
     if (this._animFrame) cancelAnimationFrame(this._animFrame);
+    // Clean up any pending skill-effect timeouts
+    if (this._pendingTimeouts.length) {
+      this._pendingTimeouts.forEach(id => clearTimeout(id));
+      this._pendingTimeouts.length = 0;
+    }
     this.unbindInput();
   }
 
@@ -1379,7 +1386,7 @@ class RoguelikeGame {
         value: Math.floor((15 + Math.floor(Math.random() * 20)) * (window.__difficultyRewardMult || 1)), life: 20, color: '#ffd740'
       });
     }
-    gameState.roguelike.totalBossKills++;
+    if (gameState) gameState.roguelike.totalBossKills++;
   }
 
   collectDrop(drop) {
@@ -1466,7 +1473,7 @@ class RoguelikeGame {
       case 'commander':
         // Damage boost
         p.attack *= 1.5;
-        setTimeout(() => { p.attack /= 1.5; }, 10000);
+        this._pendingTimeouts.push(setTimeout(() => { p.attack /= 1.5; }, 10000));
         // AoE damage
         for (const e of [...this.enemies]) {
           const dx = e.x - p.x, dy = e.y - p.y;
@@ -1490,7 +1497,7 @@ class RoguelikeGame {
         const healed = p.hp - hpBefore;
         if (healed > 0) this.spawnDamageNumber(p.x, p.y - 28, healed, '#4caf50', 'heal');
         p.speed *= 1.3;
-        setTimeout(() => { p.speed /= 1.3; }, 10000);
+        this._pendingTimeouts.push(setTimeout(() => { p.speed /= 1.3; }, 10000));
         this.particles.push({ x: p.x, y: p.y, dx: 0, dy: 0, life: 1.5, size: 32,
           color: '#4caf50', spriteKey: 'healAura', followPlayer: true });
         break;

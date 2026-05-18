@@ -438,7 +438,7 @@ function enlargeImage(src: string, caption: string) {
   margin: 0 0 12px 54px;
   padding: 0;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   overflow: hidden;
   cursor: zoom-in;
@@ -495,7 +495,7 @@ function enlargeImage(src: string, caption: string) {
   margin-left: 54px;
   margin-bottom: 8px;
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
@@ -535,7 +535,7 @@ function enlargeImage(src: string, caption: string) {
   height: 32px;
   padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary, #f0f9ff);
   font: inherit;
@@ -555,7 +555,7 @@ function enlargeImage(src: string, caption: string) {
   padding: 0 12px;
   height: 32px;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
   background: rgba(56, 189, 248, 0.16);
   color: #7dd3fc;
   font: inherit;

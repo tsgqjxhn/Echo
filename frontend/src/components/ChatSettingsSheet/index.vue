@@ -124,7 +124,19 @@
                 <span class="track" />
               </span>
             </label>
+
+            <label class="row toggle-row">
+              <div class="row-text">
+                <span class="row-name">显示 Token 计数</span>
+                <span class="row-desc">在消息气泡和输入框下方显示估算 Token 数</span>
+              </div>
+              <span class="toggle">
+                <input type="checkbox" :checked="model.showTokenCount" @change="patch({ showTokenCount: ($event.target as HTMLInputElement).checked })" />
+                <span class="track" />
+              </span>
+            </label>
           </section>
+
         </div>
 
         <footer class="sheet-foot">
@@ -150,6 +162,7 @@ interface Props {
   visible: boolean
   characterId: string
   characterName?: string
+  mode?: string
 }
 
 const props = defineProps<Props>()

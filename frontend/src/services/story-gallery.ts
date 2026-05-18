@@ -1,10 +1,8 @@
-import { STORY_IMAGE_ASSETS, xingAvatarWebp, type StoryImageAsset } from './story-assets'
+import { STORY_IMAGE_ASSETS, type StoryImageAsset } from './story-assets'
 
 export type GalleryItem = StoryImageAsset
 
 export const GALLERY_ITEMS: GalleryItem[] = STORY_IMAGE_ASSETS
-
-export { xingAvatarWebp }
 
 const GALLERY_PROGRESS_KEY = 'echo-gallery-unlocked'
 

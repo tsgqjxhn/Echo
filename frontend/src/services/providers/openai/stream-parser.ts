@@ -5,16 +5,34 @@ function normalizeUsage(usage: unknown): TokenUsage | undefined {
   if (!usage || typeof usage !== 'object') return undefined
 
   const u = usage as Record<string, unknown>
+  const completionDetails = u.completion_tokens_details && typeof u.completion_tokens_details === 'object'
+    ? u.completion_tokens_details as Record<string, unknown>
+    : undefined
   const promptTokens = Number(u.prompt_tokens ?? u.promptTokens)
   const completionTokens = Number(u.completion_tokens ?? u.completionTokens)
+  const thinkingTokens = Number(
+    u.reasoning_tokens ??
+    u.reasoningTokens ??
+    u.thinking_tokens ??
+    u.thinkingTokens ??
+    completionDetails?.reasoning_tokens ??
+    completionDetails?.reasoningTokens
+  )
   const totalTokens = Number(u.total_tokens ?? u.totalTokens)
 
-  if (![promptTokens, completionTokens, totalTokens].some(Number.isFinite)) return undefined
+  if (![promptTokens, completionTokens, thinkingTokens, totalTokens].some(Number.isFinite)) return undefined
+
+  const normalizedPrompt = Number.isFinite(promptTokens) ? promptTokens : 0
+  const normalizedCompletion = Number.isFinite(completionTokens) ? completionTokens : 0
+  const normalizedThinking = Number.isFinite(thinkingTokens) ? thinkingTokens : 0
 
   return {
-    promptTokens: Number.isFinite(promptTokens) ? promptTokens : 0,
-    completionTokens: Number.isFinite(completionTokens) ? completionTokens : 0,
-    totalTokens: Number.isFinite(totalTokens) ? totalTokens : 0,
+    promptTokens: normalizedPrompt,
+    completionTokens: normalizedCompletion,
+    thinkingTokens: normalizedThinking,
+    totalTokens: Number.isFinite(totalTokens)
+      ? totalTokens
+      : normalizedPrompt + normalizedCompletion + normalizedThinking,
   }
 }
 

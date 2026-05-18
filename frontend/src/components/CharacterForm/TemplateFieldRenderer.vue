@@ -226,7 +226,7 @@ function onTextareaBlur() { textareaFocused.value = false }
   min-height: 28px;
   padding: 0 12px;
   border: 1px solid rgba(52, 211, 153, 0.12);
-  border-radius: 6px;
+  border-radius: 3px;
   background: rgba(52, 211, 153, 0.04);
   color: var(--text-tertiary);
   font: inherit;

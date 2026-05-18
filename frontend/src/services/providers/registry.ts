@@ -1,6 +1,5 @@
 import type { APIProvider } from '@/types/api-config'
 import type { ProviderAdapter } from './types'
-import { localAdapter } from './local'
 import { openaiAdapter, openaiCompatibleAdapter } from './openai'
 import { anthropicAdapter } from './anthropic'
 import { dashscopeAdapter } from './dashscope'
@@ -12,7 +11,6 @@ import { minimaxAdapter } from './minimax'
 import { baiduAdapter } from './baidu'
 import { bedrockAdapter } from './bedrock'
 import { azureAdapter } from './azure'
-import { ollamaAdapter } from './ollama'
 
 const adapters = new Map<APIProvider, ProviderAdapter>()
 
@@ -20,8 +18,6 @@ function register(adapter: ProviderAdapter): void {
   adapters.set(adapter.providerId, adapter)
 }
 
-register(localAdapter)
-register(ollamaAdapter)
 register(openaiAdapter)
 register(openaiCompatibleAdapter)
 register(anthropicAdapter)

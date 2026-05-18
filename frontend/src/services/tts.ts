@@ -3,10 +3,9 @@ import { apiConfigService } from './api-config'
 import { requireAPIKey } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { NativeSpeech } from './native-speech'
-import type { NativeSpeechErrorEvent, NativeSpeechStateEvent } from './native-speech'
+import type { NativeSpeechAvailability, NativeSpeechErrorEvent, NativeSpeechStateEvent } from './native-speech'
 import type { PluginListenerHandle } from '@capacitor/core'
-import { isNativeRuntime } from './runtime-http'
-import { isLocalProvider } from '@/types/api-config'
+import { isNativeRuntime, runtimeRequest } from './runtime-http'
 
 export enum TTSState {
   IDLE = 'idle',
@@ -37,6 +36,12 @@ async function parseBlobError(blob: Blob, status: number): Promise<string> {
 
 function getSpeechSynthesis(): SpeechSynthesis | null {
   return typeof window !== 'undefined' ? window.speechSynthesis : null
+}
+
+function getErrorMessage(error: unknown, fallback = 'TTS 朗读失败'): string {
+  if (error instanceof Error && error.message.trim()) return error.message
+  if (typeof error === 'string' && error.trim()) return error
+  return fallback
 }
 
 export class TTSService {
@@ -73,29 +78,76 @@ export class TTSService {
       (await apiConfigService.getDefaultConfig('tts')) ||
       (await apiConfigService.getDefaultConfig('voice'))
 
-    const hasRemoteTTSProvider = !!providerConfig && !isLocalProvider(providerConfig.provider)
+    const hasRemoteTTSProvider = !!providerConfig
 
     const nativeAvailability = isNativeRuntime()
       ? await NativeSpeech.checkAvailability().catch(() => ({ sttAvailable: false, ttsAvailable: false }))
       : null
 
     if (!hasRemoteTTSProvider) {
-      if (nativeAvailability?.ttsAvailable) return this.nativeSpeak(text)
-      if (getSpeechSynthesis()) return this.localSpeak(text)
-      const error = new Error('当前环境不支持本地语音合成，请在设置中配置 TTS 提供商')
-      this.state = TTSState.ERROR
-      this.onErrorCallback?.(error)
-      throw error
+      try {
+        await this.speakWithLocalFallback(text, nativeAvailability)
+        return
+      } catch (fallbackError) {
+        const error = new Error(getErrorMessage(
+          fallbackError,
+          '当前环境不支持本地语音合成，请在设置中配置 TTS 提供商'
+        ))
+        this.state = TTSState.ERROR
+        this.onErrorCallback?.(error)
+        throw error
+      }
     }
 
     try {
       const blob = await this.synthesizeSpeech(text)
       await this.playAudio(blob)
-    } catch (error) {
-      this.state = TTSState.ERROR
-      this.onErrorCallback?.(error as Error)
-      throw error
+    } catch (remoteError) {
+      try {
+        await this.speakWithLocalFallback(text, nativeAvailability)
+        return
+      } catch (fallbackError) {
+        const error = new Error(
+          `远程 TTS 失败：${getErrorMessage(remoteError)}；本地朗读回退失败：${getErrorMessage(fallbackError)}`
+        )
+        this.state = TTSState.ERROR
+        this.onErrorCallback?.(error)
+        throw error
+      }
     }
+  }
+
+  private async speakWithLocalFallback(
+    text: string,
+    nativeAvailability: NativeSpeechAvailability | null
+  ): Promise<void> {
+    const errors: string[] = []
+
+    if (nativeAvailability?.ttsAvailable) {
+      try {
+        await this.nativeSpeak(text)
+        return
+      } catch (error) {
+        errors.push(getErrorMessage(error, '系统语音朗读失败'))
+      }
+    }
+
+    if (getSpeechSynthesis()) {
+      try {
+        await this.localSpeak(text)
+        return
+      } catch (error) {
+        errors.push(getErrorMessage(error, '浏览器语音朗读失败'))
+      }
+    }
+
+    const error = new Error(
+      errors.length > 0
+        ? errors.join('；')
+        : '当前环境不支持本地语音合成，请在设置中配置 TTS 提供商'
+    )
+    this.state = TTSState.ERROR
+    throw error
   }
 
   pause(): void {
@@ -226,7 +278,6 @@ export class TTSService {
           this.usingNativeLocal = false
           this.activeResolve = null
           void this.detachNativeListeners()
-          this.onErrorCallback?.(error)
           reject(error)
         }),
       ])
@@ -253,11 +304,9 @@ export class TTSService {
         if (/语音包|语言|tts.?data|missing.?data|not.?supported/i.test(message)) {
           NativeSpeech.installTtsData().catch(() => undefined)
           const wrapped = new Error(`${message}。已尝试启动语音包安装界面，请完成下载后重试。`)
-          this.onErrorCallback?.(wrapped)
           reject(wrapped)
           return
         }
-        this.onErrorCallback?.(error as Error)
         reject(error)
       }
     })
@@ -296,7 +345,6 @@ export class TTSService {
         this.currentUtterance = null
         this.activeResolve = null
         const error = new Error(`本地 TTS 错误: ${event.error}`)
-        this.onErrorCallback?.(error)
         reject(error)
       }
 
@@ -324,21 +372,25 @@ export class TTSService {
     const body = adapter.buildTTSBody({ model, voice, input: text })
     const url = adapter.resolveEndpoint(providerConfig.baseURL, 'tts')
 
-    const response = await fetch(url, {
+    const response = await runtimeRequest<Blob>({
+      url,
       method: 'POST',
       headers: {
         ...adapter.buildAuthHeaders(requireAPIKey(providerConfig)),
         'Content-Type': 'application/json',
         Accept: 'audio/mpeg',
       },
-      body: JSON.stringify(body),
+      body,
+      responseType: 'blob',
+      connectTimeout: 30_000,
+      readTimeout: 120_000,
     })
 
     if (!response.ok) {
-      throw new APIError(response.status, await parseBlobError(await response.blob(), response.status))
+      throw new APIError(response.status, await parseBlobError(response.data, response.status))
     }
 
-    return response.blob()
+    return response.data
   }
 
   private async playAudio(blob: Blob): Promise<void> {
@@ -365,12 +417,17 @@ export class TTSService {
         this.activeResolve = null
         if (this.currentObjectUrl) { URL.revokeObjectURL(this.currentObjectUrl); this.currentObjectUrl = null }
         const error = new NetworkError('TTS audio playback failed.')
-        this.onErrorCallback?.(error)
         reject(error)
       }
 
       this.currentAudio = audio
-      void audio.play().catch(reject)
+      void audio.play().catch((error) => {
+        this.state = TTSState.ERROR
+        this.currentAudio = null
+        this.activeResolve = null
+        if (this.currentObjectUrl) { URL.revokeObjectURL(this.currentObjectUrl); this.currentObjectUrl = null }
+        reject(error instanceof Error ? error : new NetworkError('TTS audio playback failed.'))
+      })
     })
   }
 

@@ -11,12 +11,15 @@ export interface CharacterProfileJSON {
   avatar: string | null
   background: string | null
   backgroundMusic: string[]
+  videos: string[]
   gameFiles: string[]
   gifs: string[]
   images: string[]
   settings: string
   description: string
   greeting: string | null
+  alt_greetings?: string[]
+  group_only_greetings?: string[]
   personality: string | null
   behavior: string | null
   values: string | null
@@ -89,6 +92,7 @@ export function buildCharacterProfileJSON(character: ICharacter): CharacterProfi
     gameFiles?: string | string[]
     images?: string | string[]
     gifs?: string | string[]
+    videos?: string | string[]
   }
 
   const emotionAnimationUrls = (character.emotionAnimations || []).map(item => item.animationUrl)
@@ -101,10 +105,17 @@ export function buildCharacterProfileJSON(character: ICharacter): CharacterProfi
   const images = uniq([
     character.avatar,
     character.backgroundImage,
-    character.chatBackground,
     character.globalBackground,
     ...emotionAnimationUrls.filter(url => !/\.(gif|webp)(?:\?|$)/i.test(url || '')),
     ...getStringArray(dynamicFields.images),
+  ])
+
+  const videos = uniq([
+    character.globalVideoBackground,
+    character.multimedia?.video?.globalBackgroundVideo,
+    character.multimedia?.video?.idleVideo,
+    character.multimedia?.video?.introVideo,
+    ...getStringArray(dynamicFields.videos),
   ])
 
   const gameFiles = uniq([
@@ -122,12 +133,15 @@ export function buildCharacterProfileJSON(character: ICharacter): CharacterProfi
       ...getStringArray(dynamicFields.backgroundMusic),
       ...getStringArray(dynamicFields.music),
     ]),
+    videos,
     gameFiles,
     gifs,
     images,
     settings: character.settings || '',
     description: character.description || '',
     greeting: character.greeting || null,
+    alt_greetings: character.alternateGreetings?.length ? character.alternateGreetings : undefined,
+    group_only_greetings: character.groupOnlyGreetings?.length ? character.groupOnlyGreetings : undefined,
     personality: character.personality || null,
     behavior: character.behavior || null,
     values: character.values || null,
@@ -158,6 +172,7 @@ export function buildCharacterAISummary(profile: CharacterProfileJSON): string {
     profile.tags.length > 0 ? `标签：${profile.tags.join('、')}` : '',
     profile.images.length > 0 ? `图片素材：${profile.images.slice(0, 6).join(' | ')}` : '',
     profile.gifs.length > 0 ? `动图素材：${profile.gifs.slice(0, 6).join(' | ')}` : '',
+    profile.videos.length > 0 ? `视频素材：${profile.videos.slice(0, 4).join(' | ')}` : '',
     profile.backgroundMusic.length > 0 ? `背景音乐：${profile.backgroundMusic.slice(0, 4).join(' | ')}` : '',
     profile.gameFiles.length > 0 || profile.rawCharacter.gameData
       ? `游戏资料：${compactText(profile.rawCharacter.gameData || profile.gameFiles.join(' | '), 260)}`
