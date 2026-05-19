@@ -439,6 +439,7 @@ import {
   type ChatSettings,
 } from '@/services/chat-settings'
 import { loadGlobalChatDefaults } from '@/services/chat-defaults'
+import { getAffinity as readAffinity, ensureAffinity } from '@/services/affinity'
 import { ensureCompressedCharacterPrompts } from '@/services/character-prompt-compression'
 
 const AUTO_VOICE_KEY = 'chat_auto_tts'
@@ -635,6 +636,8 @@ onMounted(async () => {
   await loadAutoVoicePlayback()
   await refreshMemory()
   scrollToBottom()
+  window.visualViewport?.addEventListener('resize', handleVisualViewportChange)
+  window.visualViewport?.addEventListener('scroll', handleVisualViewportChange)
 })
 
 watch(
@@ -660,12 +663,29 @@ watch(hasComposerContent, hasContent => {
   voiceMode.value = false
 })
 
-function scrollToBottom() {
+function scrollToBottom(behavior: ScrollBehavior = 'auto') {
   nextTick(() => {
     requestAnimationFrame(() => {
-      window.scrollTo({ top: document.body.scrollHeight })
+      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+      window.scrollTo({ top: height, behavior })
     })
   })
+}
+
+function scheduleKeyboardScroll() {
+  syncKeyboardInset(true)
+  scrollToBottom('auto')
+  ;[80, 180, 360].forEach(delay => {
+    window.setTimeout(() => {
+      syncKeyboardInset(true)
+      scrollToBottom('auto')
+    }, delay)
+  })
+}
+
+function handleVisualViewportChange() {
+  if (!isInputFocused.value) return
+  scheduleKeyboardScroll()
 }
 
 function compactToastMessage(message: string, fallback: string): string {
@@ -877,10 +897,26 @@ function toggleVoiceModeBtn() {
 
 function onInputFocus() {
   isInputFocused.value = true
+  showTools.value = false
+  scheduleKeyboardScroll()
 }
 
 function onInputBlur() {
   isInputFocused.value = false
+  syncKeyboardInset(false)
+}
+
+function syncKeyboardInset(active: boolean) {
+  if (!active) {
+    document.documentElement.style.setProperty('--chat-keyboard-inset', '0px')
+    return
+  }
+
+  const viewport = window.visualViewport
+  const inset = viewport
+    ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+    : 0
+  document.documentElement.style.setProperty('--chat-keyboard-inset', `${Math.round(inset)}px`)
 }
 
 function insertParenthesesAtCursor() {
@@ -1179,25 +1215,15 @@ function confirmClearHistory() {
   })
 }
 
-// Affinity helpers
-function getAffinityMap(): Record<string, number> {
-  try { return JSON.parse(localStorage.getItem('echo_affinity') || '{}') } catch { return {} }
-}
 function getAffinity(charId: string): number {
-  const map = getAffinityMap()
-  if (map[charId] !== undefined) return map[charId]
-  // Initialize: base 20 for friends, +1 per message in sessions
+  const existing = readAffinity(charId)
+  if (existing !== undefined) return existing
   const sessions = chatStore.sessions.filter(s => s.characterId === charId)
   let msgs = 0
   for (const s of sessions) msgs += s.messageCount
   const val = Math.min(100, 20 + msgs)
-  setAffinity(charId, val)
+  ensureAffinity(charId, val)
   return val
-}
-function setAffinity(charId: string, val: number) {
-  const map = getAffinityMap()
-  map[charId] = Math.max(0, Math.min(100, val))
-  localStorage.setItem('echo_affinity', JSON.stringify(map))
 }
 
 function getMessageAvatar(message: IMessage): string {
@@ -1327,6 +1353,9 @@ onUnmounted(() => {
   }
   sttService.value?.destroy()
   ttsService.value?.destroy()
+  document.documentElement.style.removeProperty('--chat-keyboard-inset')
+  window.visualViewport?.removeEventListener('resize', handleVisualViewportChange)
+  window.visualViewport?.removeEventListener('scroll', handleVisualViewportChange)
 })
 </script>
 
@@ -1673,11 +1702,12 @@ onUnmounted(() => {
 .composer-shell {
   position: fixed;
   right: 16px;
-  bottom: 70px;
+  bottom: calc(70px + var(--chat-keyboard-inset, 0px));
   left: 16px;
   display: grid;
   gap: 10px;
   z-index: 10;
+  transition: bottom 0.18s ease;
 }
 
 .recording-card,
@@ -2044,7 +2074,7 @@ onUnmounted(() => {
 
   .composer-shell {
     right: 12px;
-    bottom: 70px;
+    bottom: calc(70px + var(--chat-keyboard-inset, 0px));
     left: 12px;
   }
 }

@@ -7,6 +7,7 @@ import { LLMAPIService } from '@/services/llm-api'
 import { getPromptById } from '@/services/system-prompt'
 import { emitAppNotification } from '@/services/notification'
 import { generateUUID } from '@/utils/uuid'
+import { parsedFilesFromUploadTexts } from '@/services/game-import-html'
 
 export type GameGenerationMode = 'create' | 'import'
 export type GameGenerationPhase =
@@ -47,6 +48,7 @@ interface StartImportPayload {
   title?: string
   sourceText: string
   fileNames?: string[]
+  uploadFiles?: Array<{ path: string; text: string }>
 }
 
 function createTask(mode: GameGenerationMode, title: string, sourceText: string, fileNames: string[]): GameGenerationTask {
@@ -69,26 +71,48 @@ function createTask(mode: GameGenerationMode, title: string, sourceText: string,
 
 export function parseGameFiles(output: string): ParsedGameFile[] {
   const files: ParsedGameFile[] = []
-  // 匹配 ```<lang>:path 或 ```path 格式
-  const codeBlockRegex = /```(?:(\w+):)?([^\n]+)\n([\s\S]*?)```/g
+  const knownLanguages = new Set(['html', 'css', 'javascript', 'js', 'typescript', 'ts', 'json', 'vue', 'markdown', 'md'])
+
+  // 匹配 ```<lang>:path、```path 或常见的 ```html 纯代码块。
+  const codeBlockRegex = /```([^\n]*)\n([\s\S]*?)```/g
   let match: RegExpExecArray | null
   while ((match = codeBlockRegex.exec(output)) !== null) {
-    const lang = match[1]
-    const path = match[2]?.trim()
-    const content = match[3] || ''
-    if (path) {
-      files.push({ path, content, language: lang })
+    const info = (match[1] || '').trim()
+    const content = match[2] || ''
+    let lang: string | undefined
+    let path = ''
+
+    const langPath = info.match(/^(\w+)\s*:\s*(.+)$/)
+    if (langPath) {
+      lang = langPath[1]
+      path = langPath[2].trim()
+    } else if (info.includes('/') || info.includes('\\') || /\.[a-z0-9]+$/i.test(info)) {
+      path = info
+    } else if (knownLanguages.has(info.toLowerCase())) {
+      lang = guessLanguage(info) || info
+      path = info.toLowerCase().includes('html') ? 'index.html' : `main.${info}`
+    }
+
+    if (path && !files.some(f => f.path === path)) {
+      files.push({ path, content, language: lang || guessLanguage(path) })
     }
   }
+
   // 回退：匹配 === path ===\ncontent 格式
   const altRegex = /===\s*([^\n=]+)\s*===\n([\s\S]*?)(?=\n===\s*[^\n=]+\s*===|$)/g
   while ((match = altRegex.exec(output)) !== null) {
     const path = match[1]?.trim()
     const content = match[2] || ''
     if (path && !files.some(f => f.path === path)) {
-      files.push({ path, content })
+      files.push({ path, content, language: guessLanguage(path) })
     }
   }
+
+  // 兜底：模型直接返回完整 HTML 时也能进入预览和导入链路。
+  if (!files.length && /<!doctype html|<html[\s>]/i.test(output)) {
+    files.push({ path: 'index.html', content: output, language: 'html' })
+  }
+
   return files
 }
 
@@ -234,7 +258,12 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
         files.forEach(f => {
           if (!f.language) f.language = guessLanguage(f.path)
         })
-        extra.parsedFiles = files
+        const existing = tasks.value[taskId]?.parsedFiles || []
+        const merged = [...files]
+        existing.forEach(file => {
+          if (!merged.some(item => item.path === file.path)) merged.push(file)
+        })
+        extra.parsedFiles = merged
       }
       patchTask(taskId, extra)
 
@@ -316,6 +345,10 @@ export const useGameGenerationStore = defineStore('game-generation', () => {
     const sourceText = trimForPrompt(payload.sourceText)
     const title = payload.title?.trim() || extractTitle(sourceText, '导入游戏')
     const task = createTask('import', title, sourceText, payload.fileNames || [])
+    const seededFiles = parsedFilesFromUploadTexts(payload.uploadFiles || [])
+    if (seededFiles.length) {
+      task.parsedFiles = seededFiles
+    }
     upsertTask(task)
 
     const context: ChatContext = {

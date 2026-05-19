@@ -1,5 +1,7 @@
 import type { GeneratedGameLibraryItem } from '@/types/game'
 
+export type { GeneratedGameLibraryItem } from '@/types/game'
+
 const LIBRARY_KEY = 'echo_generated_game_library_v1'
 
 function readLibrary(): GeneratedGameLibraryItem[] {
@@ -36,6 +38,7 @@ export function saveGeneratedGame(payload: {
   html: string
   description?: string
   sourceTaskId?: string
+  triggerType?: GeneratedGameLibraryItem['triggerType']
 }): GeneratedGameLibraryItem {
   const now = Date.now()
   const item: GeneratedGameLibraryItem = {
@@ -43,6 +46,7 @@ export function saveGeneratedGame(payload: {
     title: payload.title.trim() || 'AI 生成游戏',
     description: payload.description?.trim() || undefined,
     html: payload.html,
+    triggerType: payload.triggerType || 'external',
     sourceTaskId: payload.sourceTaskId,
     createdAt: now,
     updatedAt: now,
@@ -54,4 +58,10 @@ export function saveGeneratedGame(payload: {
 
 export function deleteGeneratedGame(id: string): void {
   writeLibrary(readLibrary().filter(item => item.id !== id))
+}
+
+export function clearGeneratedGameLibrary(): number {
+  const count = readLibrary().length
+  writeLibrary([])
+  return count
 }

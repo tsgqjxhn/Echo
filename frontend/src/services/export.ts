@@ -13,7 +13,7 @@ import {
 } from './local-snapshot'
 import { getStorageDriver } from './storage'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://127.0.0.1:8000'
+import { API_BASE } from '@/constants/api-base'
 
 export interface ExportTask {
   id: string
@@ -66,9 +66,9 @@ class ExportService {
     }
   }
 
-  async exportFull(): Promise<ExportTask> {
+  async exportFull(options?: { includeApiKeys?: boolean }): Promise<ExportTask> {
     try {
-      const snapshot = await buildBackupSnapshot()
+      const snapshot = await buildBackupSnapshot({ includeApiKeys: options?.includeApiKeys })
       return createTask('backup', `xiang-backup-${Date.now()}.json`, stringifySnapshot(snapshot))
     } catch (error) {
       console.error('[ExportService] full export failed:', error)

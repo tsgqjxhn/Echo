@@ -7,6 +7,7 @@ export interface PlotCardData {
     plotName: string
     plotType: PlotType
     plotGoal: string
+    keyEvents: string
     worldTone: string
     physicalLaw: string
     resourceState: string
@@ -35,6 +36,7 @@ export interface PlotCardData {
     plotEvent: string
     directives: string
     macroTrigger: string
+    endingPreset: string
   }
   branchingRoute: {
     routeName: string
@@ -46,6 +48,7 @@ export interface PlotCardData {
     routeState: string
     attitudeShift: string
     macroTrigger: string
+    endingPreset: string
   }
   encyclopedia: {
     knowledgeName: string
@@ -107,6 +110,7 @@ export interface PlotFieldDef {
   min?: number
   max?: number
   rows?: number
+  wide?: boolean
 }
 
 export interface PlotSectionDef {
@@ -145,6 +149,7 @@ export function createEmptyPlotCardData(subCategory?: string | null): PlotCardDa
       plotName: '',
       plotType: plotTypeFromSubCategory(subCategory),
       plotGoal: '',
+      keyEvents: '',
       worldTone: '',
       physicalLaw: '',
       resourceState: '',
@@ -173,6 +178,7 @@ export function createEmptyPlotCardData(subCategory?: string | null): PlotCardDa
       plotEvent: '<Plot_Event>',
       directives: '<Directives>',
       macroTrigger: '<Macro_Trigger>',
+      endingPreset: '',
     },
     branchingRoute: {
       routeName: '',
@@ -184,6 +190,7 @@ export function createEmptyPlotCardData(subCategory?: string | null): PlotCardDa
       routeState: '<Route_State>',
       attitudeShift: '<Attitude_Shift>',
       macroTrigger: '<Macro_Trigger>',
+      endingPreset: '',
     },
     encyclopedia: {
       knowledgeName: '',
@@ -241,9 +248,10 @@ const basicSections: PlotSectionDef[] = [
     title: '基础信息',
     scope: 'common',
     fields: [
-      { path: 'basic.plotName', label: '剧情名称', type: 'text', placeholder: '例如：雨夜档案' },
+      { path: 'basic.plotName', label: '剧情名称', type: 'text', placeholder: '例如：雨夜档案', wide: true },
       { path: 'basic.plotType', label: '剧情类型', type: 'select', options: ['单线剧情', '多分支剧情', '开放剧情'] },
       { path: 'basic.plotGoal', label: '一句话剧情目标', type: 'textarea', rows: 2, placeholder: '玩家在这段剧情中最终想达成什么' },
+      { path: 'basic.keyEvents', label: '关键事件/节点', type: 'textarea', rows: 2, placeholder: '必须发生、已发生或待触发的关键剧情节点' },
       { path: 'basic.worldTone', label: '世界基调', type: 'textarea', rows: 2, placeholder: '整体氛围、时代感、题材气质' },
       { path: 'basic.physicalLaw', label: '世界物理法则', type: 'textarea', rows: 2, placeholder: '现实/超自然/科幻规则边界' },
       { path: 'basic.resourceState', label: '背景资源状态', type: 'textarea', rows: 2, placeholder: '地点、道具、组织、资料是否已准备' },
@@ -374,10 +382,50 @@ const advancedSections: PlotSectionDef[] = [
   },
 ]
 
+const singleEndingPresetField: PlotFieldDef = {
+  path: 'singleBranch.endingPreset',
+  label: '结局预设',
+  type: 'textarea',
+  rows: 2,
+  placeholder: '单线剧情的默认结局、失败结局或回收方式',
+}
+
+const branchEndingPresetField: PlotFieldDef = {
+  path: 'branchingRoute.endingPreset',
+  label: '结局预设',
+  type: 'textarea',
+  rows: 2,
+  placeholder: '各路线可能抵达的结局、锁定条件与回收方式',
+}
+
+function withScopedBasicFields(sections: PlotSectionDef[], subCategory?: string | null): PlotSectionDef[] {
+  const normalized = normalizePlotSubCategory(subCategory)
+  const endingField = normalized === '单线剧情'
+    ? singleEndingPresetField
+    : normalized === '分支剧情'
+      ? branchEndingPresetField
+      : null
+
+  if (!endingField) {
+    return sections
+  }
+
+  return sections.map(section => {
+    if (section.key !== 'basic-info') {
+      return section
+    }
+
+    const insertAfter = section.fields.findIndex(field => field.path === 'basic.npcPerspectiveRule')
+    const fields = [...section.fields]
+    fields.splice(insertAfter >= 0 ? insertAfter + 1 : fields.length, 0, endingField)
+    return { ...section, fields }
+  })
+}
+
 export function getPlotCardSections(tier: PlotSettingTier, subCategory?: string | null): PlotSectionDef[] {
   const normalized = normalizePlotSubCategory(subCategory)
   const scope = normalized === '单线剧情' ? 'single' : normalized === '开放剧情' ? 'open' : 'branch'
-  const sections = tier === 'basic' ? basicSections : advancedSections
+  const sections = tier === 'basic' ? withScopedBasicFields(basicSections, normalized) : advancedSections
   return sections.filter(section => section.scope === 'common' || section.scope === scope)
 }
 
@@ -385,6 +433,7 @@ export function hasPlotCardContent(data: PlotCardData): boolean {
   const checks = [
     data.basic.plotName,
     data.basic.plotGoal,
+    data.basic.keyEvents,
     data.basic.worldTone,
     data.basic.physicalLaw,
     data.basic.resourceState,
@@ -397,10 +446,12 @@ export function hasPlotCardContent(data: PlotCardData): boolean {
     data.singleBranch.nodeId,
     data.singleBranch.primaryKeyword,
     data.singleBranch.prerequisite,
+    data.singleBranch.endingPreset,
     data.branchingRoute.routeName,
     data.branchingRoute.routeStateId,
     data.branchingRoute.branchKeyword,
     data.branchingRoute.factionLine,
+    data.branchingRoute.endingPreset,
     data.encyclopedia.knowledgeName,
     data.encyclopedia.placeName,
     data.encyclopedia.npcName,

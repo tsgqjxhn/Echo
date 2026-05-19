@@ -11,7 +11,21 @@
     </header>
 
     <main class="generate-main">
-      <section v-if="!activeTask || activeTask.phase === 'error'" class="input-panel">
+      <section v-if="showHistory" class="history-panel">
+        <div class="section-head">
+          <h3>历史数据</h3>
+          <span class="task-status done">{{ historyTasks.length }} 条</span>
+        </div>
+        <div v-if="historyTasks.length" class="history-list">
+          <button v-for="task in historyTasks" :key="task.id" type="button" class="history-item" @click="openHistoryTask(task.id)">
+            <span class="history-title">{{ task.title }}</span>
+            <span class="history-meta">{{ task.mode === 'create' ? '创建记录' : '导入记录' }} · {{ formatHistoryTime(task.createdAt) }}</span>
+          </button>
+        </div>
+        <p v-else class="empty-copy">暂无历史游戏导入记录和创建记录。</p>
+      </section>
+
+      <section v-else-if="!activeTask || activeTask.phase === 'error'" class="input-panel">
         <div class="field-block">
           <label>{{ mode === 'create' ? '游戏规则' : '游戏说明' }}</label>
           <textarea
@@ -239,6 +253,7 @@ import { useGameGenerationStore } from '@/stores/game-generation'
 import type { ParsedGameFile } from '@/stores/game-generation'
 import { uni } from '@/utils/uni-polyfill'
 import { saveGeneratedGame } from '@/services/generated-game-library'
+import { resolveImportableHtml } from '@/services/game-import-html'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,6 +262,7 @@ const gameGenerationStore = useGameGenerationStore()
 const sourceText = ref('')
 const fileText = ref('')
 const fileNames = ref<string[]>([])
+const uploadFileEntries = ref<Array<{ path: string; text: string }>>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const showPreview = ref(false)
@@ -273,9 +289,11 @@ interface TreeNode {
 }
 
 const mode = computed(() => route.query.mode === 'import' ? 'import' : 'create')
+const showHistory = computed(() => route.query.history === '1')
 const activeTask = computed(() => gameGenerationStore.activeTask)
+const historyTasks = computed(() => gameGenerationStore.taskList)
 const isActiveTaskRunning = computed(() => gameGenerationStore.isActiveTaskRunning)
-const pageTitle = computed(() => activeTask.value?.title || (mode.value === 'create' ? '创建游戏' : '导入游戏'))
+const pageTitle = computed(() => showHistory.value ? '历史数据' : activeTask.value?.title || (mode.value === 'create' ? '创建游戏' : '导入游戏'))
 
 const canStart = computed(() => sourceText.value.trim().length > 0 || fileText.value.trim().length > 0)
 
@@ -299,11 +317,12 @@ const statusClass = computed(() => {
 })
 
 const htmlPreview = computed(() => {
-  const output = activeTask.value?.output || ''
-  const htmlMatch = output.match(/```html\s*([\s\S]*?)```/i)
-  if (htmlMatch?.[1]) return htmlMatch[1].trim()
-  const fullHtml = output.match(/<!doctype html[\s\S]*<\/html>/i) || output.match(/<html[\s\S]*<\/html>/i)
-  return fullHtml?.[0]?.trim() || ''
+  const task = activeTask.value
+  if (!task) return ''
+  return resolveImportableHtml({
+    output: task.output,
+    parsedFiles: task.parsedFiles,
+  })
 })
 
 /* ── 文件树 ── */
@@ -413,16 +432,21 @@ function saveFileEdit() {
 function importToLibrary() {
   const task = activeTask.value
   if (!task) return
-  const html = htmlPreview.value || task.output
+  const html = resolveImportableHtml({
+    output: task.output,
+    parsedFiles: task.parsedFiles,
+  })
   if (!html.trim()) {
     uni.showToast({ title: '无可导入内容', icon: 'none' })
     return
   }
+  const triggerType = task.mode === 'import' && task.fileNames.length > 12 ? 'external' : 'embedded'
   saveGeneratedGame({
     title: task.title,
     html,
     description: `由 AI 生成的游戏：${task.title}`,
     sourceTaskId: task.id,
+    triggerType,
   })
   uni.showToast({ title: '已导入游戏库', icon: 'success' })
 }
@@ -465,6 +489,7 @@ async function onFilesSelected(event: Event) {
     const bundle = await readGameInputFiles(input.files)
     fileText.value = bundle.text
     fileNames.value = bundle.fileNames
+    uploadFileEntries.value = bundle.files.map(file => ({ path: file.path, text: file.text }))
   } catch (error) {
     uni.showToast({ title: (error as Error).message || '读取文件失败', icon: 'none' })
   } finally {
@@ -475,6 +500,7 @@ async function onFilesSelected(event: Event) {
 function clearFiles() {
   fileText.value = ''
   fileNames.value = []
+  uploadFileEntries.value = []
 }
 
 function buildSourceText() {
@@ -490,15 +516,31 @@ function startGeneration() {
 
   const taskId = mode.value === 'create'
     ? gameGenerationStore.startOutline({ sourceText: text, fileNames: fileNames.value })
-    : gameGenerationStore.startImport({ sourceText: text, fileNames: fileNames.value })
+    : gameGenerationStore.startImport({
+      sourceText: text,
+      fileNames: fileNames.value,
+      uploadFiles: uploadFileEntries.value,
+    })
 
   router.replace(`/game/generate?mode=${mode.value}&task=${taskId}`)
+}
+
+function openHistoryTask(taskId: string) {
+  const task = gameGenerationStore.tasks[taskId]
+  if (!task) return
+  gameGenerationStore.setActiveTask(taskId)
+  router.replace(`/game/generate?mode=${task.mode}&task=${taskId}`)
+}
+
+function formatHistoryTime(value: number): string {
+  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function startAnother() {
   sourceText.value = ''
   fileText.value = ''
   fileNames.value = []
+  uploadFileEntries.value = []
   showPreview.value = false
   editingOutline.value = false
   showAiFeedback.value = null
@@ -606,6 +648,7 @@ onUnmounted(() => {
 
 .input-panel,
 .task-panel,
+.history-panel,
 .stream-section,
 .preview-section {
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -614,8 +657,38 @@ onUnmounted(() => {
 }
 
 .input-panel,
-.task-panel {
+.task-panel,
+.history-panel {
   padding: 16px;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+}
+
+.history-title {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.history-meta,
+.empty-copy {
+  color: var(--text-tertiary);
+  font-size: 12px;
 }
 
 .field-block {

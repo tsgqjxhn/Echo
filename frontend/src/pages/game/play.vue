@@ -242,7 +242,8 @@ function postToGame(payload: Record<string, unknown>) {
   const win = iframeRef.value?.contentWindow
   const cfg = tabConfigs[gameId.value]
   if (!win || !cfg) return
-  win.postMessage({ source: cfg.hostSource, ...payload }, '*')
+  const targetOrigin = window.location.origin || '*'
+  win.postMessage({ source: cfg.hostSource, ...payload }, targetOrigin)
 }
 
 function switchGameScreen(screen: string) {
@@ -312,7 +313,8 @@ function requestH5Save() {
       resolve,
     }
 
-    win.postMessage({ source: cfg.hostSource, type: 'save-now', requestId }, '*')
+    const targetOrigin = window.location.origin || '*'
+    win.postMessage({ source: cfg.hostSource, type: 'save-now', requestId }, targetOrigin)
   })
 }
 

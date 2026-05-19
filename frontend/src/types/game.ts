@@ -88,11 +88,14 @@ export interface GameExportData {
 /**
  * AI 生成后导入本地游戏库的 H5 游戏
  */
+export type GeneratedGameTriggerType = 'embedded' | 'external';
+
 export interface GeneratedGameLibraryItem {
   id: string;
   title: string;
   description?: string;
   html: string;
+  triggerType?: GeneratedGameTriggerType;
   sourceTaskId?: string;
   createdAt: number;
   updatedAt: number;

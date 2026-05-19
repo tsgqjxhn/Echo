@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { APIError } from './errors'
 import { nativeHttpRequest } from './native-http'
 import {
   getEffectiveNetworkSettings,
@@ -314,4 +315,21 @@ export async function runtimeRequest<T = unknown>(
   }
 
   throw lastError || new Error('Request failed after retries')
+}
+
+/** 在需要统一错误处理时使用；非 2xx 抛出 APIError */
+export async function runtimeRequestOrThrow<T = unknown>(
+  options: RuntimeRequestOptions
+): Promise<T> {
+  const response = await runtimeRequest<T>(options)
+  if (!response.ok) {
+    const message =
+      typeof response.data === 'object' &&
+      response.data !== null &&
+      'detail' in (response.data as Record<string, unknown>)
+        ? String((response.data as Record<string, unknown>).detail)
+        : `HTTP ${response.status}`
+    throw new APIError(response.status, message)
+  }
+  return response.data
 }

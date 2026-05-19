@@ -6,7 +6,9 @@
 import CryptoJS from 'crypto-js'
 import { generateUUID } from '@/utils/uuid'
 
-const DEVICE_ID_KEY = 'echo_device_id'
+import { STORAGE_KEYS } from '@/constants/storage-keys'
+
+const DEVICE_ID_KEY = STORAGE_KEYS.deviceId
 const ENC_PREFIX = 'enc:'
 
 function getOrCreateDeviceId(): string {
@@ -58,7 +60,7 @@ export function decryptApiKey(cipherText: string, password?: string): string {
     return result
   } catch (e) {
     console.error('[crypto] API Key 解密失败:', e)
-    return cipherText
+    return ''
   }
 }
 

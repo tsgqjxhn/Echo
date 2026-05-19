@@ -728,7 +728,7 @@ const candy = reactive({
 })
 
 let frameId = 0
-let timerId: ReturnType<typeof window.setInterval> | null = null
+let timerId: number | null = null
 let sliceStart: Point | null = null
 let frameTick = 0
 

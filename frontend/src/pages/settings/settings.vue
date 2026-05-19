@@ -87,7 +87,7 @@
     </section>
 
     <div class="settings-stack">
-      <button type="button" class="setting-item" @click="router.push('/settings/chat-defaults')">
+      <button type="button" class="setting-item" @click.stop="goToChatDefaults">
         <span class="setting-item-title">{{ $t('聊天默认设置') }}</span>
         <svg class="item-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
       </button>
@@ -186,6 +186,10 @@ function selectLanguage(code: string) {
 
 function goToDataManagement() {
   router.push('/settings/export')
+}
+
+function goToChatDefaults() {
+  router.push({ path: '/settings/chat-defaults' })
 }
 
 function confirmClearData() {

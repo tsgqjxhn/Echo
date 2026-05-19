@@ -30,31 +30,21 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from app.models import entities  # noqa: F401
-    from sqlalchemy import text
 
     Base.metadata.create_all(bind=engine)
+    _run_alembic_upgrade()
 
-    # Add columns introduced after initial schema creation.
-    with engine.connect() as conn:
-        for stmt in [
-            "ALTER TABLE characters ADD COLUMN scene_time VARCHAR(128)",
-            "ALTER TABLE characters ADD COLUMN is_liked INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE characters ADD COLUMN is_friend INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE characters ADD COLUMN example_dialogue TEXT",
-            "ALTER TABLE characters ADD COLUMN persona TEXT",
-            "ALTER TABLE characters ADD COLUMN scenario TEXT",
-            "ALTER TABLE characters ADD COLUMN depth_prompt TEXT",
-            "ALTER TABLE characters ADD COLUMN lorebook TEXT",
-            "ALTER TABLE characters ADD COLUMN alternate_greetings TEXT",
-            "ALTER TABLE characters ADD COLUMN chat_background TEXT",
-            "ALTER TABLE characters ADD COLUMN global_background TEXT",
-            "ALTER TABLE characters ADD COLUMN switch_animation TEXT",
-            "ALTER TABLE characters ADD COLUMN emotion_animations TEXT",
-            "ALTER TABLE characters ADD COLUMN game_data TEXT",
-            "ALTER TABLE characters ADD COLUMN world_books TEXT",
-        ]:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                pass  # Column already exists.
+
+def _run_alembic_upgrade() -> None:
+    try:
+        from alembic import command
+        from alembic.config import Config
+        from pathlib import Path
+
+        backend_root = Path(__file__).resolve().parents[2]
+        cfg = Config(str(backend_root / "alembic.ini"))
+        cfg.set_main_option("script_location", str(backend_root / "alembic"))
+        command.upgrade(cfg, "head")
+    except Exception:
+        # Alembic optional during first bootstrap; create_all covers fresh DBs.
+        pass

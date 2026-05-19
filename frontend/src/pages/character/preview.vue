@@ -97,6 +97,7 @@ import { createLLMAPI } from '@/services/llm-api'
 import { apiConfigService } from '@/services/api-config'
 import { getActivePrompts } from '@/services/system-prompt'
 import { uni } from '@/utils/uni-polyfill'
+import { formatTextWithLineBreaks } from '@/utils/escape-html'
 
 const route = useRoute()
 const router = useRouter()
@@ -139,8 +140,7 @@ function goBack() {
 }
 
 function formatContent(text: string): string {
-  // 简单的换行转 <br>
-  return text.replace(/\n/g, '<br>')
+  return formatTextWithLineBreaks(text)
 }
 
 function scrollToBottom() {

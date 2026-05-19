@@ -245,8 +245,9 @@ function handleAppNotification(event: Event) {
   window.setTimeout(() => dismissAppNotification(item.id), 5200)
 }
 
-// 主页面路由列表（Tab 根页面），导航栏返回到这些页面时提示“再点按一次退出”
+// 主页面路由列表（Tab 根页面），导航栏返回到这些页面时提示“再按一次退出”
 const HOME_ROUTES = ['/character', '/dialogue', '/history', '/settings', '/game/panel', '/favorites', '/moments']
+const ECHO_NATIVE_BACK_EVENT = 'echo-native-back'
 
 function isNativeRuntime(): boolean {
   try {
@@ -285,7 +286,8 @@ const appShellThemeClass = computed(() => {
 const routeViewKey = computed(() => route.fullPath)
 
 // 导航栏返回键退出计时器（2 秒内再次触发才退出）
-let exitTimer: ReturnType<typeof setTimeout> | null = null
+let exitTimer: number | null = null
+let capacitorBackButtonListener: { remove: () => Promise<void> | void } | null = null
 
 function clearExitTimer() {
   if (exitTimer) {
@@ -294,22 +296,18 @@ function clearExitTimer() {
   }
 }
 
-function handleBackButton() {
-  // 只在原生 App（Android）端生效
-  if (!isNativeRuntime()) {
-    return
-  }
-
+function handleBackButton(event?: Event) {
+  event?.preventDefault?.()
   const path = route.path
 
-  // 如果当前在根页面（主页面），提示“再点按一次退出”
+  // 如果当前在根页面（主页面），提示“再按一次退出”
   if (HOME_ROUTES.includes(path)) {
     if (exitTimer) {
       clearExitTimer()
       uni.exitApp()
       return
     }
-    uni.showToast({ title: '再点按一次退出', icon: 'none', duration: 2000 })
+    uni.showToast({ title: '再按一次退出', icon: 'none', duration: 2000 })
     exitTimer = window.setTimeout(() => {
       exitTimer = null
     }, 2000)
@@ -318,6 +316,10 @@ function handleBackButton() {
 
   // 非主页面：直接回退上一页
   router.back()
+}
+
+function handleNativeBackEvent(event: Event) {
+  handleBackButton(event)
 }
 
 // 路由切换时清除退出计时器，防止跨路由污染
@@ -343,10 +345,21 @@ onMounted(async () => {
   window.addEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
   window.addEventListener(APP_NOTIFICATION_EVENT, handleAppNotification)
 
+  window.addEventListener(ECHO_NATIVE_BACK_EVENT, handleNativeBackEvent)
+  document.addEventListener('backbutton', handleNativeBackEvent)
+
   // 注册 Capacitor backButton 监听（Android 导航栏返回键）
   if (isNativeRuntime()) {
     const cap = (window as any).Capacitor
-    cap?.Plugins?.App?.addListener?.('backButton', handleBackButton)
+    Promise.resolve(cap?.Plugins?.App?.addListener?.('backButton', handleBackButton))
+      .then(listener => {
+        if (listener?.remove) {
+          capacitorBackButtonListener = listener
+        }
+      })
+      .catch(() => {
+        capacitorBackButtonListener = null
+      })
   }
 
   await refreshHistoryBadge()
@@ -361,11 +374,12 @@ onUnmounted(() => {
   window.removeEventListener('focus', refreshHistoryBadge)
   window.removeEventListener(HISTORY_READ_EVENT, refreshHistoryBadge)
   window.removeEventListener(APP_NOTIFICATION_EVENT, handleAppNotification)
+  window.removeEventListener(ECHO_NATIVE_BACK_EVENT, handleNativeBackEvent)
+  document.removeEventListener('backbutton', handleNativeBackEvent)
 
-  // 移除 Capacitor backButton 监听
-  if (isNativeRuntime()) {
-    const cap = (window as any).Capacitor
-    cap?.Plugins?.App?.removeListener?.('backButton', handleBackButton)
+  if (capacitorBackButtonListener) {
+    void Promise.resolve(capacitorBackButtonListener.remove()).catch(() => undefined)
+    capacitorBackButtonListener = null
   }
 })
 

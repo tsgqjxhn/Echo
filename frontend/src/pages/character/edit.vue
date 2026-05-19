@@ -1,15 +1,5 @@
 <template>
-  <div class="character-edit-page">
-    <header class="page-header">
-      <button type="button" class="back-btn" aria-label="返回" @click="goBack">
-        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
-        </svg>
-      </button>
-      <h1 class="page-title">编辑角色</h1>
-      <span class="header-placeholder" aria-hidden="true"></span>
-    </header>
-
+  <CharacterEditorShell class="character-edit-page" title="编辑角色" @back="goBack">
     <main class="form-body">
       <div class="config-grid">
         <!-- ═══════════════════════════════════════════════════════ -->
@@ -37,12 +27,10 @@
           <div v-if="expandedCards.base" class="card-body" @click.stop>
             <!-- 头像行 -->
             <div class="avatar-row">
-              <div class="avatar-wrapper" @click="showAvatarSheet">
+              <div class="avatar-upload" @click="showAvatarSheet">
                 <img v-if="form.avatar" :src="getAssetUrl(form.avatar)" alt="头像" class="avatar-img" />
                 <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
-              </div>
-              <div class="avatar-actions">
-                <button type="button" class="avatar-btn" @click="showAvatarSheet">更换头像</button>
+                <div class="avatar-hint">点击上传</div>
               </div>
             </div>
 
@@ -147,54 +135,6 @@
               </div>
             </div>
 
-            <!-- 主题大类 -->
-            <div class="field-block">
-              <span class="field-label">主题大类</span>
-              <select v-model="form.themeGroup" class="category-select">
-                <option value="">选择主题大类</option>
-                <option v-for="tg in themeGroups" :key="tg.label" :value="tg.label">{{ tg.label }}</option>
-              </select>
-            </div>
-
-            <!-- 主题细类 -->
-            <div v-if="currentThemeLeaves.length" class="field-block">
-              <span class="field-label">主题细类</span>
-              <div class="chip-row">
-                <button
-                  v-for="leaf in currentThemeLeaves"
-                  :key="leaf"
-                  type="button"
-                  class="category-chip theme-chip"
-                  :class="{ active: form.themeType === leaf }"
-                  @click="form.themeType = leaf"
-                >{{ leaf }}</button>
-              </div>
-            </div>
-
-            <!-- 自定义标签 -->
-            <div class="field-block">
-              <span class="field-label">自定义标签</span>
-              <div class="custom-tags-row">
-                <div class="tag-chip" v-for="(tag, idx) in form.customTags" :key="tag + idx">
-                  <span>{{ tag }}</span>
-                  <button type="button" class="tag-remove" @click="removeCustomTag(idx)">
-                    <svg viewBox="0 0 24 24" width="10" height="10"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                  </button>
-                </div>
-                <input
-                  v-if="form.customTags.length < 10"
-                  v-model="tagInput"
-                  type="text"
-                  class="tag-input"
-                  placeholder="输入标签，回车添加"
-                  maxlength="20"
-                  @keydown.enter.prevent="addCustomTag"
-                  @keydown.comma.prevent="addCustomTag"
-                />
-              </div>
-              <p class="field-hint">{{ form.customTags.length }}/10 个标签，每个最多20字符</p>
-            </div>
-
             <button type="button" class="collapse-btn" @click.stop="toggleCard('base')">收起</button>
           </div>
         </div>
@@ -278,6 +218,12 @@
             <div class="field-item">
               <label class="field-label">性格</label>
               <textarea v-model="form.personality" class="field-textarea auto-textarea" rows="2" placeholder="角色的性格特征描述" @input="onTextareaInput" />
+            </div>
+
+            <!-- 情感倾向 -->
+            <div class="field-item">
+              <label class="field-label">情感倾向</label>
+              <textarea v-model="form.emotionalTendency" class="field-textarea auto-textarea" rows="2" placeholder="角色在亲近、防备、依赖、占有、疏离等情感方向上的默认倾向" @input="onTextareaInput" />
             </div>
 
             <!-- 负向特征与行为禁忌 -->
@@ -1034,7 +980,30 @@
         </button>
       </div>
     </div>
-  </div>
+
+    <Teleport to="body">
+      <div v-if="avatarSheetVisible" class="avatar-sheet-overlay" @click.self="closeAvatarSheet">
+        <section class="avatar-sheet-card" role="dialog" aria-modal="true" aria-label="头像选项">
+          <div class="avatar-sheet-head">
+            <h3>头像</h3>
+            <button type="button" class="avatar-sheet-close" aria-label="关闭" @click="closeAvatarSheet">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+          <div class="avatar-sheet-options">
+            <button type="button" class="avatar-sheet-option" @click="pickLocalAvatar">
+              <span class="avatar-sheet-option-icon">📁</span>
+              <span>本地上传</span>
+            </button>
+            <button type="button" class="avatar-sheet-option" @click="pickAIAvatar">
+              <span class="avatar-sheet-option-icon">✨</span>
+              <span>AI生成</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+  </CharacterEditorShell>
 </template>
 
 <script setup lang="ts">
@@ -1044,6 +1013,8 @@ import { useCharacterStore } from '@/stores/character'
 import { uni } from '@/utils/uni-polyfill'
 import { getAssetUrl } from '@/services/files'
 import { generateUUID } from '@/utils/uuid'
+import { parseWorldBookFromJSON } from '@/utils/world-book-import'
+import CharacterEditorShell from '@/components/CharacterForm/CharacterEditorShell.vue'
 import type {
   ICharacter, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, EmotionAnimation,
   NegativeTrait, PhysicalFeature, SpeechPattern, ContextualGreeting, ExampleDialogue,
@@ -1144,6 +1115,7 @@ const form = reactive({
   contextualGreetings: [] as ContextualGreeting[],
   scenario: '',
   personality: '',
+  emotionalTendency: '',
   outputFormatRules: {} as OutputFormatRules,
   exampleDialogues: [] as ExampleDialogue[],
   settings: '',
@@ -1231,7 +1203,7 @@ const baseInfoStatus = computed(() => {
 })
 
 const hasOverallSettings = computed(() =>
-  !!(form.description.trim() || form.greeting.trim() || form.settings.trim() || form.sceneTime.trim() || form.scenario.trim() || form.oneLineDescription.trim() || form.exampleDialogues.length)
+  !!(form.description.trim() || form.greeting.trim() || form.settings.trim() || form.sceneTime.trim() || form.scenario.trim() || form.oneLineDescription.trim() || form.personality.trim() || form.emotionalTendency.trim() || form.exampleDialogues.length)
 )
 
 const overallSettingsStatus = computed(() => {
@@ -1432,6 +1404,7 @@ async function loadCharacter(id: string) {
   form.outputFormatRules = c.outputFormatRules ? { ...c.outputFormatRules } : {}
   form.mainGreeting = c.mainGreeting || c.greeting || ''
   form.personality = c.personality || ''
+  form.emotionalTendency = c.emotionalTendency || ''
   form.mediaWeights = c.mediaWeights
     ? { enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100, ...c.mediaWeights }
     : { enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100 }
@@ -1542,15 +1515,24 @@ function goBack() {
   router.back()
 }
 
+const avatarSheetVisible = ref(false)
+
 function showAvatarSheet() {
-  uni.showActionSheet({
-    itemList: ['从相册上传', 'AI生成头像', '取消'],
-    itemColor: '#38bdf8',
-    success: (res: { tapIndex: number }) => {
-      if (res.tapIndex === 0) chooseAvatar()
-      else if (res.tapIndex === 1) generateAvatar()
-    },
-  })
+  avatarSheetVisible.value = true
+}
+
+function closeAvatarSheet() {
+  avatarSheetVisible.value = false
+}
+
+function pickLocalAvatar() {
+  closeAvatarSheet()
+  chooseAvatar()
+}
+
+function pickAIAvatar() {
+  closeAvatarSheet()
+  void generateAvatar()
 }
 
 async function blobUrlToBase64(blobUrl: string): Promise<string> {
@@ -1621,40 +1603,6 @@ function onWorldBookFileSelected(event: Event) {
     }
   }
   reader.readAsText(file)
-}
-
-function parseWorldBookFromJSON(json: any): WorldBookUI | null {
-  if (!json || typeof json !== 'object') return null
-  const entries: WorldBookEntryUI[] = []
-  const rawEntries = Array.isArray(json.entries) ? json.entries : Array.isArray(json) ? json : []
-  for (const e of rawEntries) {
-    if (!e || typeof e !== 'object') continue
-    const keywords = Array.isArray(e.keywords) ? e.keywords : (e.key || '').split(',').map((s: string) => s.trim()).filter(Boolean)
-    entries.push({
-      id: e.id || generateUUID(),
-      keywords,
-      keywordInput: keywords.join('，'),
-      content: String(e.content || e.value || ''),
-      order: Number(e.order ?? 0),
-      enabled: e.enabled !== false,
-      position: Number(e.position ?? 0),
-      depth: Number(e.depth ?? 0),
-      role: Number(e.role ?? 0),
-      probability: Number(e.probability ?? 100),
-      comment: String(e.comment || ''),
-      dynamicAnchor: String(e.dynamicAnchor || ''),
-      userPersona: String(e.userPersona || ''),
-      compatibilityScore: e.compatibilityScore != null ? Number(e.compatibilityScore) : undefined,
-      relationshipTrigger: String(e.relationshipTrigger || ''),
-    })
-  }
-  return {
-    id: json.id || generateUUID(),
-    name: String(json.name || '导入的世界书'),
-    entries,
-    scanRange: Number(json.scanRange ?? 100),
-    _expanded: true,
-  }
 }
 
 type MediaKey = 'globalBackground' | 'chatBackground'
@@ -2011,6 +1959,7 @@ async function onSubmit() {
       subCategory: form.subCategory || undefined,
       scenario: form.scenario.trim() || undefined,
       personality: form.personality.trim() || undefined,
+      emotionalTendency: form.emotionalTendency.trim() || undefined,
       persona: buildPersona(),
       lorebook: buildLorebook(),
       worldBooks: buildWorldBooks(),
@@ -2322,18 +2271,42 @@ $mint: #34d399;
 }
 
 .avatar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
-.avatar-wrapper {
-  width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
-  border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;
+.avatar-upload {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  flex-shrink: 0;
   cursor: pointer;
+
+  .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
+    color: var(--text-tertiary);
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .avatar-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 11px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  &:hover .avatar-hint { opacity: 1; }
 }
-.avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-placeholder {
-  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(52, 211, 153, 0.2));
-  color: var(--text-tertiary); font-size: 22px; font-weight: 600;
-}
-.avatar-actions { display: flex; gap: 8px; }
 .avatar-btn {
   padding: 5px 12px;
   border: 1px solid rgba(52, 211, 153, 0.12); border-radius: 3px;
@@ -2944,5 +2917,93 @@ $mint: #34d399;
   .submit-bar {
     width: calc(100% - 24px);
   }
+}
+
+.avatar-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.avatar-sheet-card {
+  width: min(420px, 100%);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.avatar-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 16px;
+  }
+}
+
+.avatar-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.avatar-sheet-options {
+  display: grid;
+  gap: 8px;
+  padding: 8px 16px 16px;
+}
+
+.avatar-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.28);
+    background: rgba(56, 189, 248, 0.08);
+  }
+}
+
+.avatar-sheet-option-icon {
+  font-size: 20px;
+  line-height: 1;
 }
 </style>

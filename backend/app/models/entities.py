@@ -156,6 +156,11 @@ class GameSettingsRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     global_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     session_enabled: Mapped[dict[str, bool] | None] = mapped_column(JSON, nullable=True)
+    global_sound_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    global_bgm_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    damage_display_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    game_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    game_notifications: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
 
 class GameStateRecord(Base, TimestampMixin):

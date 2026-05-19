@@ -395,6 +395,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import jsQR from 'jsqr'
+import QRCode from 'qrcode'
+import { decodeBase64ToUtf8, encodeUtf8ToBase64 } from '@/utils/base64'
 import { useRoute, useRouter } from 'vue-router'
 import Loading from '@/components/Loading/index.vue'
 import { dataManagementService } from '@/services/data-management'
@@ -463,7 +465,7 @@ const showCameraPanel = ref(false)
 const cameraVideoRef = ref<HTMLVideoElement | null>(null)
 const cameraCanvasRef = ref<HTMLCanvasElement | null>(null)
 let cameraStream: MediaStream | null = null
-let scanIntervalId: ReturnType<typeof setInterval> | null = null
+let scanIntervalId: number | null = null
 
 const stats = ref({
   characterCount: 0,
@@ -583,7 +585,7 @@ async function handleStandardExport() {
 async function handleBackupExport() {
   try {
     await runBusyTask('正在生成完整备份...', async () => {
-      const task = await exportService.exportFull()
+      const task = await exportService.exportFull({ includeApiKeys: includeApiKeys.value })
       await exportService.downloadTask(task)
     })
 
@@ -731,12 +733,22 @@ async function handleImport() {
   }
 }
 
+async function renderMigrationQr(text: string): Promise<string> {
+  const options = { width: 280, margin: 2, errorCorrectionLevel: 'M' as const }
+  try {
+    return await QRCode.toDataURL(text, options)
+  } catch {
+    const canvas = document.createElement('canvas')
+    await QRCode.toCanvas(canvas, text, { ...options, errorCorrectionLevel: 'L' })
+    return canvas.toDataURL('image/png')
+  }
+}
+
 async function generateQRCode() {
   showQRPanel.value = true
   qrDataUrl.value = ''
 
   try {
-    const QRCode = await import('qrcode')
     const storage = getStorageDriver()
     const [apiConfigs, characters, chatDefaultsRaw, networkSettingsRaw] = await Promise.all([
       storage.getAllAPIConfigs(),
@@ -763,17 +775,17 @@ async function generateQRCode() {
     }
 
     const json = JSON.stringify(migrationData)
-    const compressed = btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_match, p1) => String.fromCharCode(Number('0x' + p1))))
+    let payload = encodeUtf8ToBase64(json)
 
-    if (compressed.length > 2800) {
+    if (payload.length > 2800) {
       uni.showToast({ title: '数据量过大，仅导出API配置', icon: 'none' })
       migrationData.data.characters = []
-      const minimal = btoa(encodeURIComponent(JSON.stringify(migrationData)).replace(/%([0-9A-F]{2})/g, (_match, p1) => String.fromCharCode(Number('0x' + p1))))
-      qrDataUrl.value = await QRCode.toDataURL(minimal, { width: 280, margin: 2 })
-    } else {
-      qrDataUrl.value = await QRCode.toDataURL(compressed, { width: 280, margin: 2 })
+      payload = encodeUtf8ToBase64(JSON.stringify(migrationData))
     }
-  } catch {
+
+    qrDataUrl.value = await renderMigrationQr(payload)
+  } catch (error) {
+    console.error('[export] QR generation failed', error)
     uni.showToast({ title: '二维码生成失败', icon: 'none' })
     showQRPanel.value = false
   }
@@ -864,17 +876,10 @@ async function handleQRImport() {
     // 去除可能的空白字符
     raw = raw.replace(/\s+/g, '')
 
-    // 先尝试直接 atob，失败则尝试去掉 data URI scheme 前缀
     let decoded: string
     try {
-      decoded = decodeURIComponent(
-        atob(raw)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      )
+      decoded = decodeBase64ToUtf8(raw)
     } catch {
-      // 可能已经是纯文本 JSON，尝试直接解析
       decoded = raw
     }
 

@@ -117,16 +117,19 @@ export async function buildStandardSnapshot(): Promise<StandardSnapshot> {
   }
 }
 
-export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
+export async function buildBackupSnapshot(options?: { includeApiKeys?: boolean }): Promise<BackupSnapshot> {
   const storage = getStorageDriver()
   const standard = await buildStandardSnapshot()
   const apiConfigs = await storage.getAllAPIConfigs()
+  const includeKeys = options?.includeApiKeys === true
 
   return {
     ...standard,
     version: '1.1',
     exportType: 'backup',
-    apiConfigs: apiConfigs.map(config => ({ ...config })),
+    apiConfigs: includeKeys
+      ? apiConfigs.map(config => ({ ...config }))
+      : standard.apiConfigs,
   }
 }
 

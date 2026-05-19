@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models.entities import APIConfigRecord
 from app.schemas.entities import APIConfigResponse, TestResult
+from app.services.mask import is_masked_api_key, mask_api_key
 from app.services.utils import now_ms
 
 
@@ -17,7 +18,7 @@ def sanitize_api_config(record: APIConfigRecord) -> APIConfigResponse:
         id=record.id,
         name=record.name,
         provider=record.provider,  # type: ignore[arg-type]
-        apiKey=record.api_key,
+        apiKey=mask_api_key(record.api_key),
         baseURL=record.base_url,
         model=record.model,
         isDefault=record.is_default,
@@ -114,8 +115,9 @@ def upsert_api_config(db: Session, payload: dict[str, Any]) -> APIConfigRecord:
         existing.source = payload.get("source", "storage")
         existing.config_type = payload.get("configType", "text")
         existing.updated_at = timestamp
-        if payload.get("apiKey"):
-            existing.api_key = payload["apiKey"]
+        incoming_key = payload.get("apiKey")
+        if incoming_key and not is_masked_api_key(incoming_key):
+            existing.api_key = incoming_key
 
     if existing.is_default:
         for other in db.scalars(select(APIConfigRecord).where(APIConfigRecord.id != existing.id)):

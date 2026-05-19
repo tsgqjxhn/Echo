@@ -76,9 +76,25 @@ def _character_to_dict(item: CharacterRecord) -> dict[str, Any]:
         "behavior": item.behavior,
         "values": item.values,
         "members": item.members,
+        "structuredMembers": item.structured_members,
         "tags": item.tags,
         "sourceType": item.source_type,
         "sourceName": item.source_name,
+        "sceneTime": item.scene_time,
+        "isLiked": item.is_liked,
+        "isFriend": item.is_friend,
+        "exampleDialogue": item.example_dialogue,
+        "persona": item.persona,
+        "scenario": item.scenario,
+        "depthPrompt": item.depth_prompt,
+        "lorebook": item.lorebook,
+        "alternateGreetings": item.alternate_greetings,
+        "chatBackground": item.chat_background,
+        "globalBackground": item.global_background,
+        "switchAnimation": item.switch_animation,
+        "emotionAnimations": item.emotion_animations,
+        "gameData": item.game_data,
+        "worldBooks": item.world_books,
     }
 
 
@@ -175,12 +191,12 @@ def build_standard_export(db: Session) -> dict[str, Any]:
         "apiConfigs": [_api_config_to_dict(item, include_key=False) for item in api_configs],
         "gameSettings": {
             "globalEnabled": game_settings.global_enabled if game_settings else True,
-            "sessionEnabled": game_settings.session_enabled or {} if game_settings else {},
-            "globalSoundEnabled": getattr(game_settings, "global_sound_enabled", True) if game_settings else True,
-            "globalBgmEnabled": getattr(game_settings, "global_bgm_enabled", True) if game_settings else True,
-            "damageDisplayEnabled": getattr(game_settings, "damage_display_enabled", True) if game_settings else True,
-            "gameNotificationsEnabled": getattr(game_settings, "game_notifications_enabled", True) if game_settings else True,
-            "gameNotifications": getattr(game_settings, "game_notifications", []) if game_settings else [],
+            "sessionEnabled": (game_settings.session_enabled or {}) if game_settings else {},
+            "globalSoundEnabled": game_settings.global_sound_enabled if game_settings else True,
+            "globalBgmEnabled": game_settings.global_bgm_enabled if game_settings else True,
+            "damageDisplayEnabled": game_settings.damage_display_enabled if game_settings else True,
+            "gameNotificationsEnabled": game_settings.game_notifications_enabled if game_settings else True,
+            "gameNotifications": (game_settings.game_notifications or []) if game_settings else [],
         },
         "gameStates": [_game_state_to_dict(item) for item in game_states],
     }
@@ -192,7 +208,7 @@ def build_backup_export(db: Session) -> dict[str, Any]:
         {
             "version": "1.1",
             "exportType": "backup",
-            "apiConfigs": [_api_config_to_dict(item, include_key=True) for item in db.scalars(select(APIConfigRecord))],
+            "apiConfigs": [_api_config_to_dict(item, include_key=False) for item in db.scalars(select(APIConfigRecord))],
         }
     )
     return payload
@@ -326,9 +342,25 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
             behavior=character.get("behavior"),
             values=character.get("values"),
             members=character.get("members"),
+            structured_members=character.get("structuredMembers"),
             tags=character.get("tags"),
             source_type=character.get("sourceType"),
             source_name=character.get("sourceName"),
+            scene_time=character.get("sceneTime"),
+            is_liked=character.get("isLiked", False),
+            is_friend=character.get("isFriend", False),
+            example_dialogue=character.get("exampleDialogue"),
+            persona=character.get("persona"),
+            scenario=character.get("scenario"),
+            depth_prompt=character.get("depthPrompt"),
+            lorebook=character.get("lorebook"),
+            alternate_greetings=character.get("alternateGreetings"),
+            chat_background=character.get("chatBackground"),
+            global_background=character.get("globalBackground"),
+            switch_animation=character.get("switchAnimation"),
+            emotion_animations=character.get("emotionAnimations"),
+            game_data=character.get("gameData"),
+            world_books=character.get("worldBooks"),
         ))
 
     for session in data.get("sessions", []):
@@ -388,16 +420,11 @@ def import_snapshot(db: Session, data: dict[str, Any], mode: str) -> ImportSumma
         game_settings = db.get(GameSettingsRecord, 1) or GameSettingsRecord(id=1)
         game_settings.global_enabled = payload.get("globalEnabled", True)
         game_settings.session_enabled = payload.get("sessionEnabled") or {}
-        if hasattr(game_settings, "global_sound_enabled"):
-            game_settings.global_sound_enabled = payload.get("globalSoundEnabled", True)
-        if hasattr(game_settings, "global_bgm_enabled"):
-            game_settings.global_bgm_enabled = payload.get("globalBgmEnabled", True)
-        if hasattr(game_settings, "damage_display_enabled"):
-            game_settings.damage_display_enabled = payload.get("damageDisplayEnabled", True)
-        if hasattr(game_settings, "game_notifications_enabled"):
-            game_settings.game_notifications_enabled = payload.get("gameNotificationsEnabled", True)
-        if hasattr(game_settings, "game_notifications"):
-            game_settings.game_notifications = payload.get("gameNotifications", [])
+        game_settings.global_sound_enabled = payload.get("globalSoundEnabled", True)
+        game_settings.global_bgm_enabled = payload.get("globalBgmEnabled", True)
+        game_settings.damage_display_enabled = payload.get("damageDisplayEnabled", True)
+        game_settings.game_notifications_enabled = payload.get("gameNotificationsEnabled", True)
+        game_settings.game_notifications = payload.get("gameNotifications", [])
         db.add(game_settings)
 
     for state in data.get("gameStates", []):

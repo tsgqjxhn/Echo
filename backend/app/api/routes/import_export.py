@@ -446,7 +446,13 @@ async def import_full(
     mode: str = Query(default="merge"),
     db: Session = Depends(get_db),
 ) -> ImportSummary:
-    payload = json.loads((await file.read()).decode("utf-8"))
+    if mode not in ("merge", "replace"):
+        raise HTTPException(status_code=400, detail="mode must be merge or replace")
+    raw = await file.read()
+    settings = get_settings()
+    if len(raw) > settings.max_import_json_bytes:
+        raise HTTPException(status_code=413, detail="Import file too large")
+    payload = json.loads(raw.decode("utf-8"))
     return import_snapshot(db, payload, mode)
 
 

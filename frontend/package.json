@@ -8,7 +8,11 @@
     "dev:hidden": "powershell -ExecutionPolicy Bypass -File .\\scripts\\start-dev-hidden.ps1",
     "serve:hidden": "powershell -ExecutionPolicy Bypass -File .\\scripts\\start-dist-hidden.ps1",
     "build": "vite build --config vite.config.mjs",
-    "preview": "vite preview --config vite.config.mjs"
+    "preview": "vite preview --config vite.config.mjs",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/utils/escape-html.ts src/utils/world-book-import.ts src/utils/mask-api-key.ts src/constants src/composables src/services/affinity.ts src/services/game-records.ts src/components/CharacterForm/CharacterEditorShell.vue --max-warnings 0",
+    "lint:all": "eslint src --max-warnings 200"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
@@ -33,6 +37,14 @@
     "terser": "^5.46.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^2.1.10",
+    "vitest": "^2.1.8",
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-vue": "^9.32.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.18.2"
   }
 }

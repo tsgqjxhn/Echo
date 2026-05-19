@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -30,11 +30,24 @@ class FileService:
         folder.mkdir(parents=True, exist_ok=True)
 
         asset_id = new_id("asset")
-        suffix = Path(file.filename or "").suffix
-        target = folder / f"{asset_id}{suffix}"
+        suffix = Path(file.filename or "").suffix.lower()
+        allowed_suffixes = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp3", ".wav", ".ogg", ".json", ".txt", ".md"}
+        if suffix and suffix not in allowed_suffixes:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
 
+        target = folder / f"{asset_id}{suffix}"
+        written = 0
+        max_bytes = self.settings.max_upload_bytes
         with target.open("wb") as output:
-            shutil.copyfileobj(file.file, output)
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(status_code=413, detail="File too large")
+                output.write(chunk)
 
         relative_path = target.relative_to(self.settings.storage_root).as_posix()
         asset = AssetRecord(

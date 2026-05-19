@@ -17,12 +17,15 @@ class Settings(BaseSettings):
     app_name: str = "xiang-backend"
     app_env: str = "development"
     app_version: str = "1.0.0"
+    api_token: str | None = None
     public_base_url: str = "http://127.0.0.1:8000"
     database_url: str = Field(default_factory=lambda: f"sqlite:///{(STORAGE_ROOT / 'app.db').as_posix()}")
     storage_root: Path = Field(default_factory=lambda: STORAGE_ROOT)
     media_url: str = "/media"
     export_dir_name: str = "exports"
     upload_dir_name: str = "uploads"
+    max_upload_bytes: int = 20 * 1024 * 1024
+    max_import_json_bytes: int = 50 * 1024 * 1024
     audio_dir_name: str = "audio"
     llm_provider: Literal["openai", "mock"] = "openai"
     tts_provider: Literal["openai", "disabled"] = "disabled"

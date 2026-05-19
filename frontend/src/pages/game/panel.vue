@@ -2,24 +2,37 @@
   <div class="game-panel-page">
     <div class="header">
       <button
-        class="create-game-btn"
-        type="button"
-        aria-label="新增游戏"
-        @click="openCreateGame"
-      >
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-        </svg>
-      </button>
-      <h1 class="title">游戏中心</h1>
-      <button
-        class="menu-btn"
+        class="header-icon-btn menu-btn"
         type="button"
         aria-label="菜单"
         @click="goToGameMenu"
       >
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </button>
+      <div v-if="searchVisible" class="panel-search-box">
+        <input
+          ref="searchInput"
+          v-model="gameSearchKeyword"
+          class="panel-search-input"
+          type="search"
+          placeholder="搜索游戏名称"
+          aria-label="搜索游戏名称"
+        />
+      </div>
+      <h1 v-else class="title">游戏中心</h1>
+      <button
+        class="header-icon-btn search-btn"
+        type="button"
+        :aria-label="searchVisible ? '关闭搜索' : '搜索'"
+        @click="toggleSearch"
+      >
+        <svg v-if="searchVisible" viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+          <path d="M10.8 18.1a7.3 7.3 0 1 1 5.2-2.1l4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
     </div>
@@ -87,8 +100,8 @@
         </div>
 
         <div v-if="filteredGames.length === 0" class="empty-games">
-          <strong>当前分类暂无游戏</strong>
-          <p>可以点击右上角导入按钮，通过规则或完整文件创建新的小游戏。</p>
+          <strong>{{ gameSearchKeyword.trim() ? '没有找到匹配游戏' : '当前分类暂无游戏' }}</strong>
+          <p>{{ gameSearchKeyword.trim() ? '换一个名称关键词再试试。' : '可以在全局游戏管理中创建或整理游戏。' }}</p>
         </div>
       </div>
     </section>
@@ -121,6 +134,16 @@
               <div class="option-text">
                 <span class="option-title">导入游戏</span>
                 <span class="option-desc">选择文件或文件夹，直接交给大模型生成游戏</span>
+              </div>
+            </button>
+
+            <button type="button" class="modal-option-btn" @click="openHistoryFlow">
+              <div class="option-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 12a9 9 0 109-9M3 4v6h6M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </div>
+              <div class="option-text">
+                <span class="option-title">查看历史数据</span>
+                <span class="option-desc">查看历史游戏导入记录和创建记录</span>
               </div>
             </button>
           </div>
@@ -277,7 +300,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { uni } from '@/utils/uni-polyfill'
 import { requestPermission } from '@/services/permissions'
@@ -285,6 +308,7 @@ import { apiConfigService } from '@/services/api-config'
 import { LLMAPIService } from '@/services/llm-api'
 import { readGameInputFiles } from '@/services/game-file-reader'
 import { useGameGenerationStore } from '@/stores/game-generation'
+import { panelCatalogGames, type ManagedGameEntry } from '@/services/global-game-registry'
 
 const router = useRouter()
 const gameGenerationStore = useGameGenerationStore()
@@ -294,18 +318,7 @@ interface PlayCategoryOption {
   label: string
 }
 
-interface GameCatalogItem {
-  id: string
-  name: string
-  description: string
-  route: string
-  icon: string
-  iconSrc?: string
-  iconKind?: 'text' | 'gomoku'
-  iconClass: string
-  primarySubcategory: string
-  playCategories: string[]
-}
+type GameCatalogItem = ManagedGameEntry & { iconSrc?: string }
 
 const ALL_CATEGORY = { key: 'all' as const, label: '全部' }
 
@@ -327,7 +340,7 @@ const playCategoryOptions: PlayCategoryOption[] = [
   { key: 'board-strategy', label: '棋类竞技' },
 ]
 
-const gameCatalog: GameCatalogItem[] = []
+const gameCatalog = computed<GameCatalogItem[]>(() => panelCatalogGames())
 
 const showActionModal = ref(false)
 const showImportChoiceModal = ref(false)
@@ -335,8 +348,11 @@ const showImportModal = ref(false)
 const showUploadModal = ref(false)
 const importMethod = ref<'rules' | 'full'>('rules')
 const activePlayCategory = ref('all')
+const searchVisible = ref(false)
+const gameSearchKeyword = ref('')
 
 const rulesText = ref('')
+const searchInput = ref<HTMLInputElement | null>(null)
 const uploadInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 const importFileInput = ref<HTMLInputElement | null>(null)
@@ -351,8 +367,15 @@ const createGameError = ref('')
 const isImportingGame = ref(false)
 
 const filteredGames = computed(() => {
-  if (activePlayCategory.value === 'all') return gameCatalog
-  return gameCatalog.filter(game => game.playCategories.includes(activePlayCategory.value))
+  const keyword = gameSearchKeyword.value.trim().toLowerCase()
+  let games = gameCatalog.value
+  if (activePlayCategory.value !== 'all') {
+    games = games.filter(game => game.playCategories.includes(activePlayCategory.value))
+  }
+  if (keyword) {
+    games = games.filter(game => game.name.toLowerCase().includes(keyword))
+  }
+  return games
 })
 
 async function openFilePicker(refName: 'uploadInput' | 'folderInput') {
@@ -366,8 +389,15 @@ function goToGameMenu() {
   router.push('/game/settings')
 }
 
-function openCreateGame() {
-  showActionModal.value = true
+async function toggleSearch() {
+  if (searchVisible.value) {
+    searchVisible.value = false
+    gameSearchKeyword.value = ''
+    return
+  }
+  searchVisible.value = true
+  await nextTick()
+  searchInput.value?.focus()
 }
 
 function startCreateGameFlow() {
@@ -378,6 +408,11 @@ function startCreateGameFlow() {
 function openImportGameFlow() {
   showActionModal.value = false
   showImportChoiceModal.value = true
+}
+
+function openHistoryFlow() {
+  showActionModal.value = false
+  router.push('/game/generate?history=1')
 }
 
 async function openImportPicker(kind: 'file' | 'folder') {
@@ -404,6 +439,7 @@ async function onImportFilesSelected(event: Event) {
         bundle.text,
       ].join('\n'),
       fileNames: bundle.fileNames,
+      uploadFiles: bundle.files.map(file => ({ path: file.path, text: file.text })),
     })
     showImportChoiceModal.value = false
     router.push(`/game/generate?mode=import&task=${taskId}`)
@@ -602,9 +638,8 @@ function formatFileSize(bytes: number): string {
   pointer-events: none;
 }
 
-.create-game-btn {
+.header-icon-btn {
   position: absolute;
-  left: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -626,6 +661,14 @@ function formatFileSize(bytes: number): string {
   &:active { transform: scale(0.96); }
 }
 
+.menu-btn {
+  left: 18px;
+}
+
+.search-btn {
+  right: 18px;
+}
+
 .title {
   margin: 0;
   font-size: 20px;
@@ -634,20 +677,35 @@ function formatFileSize(bytes: number): string {
   color: var(--text-primary);
 }
 
-.menu-btn {
+.panel-search-box {
   position: absolute;
-  right: 18px;
+  left: 70px;
+  right: 70px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 42px; height: 42px;
-  border: none; border-radius: 7px;
-  background: transparent;
+}
+
+.panel-search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
-  cursor: pointer;
-  transition: opacity var(--transition-base), transform var(--transition-base);
-  &:hover { opacity: 0.78; }
-  &:active { transform: scale(0.95); }
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: rgba(148, 163, 184, 0.62);
+  }
+
+  &:focus {
+    border-color: rgba(56, 189, 248, 0.42);
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .category-strip {
@@ -1152,8 +1210,9 @@ function formatFileSize(bytes: number): string {
 @media (max-width: 720px) {
   .game-panel-page { padding-bottom: 0; }
   .header { padding-left: 16px; padding-right: 16px; }
-  .create-game-btn { left: 16px; }
-  .menu-btn { right: 16px; }
+  .menu-btn { left: 16px; }
+  .search-btn { right: 16px; }
+  .panel-search-box { left: 66px; right: 66px; }
 
   .category-strip {
     width: calc(100% - 20px);

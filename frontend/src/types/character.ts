@@ -1,5 +1,8 @@
 import type { WorldBook } from './world-book'
 import type { PlotCardData } from './plot-card'
+import type { GameCardData } from './game-card'
+import type { ItemAttributeCardData } from './item-attribute-card'
+import type { GlobalCardData } from './global-card'
 
 export interface CharacterMultimedia {
   /** 语音设置 */
@@ -362,6 +365,7 @@ export interface ICharacter {
   avatarTone?: string
   backgroundImage?: string
   personality?: string
+  emotionalTendency?: string
   behavior?: string
   values?: string
   /** @deprecated 使用 structuredMembers 替代 */
@@ -409,6 +413,12 @@ export interface ICharacter {
   worldBooks?: WorldBook[]
   /** 剧情卡配置 — 剧情类角色的基础/高级叙事规则 */
   plotCard?: PlotCardData
+  /** 游戏卡配置 — 内嵌/外联小游戏机制 */
+  gameCard?: GameCardData
+  /** 全局卡配置 — 多人/群聊旁白、共享世界和全局状态 */
+  globalCard?: GlobalCardData
+  /** 物品/属性卡配置 — 物品客观机制与角色属性追踪 */
+  itemAttributeCard?: ItemAttributeCardData
   /** 角色对话参数 — 覆盖全局默认 */
   chatParams?: CharacterChatParams
   /** 角色多模态设置 */
@@ -466,8 +476,9 @@ export interface ICharacter {
   globalChatBackground?: string
   /** 基于亲密度的动态媒体触发列表 */
   intimacyMediaTriggers?: IntimacyMediaTrigger[]
-  /** TTS 音色配置列表 */
+  /** TTS 音色方案 */
   ttsMode?: TTSMode
+  /** TTS 音色配置列表 */
   ttsConfigs?: TTSConfig[]
 }
 
@@ -501,6 +512,7 @@ export interface CreateCharacterRequest {
   avatarTone?: string
   backgroundImage?: string
   personality?: string
+  emotionalTendency?: string
   behavior?: string
   values?: string
   members?: string[]
@@ -523,6 +535,9 @@ export interface CreateCharacterRequest {
   emotionAnimations?: EmotionAnimation[]
   worldBooks?: WorldBook[]
   plotCard?: PlotCardData
+  gameCard?: GameCardData
+  globalCard?: GlobalCardData
+  itemAttributeCard?: ItemAttributeCardData
   chatParams?: CharacterChatParams
   multimedia?: CharacterMultimedia
   /** 一句话描述 */
@@ -549,8 +564,9 @@ export interface CreateCharacterRequest {
   globalChatBackground?: string
   /** 基于亲密度的动态媒体触发列表 */
   intimacyMediaTriggers?: IntimacyMediaTrigger[]
-  /** TTS 音色配置列表 */
+  /** TTS 音色方案 */
   ttsMode?: TTSMode
+  /** TTS 音色配置列表 */
   ttsConfigs?: TTSConfig[]
 }
 

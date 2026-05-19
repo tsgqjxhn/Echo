@@ -1,6 +1,7 @@
 package com.echo.app;
 
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
@@ -22,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeSpeechPlugin.class);
         super.onCreate(savedInstanceState);
         installPermissiveChromeClient();
+        installAppControlBridge();
     }
 
     @Override
@@ -42,6 +44,17 @@ public class MainActivity extends BridgeActivity {
     public void onRestart() {
         super.onRestart();
         installPermissiveChromeClient();
+        installAppControlBridge();
+    }
+
+    @Override
+    public void onBackPressed() {
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView != null) {
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('echo-native-back'))", null);
+            return;
+        }
+        super.onBackPressed();
     }
 
     /**
@@ -52,7 +65,7 @@ public class MainActivity extends BridgeActivity {
      * pickers and import buttons).
      */
     private void installPermissiveChromeClient() {
-        WebView webView = getBridge().getWebView();
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
         if (webView == null) return;
 
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
@@ -69,5 +82,19 @@ public class MainActivity extends BridgeActivity {
                 super.onPermissionRequest(request);
             }
         });
+    }
+
+    private void installAppControlBridge() {
+        WebView webView = getBridge() == null ? null : getBridge().getWebView();
+        if (webView == null) return;
+
+        webView.addJavascriptInterface(new EchoAppControl(), "EchoAppControl");
+    }
+
+    private class EchoAppControl {
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> finishAndRemoveTask());
+        }
     }
 }

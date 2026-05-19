@@ -172,6 +172,8 @@ function handlePress(tab: TabItem) {
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.16);
   backdrop-filter: blur(22px) saturate(1.18);
   -webkit-backdrop-filter: blur(22px) saturate(1.18);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .nav-inner {

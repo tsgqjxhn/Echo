@@ -32,6 +32,16 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '预览对话' }
   },
   {
+    path: '/character/detail/:id',
+    component: () => import('./pages/character/detail.vue'),
+    meta: { title: '角色详情' }
+  },
+  {
+    path: '/favorites',
+    component: () => import('./pages/favorites/favorites.vue'),
+    meta: { title: '收藏' }
+  },
+  {
     path: '/chat/:characterId',
     component: () => import('./pages/chat/chat.vue'),
     meta: { title: '聊天' }
@@ -55,6 +65,11 @@ const routes: RouteRecordRaw[] = [
     path: '/settings/system-prompt',
     component: () => import('./pages/settings/system-prompt.vue'),
     meta: { title: '系统提示词管理' }
+  },
+  {
+    path: '/settings/global-prompt',
+    component: () => import('./pages/settings/global-prompt.vue'),
+    meta: { title: '全局提示词' }
   },
   {
     path: '/settings/api-config',
@@ -100,6 +115,11 @@ const routes: RouteRecordRaw[] = [
     path: '/game/settings',
     component: () => import('./pages/game/settings.vue'),
     meta: { title: '游戏设置' }
+  },
+  {
+    path: '/game/manage',
+    component: () => import('./pages/game/manage.vue'),
+    meta: { title: '全局游戏管理' }
   },
   {
     path: '/game/generate',

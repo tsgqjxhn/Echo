@@ -5,6 +5,7 @@ import { requireAPIKey } from './provider-http'
 import { getAdapterOrDefault } from './providers/registry'
 import { runtimeRequest } from './runtime-http'
 import { encryptApiKey, decryptApiKey, isEncryptedApiKey } from './crypto'
+import { isMaskedApiKey } from '@/utils/mask-api-key'
 
 const STT_PATTERN = /(whisper|transcrib|glm-asr|paraformer|sensevoice|\basr\b|sambert.*(stt|asr)|qwen.*audio.*asr)/i
 const TTS_PATTERN = /(\btts\b|\bspeech\b|cosyvoice|sambert|qwen.*tts|chat.?tts)/i
@@ -130,7 +131,15 @@ class APIConfigService {
     if (isRemovedLocalProvider(config.provider)) {
       throw new Error('本地或 Ollama 提供商已从大模型配置中移除')
     }
-    await storageDriver.saveAPIConfig(normalizeModels(encryptConfig(config)))
+    let toSave = config
+    if (isMaskedApiKey(config.apiKey)) {
+      const existing = await storageDriver.getAPIConfig(config.id)
+      if (!existing) {
+        throw new Error('请填写 API Key')
+      }
+      toSave = { ...config, apiKey: existing.apiKey }
+    }
+    await storageDriver.saveAPIConfig(normalizeModels(encryptConfig(toSave)))
   }
 
   async create(config: Omit<APIConfig, 'id'>): Promise<string> {

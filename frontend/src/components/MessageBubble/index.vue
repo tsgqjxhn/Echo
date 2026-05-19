@@ -94,6 +94,7 @@ import type { IMessage } from '@/types/chat'
 import { MessageType } from '@/types/chat'
 import { TTSService } from '@/services/tts'
 import { loadTTSConfig } from '@/services/voice-settings'
+import { formatMessageBubbleHtml } from '@/utils/escape-html'
 
 interface VoiceData {
   audioPath: string
@@ -146,13 +147,6 @@ const avatarUrl = computed(() =>
     : props.assistantAvatar || '/src/static/images/ai-avatar.svg'
 )
 
-function escapeHTML(value: string): string {
-  return value
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-}
-
 const renderedContent = computed(() => {
   const raw = props.message.content
   if (!raw) {
@@ -170,13 +164,9 @@ const renderedContent = computed(() => {
   const compacted = normalized
     .replace(/\s*\n+\s*(（)/g, '$1')
     .replace(/(）)\s*\n+\s*/g, '$1')
-  const escaped = escapeHTML(compacted)
-  // 群聊消息不高亮括号内的动作/神态文本
-  const highlighted = props.isGroupChat
-    ? escaped
-    : escaped.replace(/（[^（）\n]+）/g, match => `<span class="action-text">${match}</span>`)
-
-  return highlighted.replace(/\n/g, '<br>')
+  return formatMessageBubbleHtml(compacted, {
+    highlightActions: !props.isGroupChat,
+  })
 })
 
 const voiceData = computed<VoiceData | null>(() => {

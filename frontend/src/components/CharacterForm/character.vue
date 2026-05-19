@@ -2,23 +2,13 @@
   <div class="character">
     <slot name="top" />
 
-    <CategoryCard
-      v-model:expanded="categoryExpanded"
-      :filled="hasClassificationTags"
-      :status="hasClassificationTags ? '已设置' : '未设置'"
-    >
-      <slot name="classification" />
-    </CategoryCard>
-
     <section class="config-grid" :class="{ 'free-character-mode': isFreeDialogueCategory }">
       <section class="role-card" :class="{ filled: hasRoleContent, collapsed: !roleExpanded }" @click="roleExpanded = !roleExpanded">
         <div class="role-card-head">
           <span class="role-create-icon">🧩</span>
-          <div class="role-create-copy">
+          <div class="role-create-meta">
             <span class="role-create-title">角色卡</span>
-            <span class="role-create-desc">基础设定与高级设定集中配置</span>
           </div>
-          <span class="role-card-status">{{ roleStatus }}</span>
           <svg class="role-card-arrow" :class="{ expanded: roleExpanded }" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
@@ -30,11 +20,7 @@
             <button type="button" class="role-tier-tab" :class="{ active: tier === 'advanced' }" @click.stop="emit('update:tier', 'advanced')">高级设定</button>
           </div>
 
-          <template v-if="!isFreeDialogueCategory">
-            <slot name="basic" />
-            <slot name="advanced" />
-          </template>
-          <slot v-else-if="tier === 'basic'" name="basic" />
+          <slot v-if="tier === 'basic'" name="basic" />
           <slot v-else name="advanced" />
         </div>
       </section>
@@ -45,17 +31,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import CategoryCard from './CategoryCard.vue'
+import { ref } from 'vue'
 
 defineOptions({ name: 'character' })
 
 type CharacterSettingTier = 'basic' | 'advanced'
 
-const props = defineProps<{
+defineProps<{
   tier: CharacterSettingTier
   isFreeDialogueCategory: boolean
-  hasClassificationTags: boolean
   hasRoleContent: boolean
 }>()
 
@@ -63,12 +47,7 @@ const emit = defineEmits<{
   (event: 'update:tier', value: CharacterSettingTier): void
 }>()
 
-const categoryExpanded = ref(true)
-const roleExpanded = ref(true)
-const roleStatus = computed(() => {
-  const tierText = props.tier === 'basic' ? '基础设定' : '高级设定'
-  return props.hasRoleContent ? `已填写 · ${tierText}` : `未填写 · ${tierText}`
-})
+const roleExpanded = ref(false)
 </script>
 
 <style scoped lang="scss">
@@ -127,30 +106,17 @@ const roleStatus = computed(() => {
   flex-shrink: 0;
 }
 
-.role-create-copy {
+.role-create-meta {
   min-width: 0;
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
 }
 
 .role-create-title {
   color: var(--text-primary);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-}
-
-.role-create-desc {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.role-card-status {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 .role-card-arrow {
@@ -228,22 +194,15 @@ const roleStatus = computed(() => {
     flex: 1;
     min-width: 0;
     flex-direction: row;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
+    align-items: center;
   }
 
   :deep(.card-title) {
     font-size: 14px;
   }
 
-  :deep(.card-status) {
-    white-space: nowrap;
-  }
-
   :deep(.card-body) {
-    margin-top: 12px;
-    padding-top: 12px;
+    padding: 0 14px 14px;
   }
 }
 </style>

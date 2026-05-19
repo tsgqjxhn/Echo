@@ -118,6 +118,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useCharacterStore } from '@/stores/character'
 import { useChatStore } from '@/stores/chat'
 import type { ICharacter } from '@/types/character'
+import { getAffinity as readAffinity, setAffinity, ensureAffinity } from '@/services/affinity'
+import { getGameRecord, setGameRecord } from '@/services/game-records'
 
 // Chess piece types: positive = white, negative = black
 // 1=pawn, 2=knight, 3=bishop, 4=rook, 5=queen, 6=king
@@ -643,52 +645,36 @@ function offerDraw() {
   }
 }
 
-// Shared affinity system (same as chat.vue)
-function getAffinityMap(): Record<string, number> {
-  try { return JSON.parse(localStorage.getItem('echo_affinity') || '{}') } catch { return {} }
-}
 function getAffinity(charId: string): number {
-  const map = getAffinityMap()
-  if (map[charId] !== undefined) return map[charId]
+  const existing = readAffinity(charId)
+  if (existing !== undefined) return existing
   const sessions = chatStore.sessions.filter(s => s.characterId === charId)
   let msgs = 0
   for (const s of sessions) msgs += s.messageCount
   const val = Math.min(100, 20 + msgs)
-  setAffinity(charId, val)
+  ensureAffinity(charId, val)
   return val
 }
-function setAffinity(charId: string, val: number) {
-  const map = getAffinityMap()
-  map[charId] = Math.max(0, Math.min(100, val))
-  localStorage.setItem('echo_affinity', JSON.stringify(map))
-}
 function addAffinity(charId: string, delta: number) {
-  const cur = getAffinity(charId)
-  setAffinity(charId, cur + delta)
+  setAffinity(charId, getAffinity(charId) + delta)
 }
 
 function calcAffinity(characterId: string): number {
   return getAffinity(characterId)
 }
 
-// Save game record as a document visible to all AI characters
 function saveGameRecord(opponent: string, result: string) {
-  const key = 'echo_game_records'
-  let records: Record<string, string> = {}
-  try { records = JSON.parse(localStorage.getItem(key) || '{}') } catch { records = {} }
-  const gameKey = `chess`
+  const gameKey = 'chess'
   const score = result === '胜利' ? 3 : result === '和棋' ? 1 : 0
-  const existing = records[gameKey]
-  // Only replace if this result is better
+  const existing = getGameRecord(gameKey)
   if (existing) {
     const existingScore = existing.includes('胜利') ? 3 : existing.includes('和棋') ? 1 : 0
     if (score > existingScore) {
-      records[gameKey] = `国际象棋 vs ${opponent}：${result}（${new Date().toLocaleDateString()}）`
+      setGameRecord(gameKey, `国际象棋 vs ${opponent}：${result}（${new Date().toLocaleDateString()}）`)
     }
   } else {
-    records[gameKey] = `国际象棋 vs ${opponent}：${result}（${new Date().toLocaleDateString()}）`
+    setGameRecord(gameKey, `国际象棋 vs ${opponent}：${result}（${new Date().toLocaleDateString()}）`)
   }
-  localStorage.setItem(key, JSON.stringify(records))
 }
 
 function endGame(msg: string) {

@@ -1,14 +1,34 @@
 <template>
-  <div class="create-page">
-    <header class="page-header">
-      <button type="button" class="back-btn" aria-label="返回" @click="onBack">
-        <svg class="back-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M14.5 5.5L8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" />
-        </svg>
-      </button>
-      <h1 class="page-title">{{ pageTitle }}</h1>
-      <span class="header-placeholder" aria-hidden="true"></span>
-    </header>
+  <CharacterEditorShell class="create-page" :title="pageTitle" @back="onBack">
+    <template #header-actions>
+        <button
+          v-if="step === 'cards'"
+          type="button"
+          class="header-enter-btn"
+          :disabled="!selectedCardTypes.role"
+          @click="enterManualEditor"
+        >
+          进入
+        </button>
+        <button
+          v-if="showDraftActions"
+          type="button"
+          class="header-draft-btn ghost"
+          aria-label="历史草稿"
+          @click="draftPanelVisible = true"
+        >
+          历史
+        </button>
+        <button
+          v-if="showDraftActions"
+          type="button"
+          class="header-draft-btn"
+          aria-label="暂存草稿"
+          @click="handleSaveDraft"
+        >
+          暂存
+        </button>
+    </template>
 
     <!-- ═══════════════════════════════════════════════════════ -->
     <!-- Step 0: 入口选择页                                      -->
@@ -93,21 +113,89 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- Step 1B / Step 2: 编辑器（8卡片布局）                    -->
+    <!-- Step 1B: 卡片选择                                       -->
     <!-- ═══════════════════════════════════════════════════════ -->
-    <main v-else class="editor-body">
+    <section v-else-if="step === 'cards'" class="step-cards">
+      <div class="cards-intro">
+        <div class="cards-intro-head">
+          <h2>选择要配置的卡片</h2>
+          <label class="multiplayer-toggle">
+            <span>是否启用多人模式</span>
+            <input v-model="multiplayerModeEnabled" type="checkbox" @change="onMultiplayerModeChange" />
+          </label>
+        </div>
+        <p>可多选。角色卡默认开启，进入后再分别填写基础设定与高级设定。</p>
+      </div>
+      <div class="picker-grid">
+        <button type="button" class="picker-card active locked">
+          <span class="picker-emoji">🧩</span>
+          <span class="picker-title">角色卡</span>
+          <span class="picker-badge">默认</span>
+        </button>
+        <button type="button" class="picker-card" :class="{ active: selectedCardTypes.plot }" @click="selectedCardTypes.plot = !selectedCardTypes.plot">
+          <span class="picker-emoji">🎬</span>
+          <span class="picker-title">剧情卡</span>
+        </button>
+        <button type="button" class="picker-card" :class="{ active: selectedCardTypes.game }" @click="selectedCardTypes.game = !selectedCardTypes.game">
+          <span class="picker-emoji">🎮</span>
+          <span class="picker-title">游戏卡</span>
+        </button>
+        <button type="button" class="picker-card" :class="{ active: selectedCardTypes.itemAttribute }" @click="selectedCardTypes.itemAttribute = !selectedCardTypes.itemAttribute">
+          <span class="picker-emoji">🎒</span>
+          <span class="picker-title">物品/属性卡</span>
+        </button>
+        <button type="button" class="picker-card" :class="{ active: selectedCardTypes.global }" @click="selectedCardTypes.global = !selectedCardTypes.global">
+          <span class="picker-emoji">🌐</span>
+          <span class="picker-title">全局卡</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- Step 2 / 预览: 编辑器                                     -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <main v-else-if="step === 'manual' || step === 'preview'" class="editor-body">
       <div v-if="step === 'preview' && previewSourceLabel" class="source-badge">{{ previewSourceLabel }}</div>
 
       <Character
         v-model:tier="freeSettingTier"
         :is-free-dialogue-category="isFreeDialogueCategory"
-        :has-classification-tags="hasClassificationTags"
         :has-role-content="hasRoleContent"
       >
         <template #top>
           <!-- 基础信息区（头像+名称+描述+开场白） -->
-          <section class="base-info-section" :class="{ 'compact-avatar-name': isCompactTopCategory }">
-            <div class="base-row">
+          <section class="base-info-section" :class="{ 'compact-avatar-name': isCompactTopCategory && !multiplayerModeEnabled, 'multiplayer-base-info': multiplayerModeEnabled }">
+            <div v-if="multiplayerModeEnabled" class="multiplayer-base-layout">
+              <div class="primary-character-column">
+                <div class="avatar-upload" @click="showAvatarSheet">
+                  <img v-if="avatarPreview" :src="avatarPreview" alt="头像" class="avatar-img" />
+                  <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
+                  <div class="avatar-hint">点击上传</div>
+                </div>
+                <input v-model="form.name" type="text" class="field-input character-name-input" placeholder="主角色/群组名称" maxlength="50" />
+              </div>
+              <div class="multiplayer-member-strip">
+                <div v-for="(member, index) in structuredMembers" :key="member.id" class="multiplayer-member-slot">
+                  <div class="avatar-upload member-avatar-upload" @click="showMemberAvatarSheet(index)">
+                    <img v-if="getMemberAvatarPreview(member)" :src="getMemberAvatarPreview(member)" alt="头像" class="avatar-img" />
+                    <div v-else class="avatar-placeholder">{{ member.name?.charAt(0) || index + 2 }}</div>
+                    <div class="avatar-hint">点击上传</div>
+                  </div>
+                  <input v-model="member.name" type="text" class="field-input character-name-input member-name-input" placeholder="角色名称" maxlength="50" />
+                  <button type="button" class="member-remove-btn" aria-label="删除角色" @click="removeMultiplayerMember(index)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                  </button>
+                </div>
+                <button type="button" class="add-multiplayer-member" aria-label="添加角色" @click="addMultiplayerMember">
+                  <svg class="multi-add-svg" xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-dasharray="8 5" />
+                    <line x1="60" y1="38" x2="60" y2="82" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" />
+                    <line x1="38" y1="60" x2="82" y2="60" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div v-else class="base-row">
               <div class="avatar-upload" @click="showAvatarSheet">
                 <img v-if="avatarPreview" :src="avatarPreview" alt="头像" class="avatar-img" />
                 <div v-else class="avatar-placeholder">{{ form.name?.charAt(0) || '?' }}</div>
@@ -122,49 +210,6 @@
           </section>
         </template>
 
-        <template #classification>
-          <div class="field-item">
-            <label class="field-label">分类</label>
-            <select v-model="form.category" class="category-select">
-              <option v-for="group in categoryGroups" :key="group.label" :value="group.label">{{ group.label }}</option>
-            </select>
-          </div>
-          <div class="field-item">
-            <label class="field-label">子分类</label>
-            <div v-if="subCategories.length" class="chip-row">
-              <button v-for="item in subCategories" :key="item" type="button" class="category-chip" :class="{ active: form.subCategory === item }" @click="form.subCategory = item">{{ item }}</button>
-            </div>
-            <div v-else class="chip-empty">当前分类没有子分类</div>
-          </div>
-          <div class="field-item">
-            <label class="field-label">主题</label>
-            <select v-model="form.themeGroup" class="category-select">
-              <option value="">选择主题大类</option>
-              <option v-for="tg in themeGroups" :key="tg.label" :value="tg.label">{{ tg.label }}</option>
-            </select>
-          </div>
-          <div class="field-item">
-            <label class="field-label">主题细类</label>
-            <div v-if="currentThemeLeaves.length" class="chip-row">
-              <button v-for="leaf in currentThemeLeaves" :key="leaf" type="button" class="category-chip theme-chip" :class="{ active: form.themeType === leaf }" @click="form.themeType = leaf">{{ leaf }}</button>
-            </div>
-            <div v-else class="chip-empty">{{ form.themeGroup ? '当前主题没有细类' : '选择主题后显示主题细类' }}</div>
-          </div>
-          <div class="field-item">
-            <label class="field-label">自定义标签</label>
-            <div class="custom-tags-row">
-              <div class="tag-chip" v-for="(tag, idx) in customTags" :key="tag + idx">
-                <span>{{ tag }}</span>
-                <button type="button" class="tag-remove" @click="removeCustomTag(idx)">
-                  <svg viewBox="0 0 24 24" width="10" height="10"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                </button>
-              </div>
-              <input v-if="customTags.length < 10" v-model="tagInput" type="text" class="tag-input" placeholder="输入标签，回车添加" maxlength="20" @keydown.enter.prevent="addCustomTag" />
-            </div>
-            <p class="field-hint">{{ customTags.length }}/10 个标签，每个最多20字符</p>
-          </div>
-        </template>
-
         <template #basic>
         <!-- ═══════════════════════════════════════════════════════ -->
         <!-- 1. 🏷️ 基础信息                                           -->
@@ -174,7 +219,6 @@
             <span class="card-emoji">🏷️</span>
             <div class="card-meta">
               <span class="card-title">基础信息</span>
-              <span class="card-status">{{ hasBaseInfo ? '已填写' : '未填写' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.base" class="card-body" @click.stop>
@@ -238,7 +282,6 @@
             <span class="card-emoji">📝</span>
             <div class="card-meta">
               <span class="card-title">整体设定</span>
-              <span class="card-status">{{ hasTemplateFields ? '已填写' : '未填写' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.overallSettings" class="card-body" @click.stop>
@@ -265,7 +308,6 @@
             <span class="card-emoji">🎭</span>
             <div class="card-meta">
               <span class="card-title">结构化人设</span>
-              <span class="card-status">{{ hasPersona ? '已填写' : '未填写' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.persona" class="card-body" @click.stop>
@@ -293,7 +335,6 @@
             <span class="card-emoji">🖼️</span>
             <div class="card-meta">
               <span class="card-title">媒体设定</span>
-              <span class="card-status">{{ hasMedia ? '已设置' : '未设置' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.media" class="card-body" @click.stop>
@@ -473,7 +514,6 @@
             <span class="card-emoji">📚</span>
             <div class="card-meta">
               <span class="card-title">知识书</span>
-              <span class="card-status">{{ lorebookData.entries.length }} 个词条</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.lorebook" class="card-body" @click.stop>
@@ -562,7 +602,6 @@
             <span class="card-emoji">🌍</span>
             <div class="card-meta">
               <span class="card-title">世界书</span>
-              <span class="card-status">{{ worldBooksData.length }} 本书</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.worldBooks" class="card-body" @click.stop>
@@ -703,7 +742,6 @@
             <span class="card-emoji">💬</span>
             <div class="card-meta">
               <span class="card-title">开场白</span>
-              <span class="card-status">{{ greetingCount }} 条</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.greetings" class="card-body" @click.stop>
@@ -761,7 +799,6 @@
             <span class="card-emoji">⚡</span>
             <div class="card-meta">
               <span class="card-title">深度提示</span>
-              <span class="card-status">{{ depthPromptData.prompt ? '已设置' : '未设置' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.depthPrompt" class="card-body" @click.stop>
@@ -799,7 +836,6 @@
             <span class="card-emoji">🖼️</span>
             <div class="card-meta">
               <span class="card-title">媒体设定</span>
-              <span class="card-status">{{ hasMedia ? '已设置' : '未设置' }}</span>
             </div>
           </div>
           <div v-if="isFreeDialogueCategory || expandedCards.media" class="card-body" @click.stop>
@@ -975,10 +1011,26 @@
 
         <template #plot>
           <PlotCard
-            v-if="isStoryCategory"
+            v-if="selectedCardTypes.plot"
             v-model="plotCardData"
             v-model:subCategory="form.subCategory"
             :filled="hasPlotCardFields"
+            :show-sub-category-tabs="true"
+          />
+          <GameCard
+            v-if="selectedCardTypes.game"
+            v-model="gameCardData"
+            :filled="hasGameCardFields"
+          />
+          <GlobalCard
+            v-if="selectedCardTypes.global"
+            v-model="globalCardData"
+            :filled="hasGlobalCardFields"
+          />
+          <ItemAttributeCard
+            v-if="selectedCardTypes.itemAttribute"
+            v-model="itemAttributeCardData"
+            :filled="hasItemAttributeCardFields"
           />
         </template>
       </Character>
@@ -994,7 +1046,38 @@
         </div>
       </div>
     </main>
-  </div>
+
+    <CharacterDraftPanel
+      :visible="draftPanelVisible"
+      :active-draft-id="activeDraftId"
+      @close="draftPanelVisible = false"
+      @open="openDraftFromPanel"
+      @changed="handleDraftPanelChanged"
+    />
+
+    <Teleport to="body">
+      <div v-if="avatarSheetVisible" class="avatar-sheet-overlay" @click.self="closeAvatarSheet">
+        <section class="avatar-sheet-card" role="dialog" aria-modal="true" aria-label="头像选项">
+          <div class="avatar-sheet-head">
+            <h3>头像</h3>
+            <button type="button" class="avatar-sheet-close" aria-label="关闭" @click="closeAvatarSheet">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+            </button>
+          </div>
+          <div class="avatar-sheet-options">
+            <button type="button" class="avatar-sheet-option" @click="pickLocalAvatar">
+              <span class="avatar-sheet-option-icon">📁</span>
+              <span>本地上传</span>
+            </button>
+            <button type="button" class="avatar-sheet-option" @click="pickAIAvatar">
+              <span class="avatar-sheet-option-icon">✨</span>
+              <span>AI生成</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+  </CharacterEditorShell>
 </template>
 
 <script setup lang="ts">
@@ -1007,10 +1090,28 @@ import { getAssetUrl } from '@/services/files'
 import type { ICharacter, EmotionAnimation, CharacterPersona, Lorebook, LorebookEntry, DepthPrompt, GroupMember, NegativeTrait, PhysicalFeature, SpeechPattern, ContextualGreeting, IntimacyMediaTrigger, TTSConfig, MediaWeights, ArtStyleConfig, TTSMode } from '@/types/character'
 import type { WorldBook, WorldBookEntry } from '@/types/world-book'
 import { generateUUID } from '@/utils/uuid'
+import { parseWorldBookFromJSON } from '@/utils/world-book-import'
+import CharacterEditorShell from '@/components/CharacterForm/CharacterEditorShell.vue'
+import { getGameRecords, setGameRecord } from '@/services/game-records'
 import { importCharacterFromFile } from '@/services/character-import'
 import { generateCharacterByAI, generateCharacterAvatar } from '@/services/character-ai-generate'
 import Character from '@/components/CharacterForm/character.vue'
 import PlotCard from '@/components/CharacterForm/PlotCard.vue'
+import GameCard from '@/components/CharacterForm/GameCard.vue'
+import ItemAttributeCard from '@/components/CharacterForm/ItemAttributeCard.vue'
+import GlobalCard from '@/components/CharacterForm/GlobalCard.vue'
+import CharacterDraftPanel from '@/components/CharacterForm/CharacterDraftPanel.vue'
+import {
+  buildDefaultDraftTitle,
+  deleteCharacterCreateDraft,
+  getCharacterCreateDraft,
+  getLastActiveCharacterCreateDraft,
+  hasDraftPayloadContent,
+  migrateLegacyCharacterDraftIfNeeded,
+  saveCharacterCreateDraft,
+  setLastActiveCharacterCreateDraftId,
+  type CharacterCreateDraftRecord,
+} from '@/services/character-create-drafts'
 import { DEFAULT_CATEGORY, getFirstSubCategory, getThemeGroups, getVisibleCategoryGroups, inferCharacterMode, isMultiplayerCategory } from '@/data/taxonomy'
 import { getTemplateForCategory, buildSettingsFromTemplate } from '@/data/character-templates'
 import { characterPresets } from '@/data/character-presets'
@@ -1018,9 +1119,15 @@ import type { CharacterPreset } from '@/data/character-presets'
 import TemplateFieldRenderer from '@/components/CharacterForm/TemplateFieldRenderer.vue'
 import type { PlotCardData } from '@/types/plot-card'
 import { buildPlotCardSettings, createEmptyPlotCardData, hasPlotCardContent, plotTypeFromSubCategory } from '@/types/plot-card'
+import type { GameCardData } from '@/types/game-card'
+import { buildGameCardSettings, createEmptyGameCardData, hasGameCardContent } from '@/types/game-card'
+import type { ItemAttributeCardData } from '@/types/item-attribute-card'
+import { buildItemAttributeCardSettings, createEmptyItemAttributeCardData, hasItemAttributeCardContent } from '@/types/item-attribute-card'
+import type { GlobalCardData } from '@/types/global-card'
+import { buildGlobalCardSettings, createEmptyGlobalCardData, hasGlobalCardContent } from '@/types/global-card'
 
 /* ── 类型与状态 ── */
-type CreateStep = 'choose' | 'quick' | 'manual' | 'preview'
+type CreateStep = 'choose' | 'quick' | 'cards' | 'manual' | 'preview'
 type QuickMode = 'template' | 'ai'
 type MediaKey = 'globalBackground' | 'chatBackground'
 type FreeSettingTier = 'basic' | 'advanced'
@@ -1069,6 +1176,11 @@ function presetGradient(id: string): string {
 const form = ref({ name: '', category: DEFAULT_CATEGORY, subCategory: getFirstSubCategory(DEFAULT_CATEGORY), themeGroup: '', themeType: '', avatar: '', coverImage: '', voiceSample: '' })
 const templateData = ref<Record<string, any>>({})
 const plotCardData = ref<PlotCardData>(createEmptyPlotCardData(form.value.subCategory))
+const gameCardData = ref<GameCardData>(createEmptyGameCardData())
+const itemAttributeCardData = ref<ItemAttributeCardData>(createEmptyItemAttributeCardData())
+const globalCardData = ref<GlobalCardData>(createEmptyGlobalCardData())
+const selectedCardTypes = reactive({ role: true, plot: false, game: false, itemAttribute: false, global: false })
+const multiplayerModeEnabled = ref(false)
 const mediaData = reactive<Record<MediaKey | 'globalVideoBackground', string>>({ globalBackground: '', globalVideoBackground: '', chatBackground: '' })
 const emotionAnimations = reactive<EmotionAnimation[]>([])
 const mediaWeightsData = reactive<MediaWeights>({ enableChatImageGeneration: false, artStyle: '', artStyleMix: [], qualityWeight: 100 })
@@ -1110,27 +1222,62 @@ const negativeTraits = reactive<NegativeTrait[]>([])
 const physicalFeatures = reactive<PhysicalFeature[]>([])
 const speechPatterns = reactive<SpeechPattern[]>([])
 
-/* ── 头像 ActionSheet ── */
+/* ── 头像弹窗 ── */
+type AvatarSheetTarget = { type: 'main' } | { type: 'member'; index: number }
+
+const avatarSheetVisible = ref(false)
+const avatarSheetTarget = ref<AvatarSheetTarget>({ type: 'main' })
+
 function showAvatarSheet() {
-  uni.showActionSheet({
-    itemList: ['从相册上传', 'AI生成头像', '取消'],
-    itemColor: '#38bdf8',
-    success: (res: { tapIndex: number }) => {
-      if (res.tapIndex === 0) uploadAvatar()
-      else if (res.tapIndex === 1) generateAvatarByAI()
-    },
-  })
+  avatarSheetTarget.value = { type: 'main' }
+  avatarSheetVisible.value = true
+}
+
+function showMemberAvatarSheet(index: number) {
+  avatarSheetTarget.value = { type: 'member', index }
+  avatarSheetVisible.value = true
+}
+
+function closeAvatarSheet() {
+  avatarSheetVisible.value = false
+}
+
+function getMemberAvatarPreview(member: GroupMember): string {
+  if (member.avatar) return getAssetUrl(member.avatar)
+  if (member.name?.trim()) return createSilverAvatarDataUrl(member.name.trim())
+  return ''
+}
+
+function pickLocalAvatar() {
+  closeAvatarSheet()
+  uploadAvatar()
+}
+
+function pickAIAvatar() {
+  closeAvatarSheet()
+  void generateAvatarByAI()
 }
 
 async function generateAvatarByAI() {
-  if (!form.value.name.trim()) {
+  const target = avatarSheetTarget.value
+  const name = target.type === 'main'
+    ? form.value.name.trim()
+    : (structuredMembers.value[target.index]?.name || '').trim()
+
+  if (!name) {
     uni.showToast({ title: '请先填写角色名称', icon: 'none' })
     return
   }
+
   uni.showToast({ title: '生成中…', icon: 'loading', duration: 2000 })
   try {
-    const url = await generateCharacterAvatar(form.value.name, form.value.category)
-    if (url) form.value.avatar = url
+    const url = await generateCharacterAvatar(name, form.value.category)
+    if (!url) return
+    if (target.type === 'main') {
+      form.value.avatar = url
+    } else {
+      structuredMembers.value[target.index].avatar = url
+    }
     uni.showToast({ title: '生成成功', icon: 'success' })
   } catch {
     uni.showToast({ title: '生成失败', icon: 'none' })
@@ -1165,26 +1312,6 @@ function onWorldBookFileSelected(event: Event) {
   reader.readAsText(file)
 }
 
-function parseWorldBookFromJSON(json: any): WorldBookUI | null {
-  if (!json || typeof json !== 'object') return null
-  const entries: WorldBookEntryUI[] = []
-  const rawEntries = Array.isArray(json.entries) ? json.entries : Array.isArray(json) ? json : []
-  for (const e of rawEntries) {
-    if (!e || typeof e !== 'object') continue
-    const keywords = Array.isArray(e.keywords) ? e.keywords : (e.key || '').split(',').map((s: string) => s.trim()).filter(Boolean)
-    entries.push({
-      id: e.id || generateUUID(), keywords, keywordInput: keywords.join('，'),
-      content: String(e.content || e.value || ''), order: Number(e.order ?? 0),
-      enabled: e.enabled !== false, position: Number(e.position ?? 0), depth: Number(e.depth ?? 0),
-      role: Number(e.role ?? 0), probability: Number(e.probability ?? 100), comment: String(e.comment || ''),
-      dynamicAnchor: String(e.dynamicAnchor || ''), userPersona: String(e.userPersona || ''),
-      compatibilityScore: e.compatibilityScore != null ? Number(e.compatibilityScore) : undefined,
-      relationshipTrigger: String(e.relationshipTrigger || ''),
-    })
-  }
-  return { id: json.id || generateUUID(), name: String(json.name || '导入的世界书'), entries, scanRange: Number(json.scanRange ?? 100), _expanded: true }
-}
-
 /* ── 计算属性 ── */
 const categoryGroups = getVisibleCategoryGroups()
 const themeGroups = getThemeGroups()
@@ -1212,7 +1339,10 @@ const hasTemplateFields = computed(() => {
   })
 })
 const hasClassificationTags = computed(() => !!(form.value.category || form.value.subCategory || form.value.themeGroup || form.value.themeType || customTags.value.length))
-const hasPlotCardFields = computed(() => isStoryCategory.value && hasPlotCardContent(plotCardData.value))
+const hasPlotCardFields = computed(() => selectedCardTypes.plot && hasPlotCardContent(plotCardData.value))
+const hasGameCardFields = computed(() => selectedCardTypes.game && hasGameCardContent(gameCardData.value))
+const hasItemAttributeCardFields = computed(() => selectedCardTypes.itemAttribute && hasItemAttributeCardContent(itemAttributeCardData.value))
+const hasGlobalCardFields = computed(() => selectedCardTypes.global && hasGlobalCardContent(globalCardData.value))
 const hasBaseInfo = computed(() => !!(negativeTraits.length || physicalFeatures.length || speechPatterns.length))
 const hasPersona = computed(() => !!personaData.anchor.trim() || !!personaData.traits.trim() || !!personaData.voice.trim())
 const hasMedia = computed(() =>
@@ -1229,16 +1359,21 @@ const hasMedia = computed(() =>
   ttsConfigs.length > 0
 )
 const greetingCount = computed(() => (templateData.value.greeting ? 1 : 0) + altGreetings.value.filter(g => g.trim()).length + contextualGreetings.length)
-const hasRoleContent = computed(() => hasBaseInfo.value || hasTemplateFields.value || hasPersona.value || lorebookData.entries.length > 0 || worldBooksData.length > 0 || greetingCount.value > 0 || !!depthPromptData.prompt || hasMedia.value)
+const hasRoleContent = computed(() => hasBaseInfo.value || hasTemplateFields.value || hasPersona.value || lorebookData.entries.length > 0 || worldBooksData.length > 0 || greetingCount.value > 0 || !!depthPromptData.prompt || hasMedia.value || hasGlobalCardFields.value)
 
 const pageTitle = computed(() => {
   switch (step.value) {
     case 'quick': return '快速创建'
+    case 'cards': return '选择卡片'
     case 'manual': return isFreeDialogueCategory.value ? '角色创建' : '手动配置'
     case 'preview': return '预览编辑'
     default: return '创建角色'
   }
 })
+
+const showDraftActions = computed(() => step.value !== 'choose' && step.value !== 'cards')
+const draftPanelVisible = ref(false)
+const activeDraftId = ref<string | null>(null)
 
 /* ── Watchers ── */
 watch(() => form.value.category, next => {
@@ -1247,6 +1382,9 @@ watch(() => form.value.category, next => {
   }
 })
 watch(() => form.value.subCategory, next => {
+  if (selectedCardTypes.plot && (step.value === 'manual' || step.value === 'preview')) {
+    form.value.category = '剧情'
+  }
   plotCardData.value = {
     ...plotCardData.value,
     basic: {
@@ -1257,11 +1395,44 @@ watch(() => form.value.subCategory, next => {
 })
 watch(() => form.value.themeGroup, () => { form.value.themeType = '' })
 
+function onMultiplayerModeChange() {
+  if (!multiplayerModeEnabled.value) return
+  selectedCardTypes.global = true
+  if (!isMultiplayerCategory(form.value.category)) {
+    form.value.category = '多人'
+    form.value.subCategory = getFirstSubCategory('多人')
+  }
+}
+
 /* ── 步骤导航 ── */
 function goQuick() { step.value = 'quick'; quickMode.value = 'template' }
-function goManual() { step.value = 'manual'; resetForm() }
+function goManual() {
+  step.value = 'cards'
+  resetForm()
+  selectedCardTypes.role = true
+  selectedCardTypes.plot = false
+  selectedCardTypes.game = false
+  selectedCardTypes.itemAttribute = false
+  selectedCardTypes.global = false
+  multiplayerModeEnabled.value = false
+}
+function enterManualEditor() {
+  if (!selectedCardTypes.role) return
+  step.value = 'manual'
+  if (multiplayerModeEnabled.value && structuredMembers.value.length === 0) {
+    addMultiplayerMember()
+    addMultiplayerMember()
+  }
+  if (selectedCardTypes.plot) {
+    form.value.category = '剧情'
+    if (!form.value.subCategory) {
+      form.value.subCategory = getFirstSubCategory('剧情') || '分支剧情'
+    }
+  }
+}
 function onBack() {
-  if (step.value === 'quick' || step.value === 'manual' || step.value === 'preview') step.value = 'choose'
+  if (step.value === 'manual' || step.value === 'preview') step.value = 'cards'
+  else if (step.value === 'cards' || step.value === 'quick') step.value = 'choose'
   else router.back()
 }
 
@@ -1386,6 +1557,21 @@ function onTextareaInput(e: Event) {
 
 /* ── 列表字段操作 ── */
 function makeId() { return generateUUID() }
+function addMultiplayerMember() {
+  structuredMembers.value = [
+    ...structuredMembers.value,
+    {
+      id: makeId(),
+      name: '',
+      avatar: '',
+      description: '',
+      configMode: 'simple',
+    },
+  ]
+}
+function removeMultiplayerMember(index: number) {
+  structuredMembers.value = structuredMembers.value.filter((_, idx) => idx !== index)
+}
 function addNegativeTrait() { negativeTraits.push({ id: makeId(), content: '' }) }
 function removeNegativeTrait(idx: number) { negativeTraits.splice(idx, 1) }
 function addPhysicalFeature() { physicalFeatures.push({ id: makeId(), content: '' }) }
@@ -1418,14 +1604,28 @@ async function blobUrlToBase64(blobUrl: string): Promise<string> {
   })
 }
 
+async function applyAvatarPath(path: string) {
+  let avatarValue = path
+  try {
+    avatarValue = await blobUrlToBase64(path)
+  } catch {
+    avatarValue = path
+  }
+  const target = avatarSheetTarget.value
+  if (target.type === 'main') {
+    form.value.avatar = avatarValue
+  } else {
+    structuredMembers.value[target.index].avatar = avatarValue
+  }
+}
+
 function uploadAvatar() {
   uni.chooseImage({
     count: 1, sizeType: ['compressed'], sourceType: ['album', 'camera'],
     success: async (res: { tempFilePaths: string[] }) => {
       const path = res.tempFilePaths?.[0]
       if (!path) return
-      try { form.value.avatar = await blobUrlToBase64(path) }
-      catch { form.value.avatar = path }
+      await applyAvatarPath(path)
     },
   })
 }
@@ -1598,8 +1798,11 @@ function resolveDescription(): string {
 
 function buildFullSettings(name: string): string {
   const baseSettings = buildSettingsFromTemplate(form.value.category, form.value.subCategory, { ...templateData.value, _characterName: name }, activeTemplate.value)
-  const plotSettings = isStoryCategory.value ? buildPlotCardSettings(plotCardData.value, form.value.subCategory) : ''
-  return [baseSettings, plotSettings].filter(Boolean).join('\n\n').trim()
+  const plotSettings = selectedCardTypes.plot ? buildPlotCardSettings(plotCardData.value, form.value.subCategory) : ''
+  const gameSettings = selectedCardTypes.game ? JSON.stringify(buildGameCardSettings(gameCardData.value).gameCard, null, 2) : ''
+  const itemAttributeSettings = selectedCardTypes.itemAttribute ? buildItemAttributeCardSettings(itemAttributeCardData.value) : ''
+  const globalSettings = selectedCardTypes.global ? buildGlobalCardSettings(globalCardData.value) : ''
+  return [baseSettings, plotSettings, gameSettings, globalSettings, itemAttributeSettings].filter(Boolean).join('\n\n').trim()
 }
 
 function buildPreviewCharacter(): Partial<ICharacter> {
@@ -1611,6 +1814,7 @@ function buildPreviewCharacter(): Partial<ICharacter> {
     greeting: String(templateData.value.greeting ?? '').trim() || undefined, settings,
     mode: resolvedMode.value, category: form.value.category, subCategory: form.value.subCategory,
     scenario: String(templateData.value.scenario ?? '').trim() || undefined,
+    emotionalTendency: String(templateData.value.emotionalTendency ?? '').trim() || undefined,
     chatBackground: mediaData.chatBackground || undefined,
     globalBackground: mediaData.globalBackground || undefined,
     globalVideoBackground: mediaData.globalVideoBackground || undefined,
@@ -1619,7 +1823,10 @@ function buildPreviewCharacter(): Partial<ICharacter> {
     ttsMode: ttsMode.value || undefined,
     ttsConfigs: ttsConfigs.filter(t => t.voiceName.trim()).length ? ttsConfigs.filter(t => t.voiceName.trim()) : undefined,
     persona: buildPersona(), lorebook: buildLorebook(), worldBooks: buildWorldBooks(), depthPrompt: buildDepthPrompt(),
-    plotCard: isStoryCategory.value ? plotCardData.value : undefined,
+    plotCard: selectedCardTypes.plot ? plotCardData.value : undefined,
+    gameCard: selectedCardTypes.game ? gameCardData.value : undefined,
+    globalCard: selectedCardTypes.global ? globalCardData.value : undefined,
+    itemAttributeCard: selectedCardTypes.itemAttribute ? itemAttributeCardData.value : undefined,
   }
 }
 function previewCharacter() {
@@ -1646,7 +1853,7 @@ const isFormValid = computed(() => {
 async function submit() {
   let name: string
   if (isGroupOrComprehensive.value) {
-    name = String(templateData.value.groupName ?? templateData.value.worldName ?? '').trim()
+    name = String(templateData.value.groupName ?? templateData.value.worldName ?? form.value.name ?? '').trim()
     if (!name) { uni.showToast({ title: '请在基础设定中填写名称', icon: 'none' }); return }
   } else {
     name = resolveCharacterName()
@@ -1656,7 +1863,7 @@ async function submit() {
   try {
     const description = resolveDescription()
     if (!description && !isGroupOrComprehensive.value) { uni.showToast({ title: '请填写角色描述或相关基础设定', icon: 'none' }); submitting.value = false; return }
-    const avatar = isGroupOrComprehensive.value ? createSilverAvatarDataUrl(name) : (form.value.avatar || createSilverAvatarDataUrl(name))
+    const avatar = isGroupOrComprehensive.value ? (form.value.avatar || createSilverAvatarDataUrl(name)) : (form.value.avatar || createSilverAvatarDataUrl(name))
     const settings = buildFullSettings(name)
     const userParts: string[] = []
     if (userData.description.trim()) userParts.push(userData.description.trim())
@@ -1671,6 +1878,7 @@ async function submit() {
       tags: [form.value.category, form.value.subCategory, form.value.themeType, ...customTags.value].filter(Boolean),
       sourceType: 'manual', exampleDialogue: templateData.value.exampleDialogue as string | undefined,
       scenario: templateData.value.scenario as string | undefined, personality: templateData.value.personalityTraits as string | undefined,
+      emotionalTendency: templateData.value.emotionalTendency as string | undefined,
       values: templateData.value.coreValues as string | undefined,
       chatBackground: mediaData.chatBackground || undefined,
       globalBackground: mediaData.globalBackground || undefined,
@@ -1679,7 +1887,10 @@ async function submit() {
       persona: buildPersona(), lorebook: buildLorebook(), worldBooks: buildWorldBooks(),
       alternateGreetings: altGreetings.value.filter(g => g.trim()).length ? altGreetings.value.filter(g => g.trim()) : undefined,
       depthPrompt: buildDepthPrompt(),
-      plotCard: isStoryCategory.value ? plotCardData.value : undefined,
+      plotCard: selectedCardTypes.plot ? plotCardData.value : undefined,
+      gameCard: selectedCardTypes.game ? gameCardData.value : undefined,
+      globalCard: selectedCardTypes.global ? globalCardData.value : undefined,
+      itemAttributeCard: selectedCardTypes.itemAttribute ? itemAttributeCardData.value : undefined,
       // 新字段
       negativeTraits: negativeTraits.filter(t => t.content.trim()).length ? negativeTraits.filter(t => t.content.trim()) : undefined,
       physicalFeatures: physicalFeatures.filter(f => f.content.trim()).length ? physicalFeatures.filter(f => f.content.trim()) : undefined,
@@ -1704,13 +1915,12 @@ async function submit() {
     }
     if (ttsVoice.value.trim()) extraBlocks.push(`【TTS音色设定】\nTTS音色：${ttsVoice.value.trim()}${ttsWeight.value !== 100 ? `(${ttsWeight.value}%)` : ''}`)
     try {
-      const records: Record<string, string> = JSON.parse(localStorage.getItem('echo_game_records') || '{}')
-      const entries = Object.values(records)
+      const entries = Object.values(getGameRecords())
       if (entries.length) extraBlocks.push(`【用户游戏最佳记录】\n${entries.join('\n')}`)
     } catch { /* no records */ }
     if (extraBlocks.length) character.settings = settings + '\n\n' + extraBlocks.join('\n\n')
     const newId = await characterStore.createCharacter(character)
-    clearDraft()
+    await clearActiveDraft()
     showSuccessActions(newId)
   } catch {
     uni.showToast({ title: '创建失败', icon: 'none' })
@@ -1722,6 +1932,9 @@ function resetForm() {
   form.value = { name: '', category: DEFAULT_CATEGORY, subCategory: getFirstSubCategory(DEFAULT_CATEGORY), themeGroup: '', themeType: '', avatar: '', coverImage: '', voiceSample: '' }
   templateData.value = {}
   plotCardData.value = createEmptyPlotCardData(form.value.subCategory)
+  gameCardData.value = createEmptyGameCardData()
+  itemAttributeCardData.value = createEmptyItemAttributeCardData()
+  globalCardData.value = createEmptyGlobalCardData()
   mediaData.chatBackground = ''; mediaData.globalBackground = ''; mediaData.globalVideoBackground = ''
   emotionAnimations.splice(0, emotionAnimations.length)
   intimacyTriggers.splice(0, intimacyTriggers.length)
@@ -1737,12 +1950,14 @@ function resetForm() {
   ttsMode.value = ''; ttsVoice.value = ''; ttsWeight.value = 100
   customTags.value = []; tagInput.value = ''
   structuredMembers.value = []
+  multiplayerModeEnabled.value = false
   negativeTraits.splice(0, negativeTraits.length)
   physicalFeatures.splice(0, physicalFeatures.length)
   speechPatterns.splice(0, speechPatterns.length)
   freeSettingTier.value = 'basic'
   for (const key of Object.keys(expandedCards)) expandedCards[key] = false
-  clearDraft()
+  activeDraftId.value = null
+  setLastActiveCharacterCreateDraftId(null)
 }
 
 /* ── 创建成功快捷操作 ── */
@@ -1763,17 +1978,27 @@ function showSuccessActions(newId: string) {
   })
 }
 
-/* ── 草稿自动保存 ── */
-const DRAFT_KEY = 'character_draft'
+/* ── 草稿（本机多文件） ── */
 const SAVE_DEBOUNCE = 2000
 let draftTimer: ReturnType<typeof setTimeout> | null = null
 
-function hasDraftContent(): boolean { return !!(form.value.name.trim() || String(templateData.value.description ?? '').trim() || hasPlotCardContent(plotCardData.value)) }
-function getDraftSnapshot(): unknown {
+function hasDraftContent(): boolean {
+  return hasDraftPayloadContent(getDraftSnapshot())
+}
+
+function getDraftSnapshot(): Record<string, unknown> {
   return {
+    step: step.value,
+    quickMode: quickMode.value,
+    freeSettingTier: freeSettingTier.value,
     form: JSON.parse(JSON.stringify(form.value)),
     templateData: JSON.parse(JSON.stringify(templateData.value)),
     plotCardData: JSON.parse(JSON.stringify(plotCardData.value)),
+    gameCardData: JSON.parse(JSON.stringify(gameCardData.value)),
+    itemAttributeCardData: JSON.parse(JSON.stringify(itemAttributeCardData.value)),
+    globalCardData: JSON.parse(JSON.stringify(globalCardData.value)),
+    selectedCardTypes: JSON.parse(JSON.stringify(selectedCardTypes)),
+    multiplayerModeEnabled: multiplayerModeEnabled.value,
     mediaData: JSON.parse(JSON.stringify(mediaData)),
     emotionAnimations: JSON.parse(JSON.stringify(emotionAnimations)),
     intimacyTriggers: JSON.parse(JSON.stringify(intimacyTriggers)),
@@ -1796,17 +2021,54 @@ function getDraftSnapshot(): unknown {
     aiInteractionType: aiInteractionType.value, aiCreativity: aiCreativity.value, aiDetailLevel: aiDetailLevel.value,
   }
 }
-function saveDraft() {
-  if (!hasDraftContent()) return
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(getDraftSnapshot())) } catch (e) { console.warn('草稿保存失败:', e) }
+async function persistActiveDraft(force = false) {
+  if (!activeDraftId.value) return
+  if (!force && !hasDraftContent()) return
+  try {
+    await saveCharacterCreateDraft(getDraftSnapshot(), { id: activeDraftId.value })
+  } catch (e) {
+    console.warn('草稿自动保存失败:', e)
+  }
 }
-function clearDraft() { try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ } }
-function loadDraft(): unknown | null { try { const raw = localStorage.getItem(DRAFT_KEY); return raw ? JSON.parse(raw) : null } catch { return null } }
+
+async function handleSaveDraft() {
+  if (!hasDraftContent()) {
+    uni.showToast({ title: '暂无内容可暂存', icon: 'none' })
+    return
+  }
+  try {
+    const record = await saveCharacterCreateDraft(getDraftSnapshot(), {
+      id: activeDraftId.value || undefined,
+      title: buildDefaultDraftTitle(getDraftSnapshot()),
+    })
+    activeDraftId.value = record.id
+    uni.showToast({ title: '草稿已暂存', icon: 'success' })
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '暂存失败', icon: 'none' })
+  }
+}
+
+async function clearActiveDraft() {
+  if (activeDraftId.value) {
+    try { await deleteCharacterCreateDraft(activeDraftId.value) } catch { /* ignore */ }
+  }
+  activeDraftId.value = null
+  setLastActiveCharacterCreateDraftId(null)
+}
+
 function restoreDraft(data: any) {
   if (!data) return
+  if (data.step && data.step !== 'choose') step.value = data.step
+  if (data.quickMode) quickMode.value = data.quickMode
+  if (data.freeSettingTier) freeSettingTier.value = data.freeSettingTier
   if (data.form) form.value = { ...form.value, ...data.form }
   if (data.templateData) templateData.value = data.templateData
   if (data.plotCardData) plotCardData.value = { ...createEmptyPlotCardData(form.value.subCategory), ...data.plotCardData }
+  if (data.gameCardData) gameCardData.value = { ...createEmptyGameCardData(), ...data.gameCardData }
+  if (data.itemAttributeCardData) itemAttributeCardData.value = { ...createEmptyItemAttributeCardData(), ...data.itemAttributeCardData }
+  if (data.globalCardData) globalCardData.value = { ...createEmptyGlobalCardData(), ...data.globalCardData }
+  if (data.selectedCardTypes) Object.assign(selectedCardTypes, { role: true, plot: false, game: false, itemAttribute: false, global: false }, data.selectedCardTypes)
+  if (data.multiplayerModeEnabled !== undefined) multiplayerModeEnabled.value = !!data.multiplayerModeEnabled
   if (data.mediaData) Object.assign(mediaData, data.mediaData)
   if (data.emotionAnimations) emotionAnimations.splice(0, emotionAnimations.length, ...data.emotionAnimations)
   if (data.intimacyTriggers) intimacyTriggers.splice(0, intimacyTriggers.length, ...data.intimacyTriggers)
@@ -1837,29 +2099,55 @@ function restoreDraft(data: any) {
   if (data.aiCreativity !== undefined) aiCreativity.value = data.aiCreativity
   if (data.aiDetailLevel !== undefined) aiDetailLevel.value = data.aiDetailLevel
 }
-function handleDraftRestore() {
-  const draft = loadDraft()
-  if (draft && hasDraftContentInDraft(draft)) {
-    uni.showModal({
-      title: '检测到未提交的草稿',
-      content: '是否继续编辑上次未完成的角色？',
-      confirmText: '继续编辑',
-      cancelText: '丢弃',
-      success: (res: { confirm: boolean }) => {
-        if (res.confirm) { restoreDraft(draft); uni.showToast({ title: '已恢复草稿', icon: 'none' }) }
-        else { clearDraft() }
-      },
-    })
+function applyDraftRecord(record: CharacterCreateDraftRecord) {
+  restoreDraft(record.payload)
+  activeDraftId.value = record.id
+  setLastActiveCharacterCreateDraftId(record.id)
+}
+
+function openDraftFromPanel(record: CharacterCreateDraftRecord) {
+  applyDraftRecord(record)
+  draftPanelVisible.value = false
+  uni.showToast({ title: `已打开「${record.title}」`, icon: 'none' })
+}
+
+async function handleDraftPanelChanged() {
+  if (!activeDraftId.value) return
+  const draft = await getCharacterCreateDraft(activeDraftId.value)
+  if (!draft) {
+    activeDraftId.value = null
+    setLastActiveCharacterCreateDraftId(null)
   }
 }
-function hasDraftContentInDraft(draft: any): boolean { return !!(draft?.form?.name?.trim() || draft?.templateData?.description?.trim() || draft?.plotCardData?.basic?.plotName?.trim() || draft?.plotCardData?.basic?.plotGoal?.trim()) }
 
-watch(() => JSON.stringify({ f: form.value, t: templateData.value, plot: plotCardData.value, m: mediaData, e: emotionAnimations, u: userData, p: personaData, l: lorebookData, w: worldBooksData, d: depthPromptData, a: altGreetings.value, tags: customTags.value, sm: structuredMembers.value, cg: contextualGreetings, nt: negativeTraits, pf: physicalFeatures, sp: speechPatterns, imt: intimacyTriggers, ttsMode: ttsMode.value, tts: ttsConfigs, mw: mediaWeightsData }),
-  () => { if (draftTimer) clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft(), SAVE_DEBOUNCE) },
+async function handleDraftRestore() {
+  await migrateLegacyCharacterDraftIfNeeded()
+  const draft = await getLastActiveCharacterCreateDraft()
+  if (!draft) return
+  uni.showModal({
+    title: '继续上次草稿？',
+    content: `检测到未提交草稿「${draft.title}」，是否继续编辑？`,
+    confirmText: '继续编辑',
+    cancelText: '暂不',
+    success: (res: { confirm: boolean }) => {
+      if (res.confirm) {
+        applyDraftRecord(draft)
+        uni.showToast({ title: '已恢复草稿', icon: 'none' })
+      }
+    },
+  })
+}
+
+watch(() => JSON.stringify({ f: form.value, t: templateData.value, plot: plotCardData.value, game: gameCardData.value, itemAttribute: itemAttributeCardData.value, global: globalCardData.value, selectedCards: selectedCardTypes, multiplayer: multiplayerModeEnabled.value, m: mediaData, e: emotionAnimations, u: userData, p: personaData, l: lorebookData, w: worldBooksData, d: depthPromptData, a: altGreetings.value, tags: customTags.value, sm: structuredMembers.value, cg: contextualGreetings, nt: negativeTraits, pf: physicalFeatures, sp: speechPatterns, imt: intimacyTriggers, ttsMode: ttsMode.value, tts: ttsConfigs, mw: mediaWeightsData, activeDraftId: activeDraftId.value }),
+  () => {
+    if (!activeDraftId.value) return
+    if (draftTimer) clearTimeout(draftTimer)
+    draftTimer = setTimeout(() => { void persistActiveDraft() }, SAVE_DEBOUNCE)
+  },
   { deep: true }
 )
 
-onMounted(() => { handleDraftRestore() })
+onMounted(() => { void handleDraftRestore() })
 </script>
 
 <style lang="scss" scoped>
@@ -1877,17 +2165,88 @@ $mint: #34d399;
 }
 
 .page-header {
-  position: sticky; top: 0; z-index: 20;
-  display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-height: calc(env(safe-area-inset-top, 0px) + var(--top-bar-height));
-  padding: calc(env(safe-area-inset-top, 0px) + 4px) 12px 6px;
-  border-bottom: 1px solid var(--top-bar-border); background: var(--top-bar-surface);
+  padding: calc(env(safe-area-inset-top, 0px) + 4px) 8px 6px 4px;
+  overflow: visible;
+  border-bottom: 1px solid var(--top-bar-border);
+  background: var(--top-bar-surface);
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(28px) saturate(1.45); -webkit-backdrop-filter: blur(28px) saturate(1.45);
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
 }
-.page-title { min-width: 0; margin: 0; color: var(--text-primary); font-size: 17px; font-weight: 600; letter-spacing: 0.04em; text-align: center; }
-.header-placeholder { display: block; width: 48px; height: 48px; }
-.back-btn { align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; padding: 0; border: none; background: transparent; color: var(--text-primary); cursor: pointer; transition: opacity 0.2s, transform 0.2s; &:hover { opacity: 0.78; } &:active { transform: scale(0.95); } }
+.page-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 168px);
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.header-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  z-index: 2;
+}
+.header-placeholder { display: block; width: 40px; height: 40px; flex-shrink: 0; }
+.header-draft-btn {
+  min-height: 28px;
+  min-width: 40px;
+  padding: 0 7px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  &:hover { background: rgba(56, 189, 248, 0.2); border-color: rgba(56, 189, 248, 0.65); }
+  &:active { transform: scale(0.97); }
+  &.ghost {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    &:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.24); }
+  }
+}
+.back-btn {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  &:hover { opacity: 0.78; }
+  &:active { transform: scale(0.95); }
+}
 .back-icon { width: 22px; height: 22px; }
 
 /* ── Step 0: 入口选择页 ── */
@@ -1903,6 +2262,92 @@ $mint: #34d399;
 .entry-desc { font-size: 13px; color: rgba(255, 255, 255, 0.75); line-height: 1.5; }
 .quick-card { background: linear-gradient(135deg, #4A90D9, #2C5F8D); box-shadow: 0 8px 24px rgba(74, 144, 217, 0.35); }
 .manual-card { background: linear-gradient(135deg, #6B5B95, #4A3F6B); box-shadow: 0 8px 24px rgba(107, 91, 149, 0.35); }
+
+.header-enter-btn {
+  min-height: 28px;
+  min-width: 48px;
+  padding: 0 10px;
+  font-size: 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.9), rgba(52, 211, 153, 0.82));
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  cursor: pointer;
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.step-cards {
+  width: min(720px, calc(100% - 32px));
+  margin: 20px auto 0;
+  padding-bottom: 24px;
+}
+.cards-intro {
+  margin-bottom: 20px;
+  h2 { margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+  p { margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+}
+.cards-intro-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+
+  h2 {
+    margin: 0;
+  }
+}
+.multiplayer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: $mint;
+  }
+}
+.picker-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.picker-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  &.active { border-color: rgba(125, 211, 252, 0.42); background: linear-gradient(135deg, rgba(125, 211, 252, 0.12), rgba(52, 211, 153, 0.06)); }
+  &.locked { cursor: default; }
+}
+.picker-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.picker-title { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; }
+.picker-badge { margin-left: auto; font-size: 11px; color: $sky-light; font-weight: 600; }
 
 /* ── Step 1A: 快速创建页 ── */
 .step-quick { width: min(960px, calc(100% - 32px)); margin: 16px auto 0; }
@@ -1950,7 +2395,16 @@ $mint: #34d399;
 .editor-body { width: min(960px, calc(100% - 32px)); margin: 16px auto 0; }
 .source-badge { display: inline-flex; padding: 6px 12px; border-radius: 999px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.2); color: $sky-light; font-size: 12px; font-weight: 500; margin-bottom: 16px; }
 
-.base-info-section { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px; }
+.base-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 16px;
+}
 .base-row { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 .avatar-upload { position: relative; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0; cursor: pointer;
   .avatar-img { width: 100%; height: 100%; object-fit: cover; }
@@ -1965,6 +2419,111 @@ $mint: #34d399;
   .avatar-upload { width: 76px; height: 76px; }
 }
 
+.base-info-section.multiplayer-base-info {
+  gap: 14px;
+}
+
+.multiplayer-base-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.primary-character-column,
+.multiplayer-member-slot,
+.add-multiplayer-member {
+  flex: 0 0 auto;
+}
+
+.primary-character-column {
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.primary-character-column .avatar-upload {
+  width: 88px;
+  height: 88px;
+}
+
+.character-name-input,
+.member-name-input {
+  text-align: center;
+}
+
+.multiplayer-member-strip {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.multiplayer-member-slot {
+  position: relative;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.member-avatar-upload {
+  width: 88px;
+  height: 88px;
+}
+
+.member-remove-btn {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+  cursor: pointer;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+.add-multiplayer-member {
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.18s;
+
+  &:active {
+    transform: scale(0.96);
+  }
+}
+
+.multi-add-svg {
+  display: block;
+  width: 88px;
+  height: 88px;
+}
+
 .chip-empty {
   min-height: 34px;
   display: flex;
@@ -1977,16 +2536,17 @@ $mint: #34d399;
   background: rgba(255, 255, 255, 0.03);
 }
 
-.config-card { border-radius: 8px; padding: 16px; min-height: 100px; background: var(--card-bg); border: 1px solid var(--border-color); position: relative; overflow: hidden; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
+.config-card { border-radius: 8px; padding: 0; background: var(--card-bg); border: 1px solid var(--border-color); position: relative; overflow: hidden; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
   &:active { transform: scale(0.98); }
   &.filled { border-color: var(--primary-color); background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), var(--card-bg)); }
 }
-.card-header { display: flex; flex-direction: column; gap: 6px; }
-.card-emoji { font-size: 32px; line-height: 1; }
+.card-header { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 12px 14px;
+  &::after { content: ''; width: 18px; height: 18px; flex-shrink: 0; opacity: 0.72; background: currentColor; color: var(--text-tertiary); mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+}
+.card-emoji { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 8px; background: rgba(255, 255, 255, 0.08); font-size: 20px; line-height: 1; flex-shrink: 0; }
 .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-.card-status { font-size: 12px; color: var(--text-tertiary); }
-.card-meta { display: flex; flex-direction: column; gap: 2px; }
-.card-body { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.06); display: flex; flex-direction: column; gap: 12px; cursor: default; }
+.card-meta { display: flex; align-items: center; flex: 1; min-width: 0; }
+.card-body { padding: 0 14px 14px; border-top: 1px solid rgba(255, 255, 255, 0.06); display: flex; flex-direction: column; gap: 12px; cursor: default; }
 .card-desc { font-size: 12px; color: var(--text-tertiary); line-height: 1.6; margin: 0; }
 .collapse-btn { align-self: flex-end; padding: 4px 10px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 3px; background: transparent; color: var(--text-tertiary); font: inherit; font-size: 12px; cursor: pointer; &:hover { border-color: rgba(56, 189, 248, 0.3); color: var(--text-secondary); } }
 
@@ -2120,5 +2680,93 @@ $mint: #34d399;
 
 @media (max-width: 640px) {
   .template-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.avatar-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.avatar-sheet-card {
+  width: min(420px, 100%);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(10, 16, 27, 0.98), rgba(6, 11, 20, 0.98));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+
+.avatar-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px;
+
+  h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 16px;
+  }
+}
+
+.avatar-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.avatar-sheet-options {
+  display: grid;
+  gap: 8px;
+  padding: 8px 16px 16px;
+}
+
+.avatar-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+
+  &:hover {
+    border-color: rgba(56, 189, 248, 0.28);
+    background: rgba(56, 189, 248, 0.08);
+  }
+}
+
+.avatar-sheet-option-icon {
+  font-size: 20px;
+  line-height: 1;
 }
 </style>

@@ -93,14 +93,6 @@
               <div v-if="card.chatBackground" class="card-media-preview"><img :src="card.chatBackground" /></div>
             </div>
             <div class="card-field">
-              <label class="card-field-label">角色切换动图</label>
-              <div class="card-row">
-                <button type="button" class="card-upload-btn" @click="uploadCardMedia(idx, 'switchAnimation')">上传动图</button>
-                <button v-if="card.switchAnimation" type="button" class="card-upload-btn remove" @click="card.switchAnimation = ''">移除</button>
-              </div>
-              <div v-if="card.switchAnimation" class="card-media-preview"><img :src="card.switchAnimation" /></div>
-            </div>
-            <div class="card-field">
               <label class="card-field-label">角色情感动图</label>
               <button type="button" class="card-upload-btn" @click="addCardEmotion(idx)">
                 <svg viewBox="0 0 24 24" width="10" height="10"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
@@ -142,7 +134,6 @@ interface CharacterCard {
   ttsVoice: string
   ttsWeight: number
   chatBackground: string
-  switchAnimation: string
   emotionAnimations: EmotionAnim[]
 }
 
@@ -161,7 +152,7 @@ const expandedCards = ref(new Set<number>())
 const expandedMedia = ref(new Set<number>())
 
 function emptyCard(): CharacterCard {
-  return { name: '', personality: '', identity: '', speakingStyle: '', ttsVoice: '', ttsWeight: 100, chatBackground: '', switchAnimation: '', emotionAnimations: [] }
+  return { name: '', personality: '', identity: '', speakingStyle: '', ttsVoice: '', ttsWeight: 100, chatBackground: '', emotionAnimations: [] }
 }
 
 const cards = ref<CharacterCard[]>([])
@@ -187,7 +178,6 @@ watch(cards, (newCards) => {
       if (c.speakingStyle.trim()) parts.push(`说话风格：${c.speakingStyle}`)
       if (c.ttsVoice.trim()) parts.push(`TTS音色：${c.ttsVoice}${c.ttsWeight !== 100 ? `(${c.ttsWeight}%)` : ''}`)
       if (c.chatBackground) parts.push('[已配置聊天背景]')
-      if (c.switchAnimation) parts.push('[已配置切换动图]')
       if (c.emotionAnimations.length) parts.push(`[情感动图×${c.emotionAnimations.length}]`)
       return parts.join('——')
     })
@@ -235,7 +225,7 @@ function toggleMedia(idx: number) {
   expandedMedia.value = next
 }
 
-function uploadCardMedia(idx: number, key: 'chatBackground' | 'switchAnimation') {
+function uploadCardMedia(idx: number, key: 'chatBackground') {
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],

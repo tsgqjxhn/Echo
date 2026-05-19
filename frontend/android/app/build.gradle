@@ -73,11 +73,20 @@ try {
 }
 
 gradle.buildFinished {
-    def apkFile = file("${buildDir}/outputs/apk/debug/app-debug.apk")
-    if (apkFile.exists()) {
+    def desktopDir = "C:/Users/EricWeston/Desktop"
+    def releaseApk = file("${buildDir}/outputs/apk/release/app-release.apk")
+    def debugApk = file("${buildDir}/outputs/apk/debug/app-debug.apk")
+    if (releaseApk.exists()) {
         copy {
-            from apkFile
-            into "C:/Users/EricWeston/Desktop"
+            from releaseApk
+            into desktopDir
+            rename { "Echo.apk" }
+        }
+    }
+    if (debugApk.exists()) {
+        copy {
+            from debugApk
+            into desktopDir
             rename { "Echo-debug.apk" }
         }
     }

@@ -460,6 +460,11 @@ export function exitApp(): void {
     const cap = (window as any).Capacitor
     if (cap?.Plugins?.App?.exitApp) {
       cap.Plugins.App.exitApp()
+      return
+    }
+    const nativeAppControl = (window as any).EchoAppControl
+    if (nativeAppControl?.exitApp) {
+      nativeAppControl.exitApp()
     }
   }
 }

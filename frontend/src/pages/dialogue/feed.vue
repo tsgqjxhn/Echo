@@ -1,6 +1,12 @@
 <template>
-  <div class="dialogue-page" @pointerdown="unlockAudio">
-    <section class="dialogue-shell">
+  <div class="dialogue-page" :class="{ 'dialogue-page--empty': showEmptyDialogueState }" @pointerdown="unlockAudio">
+    <section v-if="showEmptyDialogueState" class="empty-dialogue-modal" role="dialog" aria-modal="true" aria-labelledby="empty-dialogue-title">
+      <strong id="empty-dialogue-title">暂无可用角色</strong>
+      <p>去创建吧</p>
+      <button type="button" class="empty-dialogue-action" @click="router.push('/character/create')">创建角色</button>
+    </section>
+
+    <section v-else class="dialogue-shell">
       <header class="dialogue-header">
         <button v-if="!isFromTabBar" type="button" class="btn-back" @click="router.back()">
           <svg viewBox="0 0 1024 1024" width="20" height="20" aria-hidden="true">
@@ -65,11 +71,6 @@
               <img :src="playerAvatar" alt="你" class="bubble-avatar bubble-avatar--user" />
             </template>
           </article>
-
-          <div v-if="!hasStoryContent" class="empty-block">
-            <strong>暂无可用角色</strong>
-            <p>去创建吧</p>
-          </div>
 
           <article v-if="isTyping" class="message-row message-row--assistant">
             <img :src="storyDisplayAvatar" alt="对方" class="bubble-avatar bubble-avatar--assistant" />
@@ -336,6 +337,7 @@ const currentMomentImageSrc = ref('')
 const pendingFriendRequestName = ref('')
 const dialogueTTSService = ref<TTSService | null>(null)
 const speakingDialogueMessageId = ref('')
+const emptyStateReady = ref(false)
 
 let activeRunToken = 0
 let bgmAudio: HTMLAudioElement | null = null
@@ -540,6 +542,7 @@ const activePrompt = computed(() => {
 const storyGuidanceText = computed(() => runtimeState.value.currentGuide || '')
 const playerAvatar = computed(() => userStore.userAvatar || defaultAvatar)
 const hasStoryContent = computed(() => storyLibrary.value.conversations.length > 0)
+const showEmptyDialogueState = computed(() => !hasStoryContent.value && emptyStateReady.value)
 const storyDisplayAvatar = computed(() =>
   resolveStoryAvatar(runtimeState.value.currentAvatarKey) || activeConversation.value?.avatar || defaultAvatar
 )
@@ -1581,6 +1584,7 @@ watch(
 )
 
 onMounted(() => {
+  emptyStateReady.value = false
   const initialStoryLibrary = loadStoryLibrary()
   if (initialStoryLibrary.conversations.length > 0) {
     void initializeDialogue()
@@ -1593,6 +1597,7 @@ onMounted(() => {
       isTyping.value = false
       isBusy.value = false
       pendingInlineBranchReply.value = null
+      emptyStateReady.value = true
     }
   })
 })
@@ -1633,6 +1638,55 @@ onUnmounted(() => {
   background:
     radial-gradient(circle at top, rgba(146, 165, 188, 0.16), transparent 30%),
     linear-gradient(180deg, rgb(7, 8, 11) 0%, rgb(11, 12, 15) 52%, rgb(15, 17, 20) 100%);
+}
+
+.dialogue-page--empty {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 24px;
+  background: rgb(7, 8, 11);
+}
+
+.empty-dialogue-modal {
+  width: min(360px, 100%);
+  padding: 22px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  text-align: center;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.42);
+}
+
+.empty-dialogue-modal strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.empty-dialogue-modal p {
+  margin: 8px 0 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.empty-dialogue-action {
+  min-height: 40px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.9), rgba(52, 211, 153, 0.82));
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .dialogue-shell {
